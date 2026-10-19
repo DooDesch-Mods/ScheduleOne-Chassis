@@ -28,6 +28,7 @@ namespace Chassis
             Log.Msg("[Core] Harmony patches applied by MelonLoader on " + patched + " method(s).");
             Net.ChassisNet.Apply(HarmonyInstance);
             Net.ChassisSync.Init();
+            Interior.BaseInterior.LoadSetting();
 
 #if DEBUG
             Log.Msg("Chassis (DEBUG) loaded. Type 'chassis help' in the console.");
