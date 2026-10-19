@@ -81,6 +81,8 @@ namespace Chassis.Seating
             }
             _rigs.Clear();
             _remoteDrive.Clear();
+            _adoptFailed.Clear();
+            _nextAdopt = 0f;
             _sentDriveVehicle = -1;
             _sentDrive = 0f;
         }
@@ -155,9 +157,39 @@ namespace Chassis.Seating
             rig.Pose(Time.deltaTime);
         }
 
-        /// <summary>Drops rigs whose player left the game.</summary>
+        private static float _nextAdopt;
+        private static readonly HashSet<long> _adoptFailed = new HashSet<long>();
+
+        /// <summary>
+        /// Seats remote players already sitting in a profiled vehicle without a rig: a peer that joined after they got in,
+        /// or a vehicle that got its profile after they did. Vanilla's vehicle-changed callback has run for them already.
+        /// </summary>
+        private static void Adopt()
+        {
+            if (Time.time < _nextAdopt) return;
+            _nextAdopt = Time.time + 1f;
+            var players = Player.PlayerList;
+            if (players == null) return;
+            for (int i = 0; i < players.Count; i++)
+            {
+                Player p = players[i];
+                if (p == null || p.IsOwner || Of(p) != null) continue;
+                LandVehicle lv = p.CurrentVehicle != null ? p.CurrentVehicle.GetComponent<LandVehicle>() : null;
+                if (!HasProfile(lv)) continue;
+                long key = ((long)p.GetInstanceID() << 32) ^ (uint)Ids.Of(lv);
+                if (_adoptFailed.Contains(key)) continue;
+                if (Seat(p, lv, SeatOf(p, lv), false, "already seated when seen") == null)
+                {
+                    _adoptFailed.Add(key);
+                    Core.Log.Warning("[Seat] remote " + SeatRig.Who(p) + " sits in " + ChassisApi.CodeOf(lv) + " net " + Ids.Of(lv) + " but could not be seated - vanilla keeps the body hidden.");
+                }
+            }
+        }
+
+        /// <summary>Drops rigs whose player left the game and seats remote players found sitting without one.</summary>
         internal static void Sweep()
         {
+            Adopt();
             _dead.Clear();
             foreach (var kv in _rigs) if (kv.Value.Player == null || kv.Value.Vehicle == null) _dead.Add(kv.Key);
             foreach (int k in _dead)
