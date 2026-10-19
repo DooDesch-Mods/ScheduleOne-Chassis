@@ -26,11 +26,32 @@ namespace Chassis.Interior
             "hotbox", "cheetah", "dinkler", "hounddog", "shitbox", "shitbox_police", "bruiser", "bruiser_police", "veeper",
         };
 
+        /// <summary>Vanilla bodies whose cabin is closed by a lid at the belt line.</summary>
+        private static readonly HashSet<string> LiddedCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "cheetah", "shitbox", "shitbox_police" };
+
         /// <summary>Hips above the cushion top for the fitted seats.</summary>
         private const float HipHeight = 0.08f;
 
-        /// <summary>Vanilla cars get the base interior. Off until the look is approved; the debug console switches it.</summary>
+        /// <summary>Vanilla cars get the base interior. Set from the preference at start; the debug console switches it live.</summary>
         internal static bool Enabled;
+
+        /// <summary>Reads <c>BaseInterior</c> from the Chassis preferences (on unless the player turned it off).</summary>
+        internal static void LoadSetting()
+        {
+            try
+            {
+                var cat = MelonLoader.MelonPreferences.CreateCategory("Chassis");
+                var entry = cat.CreateEntry("BaseInterior", true, "Base interior",
+                    "Seats, dashboard, steering wheel and tinted glass for the vanilla cars, and visible NPC drivers.");
+                Enabled = entry.Value;
+                Core.Log.Msg("[Interior] base interior " + (Enabled ? "on" : "off") + " (preference BaseInterior).");
+            }
+            catch (Exception e)
+            {
+                Enabled = true;
+                Core.Log.Warning("[Interior] reading the BaseInterior preference failed - the base interior stays on: " + e.Message);
+            }
+        }
 
         private sealed class Built
         {
@@ -130,10 +151,14 @@ namespace Chassis.Interior
                 Transform root = lv.transform;
                 float belt = band.min.y, roof = band.max.y;
                 // The avatars' heads are large for the vanilla cabins. The body sits low enough that the top of the head
-                // stays under the roof (head bone 0.78 m above the cushion, its top 0.35 m above the bone); first
-                // person looks from just above the belt line instead, where the own head is hidden anyway.
+                // stays under the roof (head bone 0.78 m above the cushion, its top 0.35 m above the bone). First
+                // person looks from the natural eye height, under the roof and at least just above the belt line.
                 float cushion = Mathf.Min(belt + (roof - belt) * 0.45f - 0.70f, roof - 1.14f);
-                float eyes = Mathf.Max(cushion + 0.70f, belt + 0.19f);
+                float eyes = Mathf.Max(Mathf.Min(cushion + 0.86f, roof - 0.08f), belt + 0.19f);
+                // These bodies close the cabin with a lid at the belt line; dashboard, wheel and eyes sit above it.
+                bool lid = LiddedCodes.Contains(code);
+                float lift = lid ? 0.16f : 0f;
+                if (lid) eyes = Mathf.Max(eyes, Mathf.Min(belt + 0.30f, roof - 0.08f));
                 float floor = cushion - 0.32f;
 
                 var profile = new ChassisProfile { Code = code, Interior = new InteriorProfile { Glass = glass } };
@@ -151,19 +176,27 @@ namespace Chassis.Interior
                 }
                 if (driver < 0) driver = 0;
 
+                // Some vanilla seat transforms sit right at the windscreen; every row moves back until the front row
+                // has room for a wheel and a chest behind the dashboard.
+                float shift = Mathf.Min(0f, band.max.z - 0.7f - frontZ);
+                for (int i = 0; i < seats.Length; i++) local[i].z += shift;
+                frontZ += shift;
+
                 // Steering wheel and dashboard, from the driver's place.
                 Vector3 d = local[driver];
                 float seatZ = d.z;
-                Vector3 wheelAt = new Vector3(d.x, belt - 0.13f, seatZ + 0.5f);
-                parts.Add(new KitPart { Kind = "wheel", Position = wheelAt, Rotation = new Vector3(22f, 0f, 0f), Size = new Vector3(0.17f, 0f, 0.3f), Color = new Color(0.1f, 0.1f, 0.11f) });
+                // In the short cabins the windscreen starts barely 0.2 m ahead of where the wheel wants to be; the
+                // wheel stays clear of the windscreen and the dashboard gets shallower instead of covering the wheel.
                 float dashFront = band.max.z;
-                float dashBack = wheelAt.z + 0.12f;
+                Vector3 wheelAt = new Vector3(d.x, belt - 0.13f + lift, Mathf.Min(seatZ + 0.5f, dashFront - 0.18f));
+                parts.Add(new KitPart { Kind = "wheel", Position = wheelAt, Rotation = new Vector3(22f, 0f, 0f), Size = new Vector3(0.17f, 0f, 0.3f), Color = new Color(0.12f, 0.12f, 0.13f) });
+                float dashBack = wheelAt.z + 0.08f;
                 parts.Add(new KitPart
                 {
                     Kind = "dash",
-                    Position = new Vector3(band.center.x, belt + 0.02f, dashFront),
-                    Size = new Vector3(Mathf.Max(0.6f, band.size.x - 0.12f), Mathf.Clamp(belt + 0.02f - floor - 0.3f, 0.2f, 0.45f), Mathf.Max(0.25f, dashFront - dashBack)),
-                    Color = new Color(0.13f, 0.13f, 0.14f),
+                    Position = new Vector3(band.center.x, belt + 0.02f + lift, dashFront),
+                    Size = new Vector3(Mathf.Max(0.6f, band.size.x - 0.12f), lid ? 0.2f : Mathf.Clamp(belt + 0.02f - floor - 0.3f, 0.2f, 0.45f), Mathf.Max(0.08f, dashFront - dashBack)),
+                    Color = new Color(0.18f, 0.18f, 0.19f),
                 });
 
                 // Seats: the front row one each, a row behind it as one bench.
@@ -207,7 +240,7 @@ namespace Chassis.Interior
 
                 bool used = ChassisApi.Register(profile);
                 Core.Log.Msg("[Interior] fitted " + code + ": window band " + ProfileJson.F(band.min) + " .. " + ProfileJson.F(band.max) + ", cushion "
-                    + cushion.ToString("F2") + ", " + parts.Count + " kit part(s), " + profile.Seats.Count + " seat(s)" + (used ? "." : " - a JSON file wins."));
+                    + cushion.ToString("F2") + ", driver z " + seatZ.ToString("F2") + (shift < 0f ? " (moved back " + (-shift).ToString("F2") + ")" : "") + (lid ? ", above the cabin lid" : "") + ", wheel z " + wheelAt.z.ToString("F2") + ", dash " + (dashFront - dashBack).ToString("F2") + " m deep, " + parts.Count + " kit part(s), " + profile.Seats.Count + " seat(s)" + (used ? "." : " - a JSON file wins."));
             }
             catch (Exception e)
             {
