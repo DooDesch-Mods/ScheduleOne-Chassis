@@ -25,9 +25,20 @@ namespace Chassis.Api
             var seats = vehicle.Seats;
             if (seats == null || seatIndex < 0 || seatIndex >= seats.Length || seats[seatIndex] == null)
                 throw new ArgumentOutOfRangeException(nameof(seatIndex), vehicle.name + " has no seat " + seatIndex);
+            return FitSeat(vehicle, seatIndex, seats[seatIndex].transform.position, frame, steeringPivot, hipHeight);
+        }
 
+        /// <summary>
+        /// As <see cref="FitSeat(LandVehicle, int, Transform, Transform, float)"/>, for a body that sits somewhere else
+        /// than the vanilla seat: a mod's own chair on a vehicle it built over a vanilla one.
+        /// </summary>
+        /// <param name="seatPoint">World point the hips rest on, minus <paramref name="hipHeight"/>.</param>
+        public static SeatProfile FitSeat(LandVehicle vehicle, int seatIndex, Vector3 seatPoint, Transform frame, Transform steeringPivot = null, float hipHeight = 0.15f)
+        {
+            if (vehicle == null) throw new ArgumentNullException(nameof(vehicle));
+            if (frame == null) throw new ArgumentNullException(nameof(frame));
             Transform root = vehicle.transform;
-            Vector3 s = seats[seatIndex].transform.position;
+            Vector3 s = seatPoint;
             Vector3 up = root.up, fwd = root.forward, right = root.right;
             Vector3 F(Vector3 world) => frame.InverseTransformPoint(world);
 
@@ -67,6 +78,9 @@ namespace Chassis.Api
 
         /// <summary>The local player looks through the eyes of their seated body (key V).</summary>
         public static bool FirstPersonActive => FirstPersonView.Active;
+
+        /// <summary>The key that switches the first-person view, for a mod's own key hints.</summary>
+        public static KeyCode FirstPersonKey => FirstPersonView.Key;
 
         /// <summary>Raised on this peer with the new state whenever the local first-person view turns on or off.</summary>
         public static event Action<bool> FirstPersonChanged;

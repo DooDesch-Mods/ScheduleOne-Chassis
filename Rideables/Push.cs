@@ -271,7 +271,7 @@ namespace Chassis.Rideables
         {
             private static void Postfix(LandVehicle __instance)
             {
-                if (Time.time < DebugUntil && DebugDrive.y != 0f && __instance.LocalPlayerIsDriver && WheelchairType.Is(__instance))
+                if (Time.time < DebugUntil && DebugDrive.y != 0f && __instance.LocalPlayerIsDriver)
                     __instance.CurrentSteerAngle = Mathf.MoveTowards(__instance.CurrentSteerAngle, DebugDrive.y * __instance.ActualMaxSteeringAngle, __instance.steerRate * Time.deltaTime);
                 if (_input.Count == 0 || !__instance.LocalPlayerIsDriver || !WheelchairType.Is(__instance)) return;
                 if (!_input.TryGetValue(Ids.Of(__instance), out var input) || input.y == 0f) return;

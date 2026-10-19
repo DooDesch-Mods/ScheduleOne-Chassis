@@ -79,8 +79,8 @@ namespace Chassis.Debugging
                         Say("view [pitch]                 - first person on/off while seated (key V); a pitch turns it on looking down that far");
                         Say("exit                         - leave the vehicle (as the Interact key)");
                         Say("move <yaw> [m]             - turn the nearest wheelchair vehicle by yaw, then shift it m along its facing");
-                        Say("drive|pushin <fwd> <steer> [s] - driver or pusher input for s seconds (default 3)");
-                        Say("cam <dist> <yaw> <height>|off - orbit camera around the nearest wheelchair vehicle");
+                        Say("drive|pushin <fwd> <steer> [s] - driver or pusher input for s seconds (default 3; steer works in any car)");
+                        Say("cam <dist> <yaw> <height>|off - orbit camera around your vehicle or the nearest wheelchair");
                         Say("spawn | despawn              - wheelchair vehicle 2 m ahead (host) | remove all");
                         Say("tree [i]                     - hierarchy of wheelchair prop i");
                         Say("profile list|show|save|reload|set <field> <values> [code] [seat] - seat profiles (see 'chassis profile')");

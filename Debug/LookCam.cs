@@ -4,7 +4,7 @@ using HarmonyLib;
 namespace Chassis.Debugging
 {
     /// <summary>
-    /// Look-check camera for screenshots: orbits the nearest wheelchair vehicle at a distance, a yaw against the
+    /// Look-check camera for screenshots: orbits the local player's vehicle, else the nearest vehicle with a seated body, else the nearest wheelchair vehicle at a distance, a yaw against the
     /// chair's facing and a height, following it while it rolls. In a vehicle it writes after VehicleCamera; on foot
     /// through PlayerCamera.OverrideTransform every frame.
     /// </summary>
@@ -40,7 +40,15 @@ namespace Chassis.Debugging
         {
             var local = Player.Local;
             if (local == null) return null;
+            if (local.CurrentVehicle != null) return local.CurrentVehicle.transform;
             Transform best = null; float bd = float.MaxValue;
+            foreach (var rig in Seating.Occupants.All)
+            {
+                if (rig.Vehicle == null || rig.IsPusher) continue;
+                float d = Vector3.Distance(rig.Vehicle.position, local.transform.position);
+                if (d < bd) { bd = d; best = rig.Vehicle; }
+            }
+            if (best != null) return best;
             foreach (var v in UnityEngine.Object.FindObjectsOfType<LandVehicle>())
             {
                 if (!Rideables.WheelchairType.Is(v)) continue;
@@ -57,6 +65,9 @@ namespace Chassis.Debugging
             if (t == null) return false;
             Vector3 fwd = Vector3.ProjectOnPlane(t.forward, Vector3.up).normalized;
             Vector3 centre = t.position + Vector3.up * 0.7f;
+            // Frame a seated body's head where there is one, so a car shot shows the driver and not the bonnet.
+            foreach (var rig in Seating.Occupants.All)
+                if (rig.Vehicle == t && !rig.IsPusher && rig.Head != null) { centre = rig.Head.position; break; }
             Vector3 dir = Quaternion.Euler(0f, _yaw, 0f) * fwd;
             at = t.position + dir * _dist + Vector3.up * _height;
             rot = Quaternion.LookRotation(centre - at, Vector3.up);
