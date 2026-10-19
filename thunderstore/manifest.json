@@ -1,0 +1,12 @@
+{
+  "name": "Chassis",
+  "version_number": "1.0.0",
+  "website_url": "https://github.com/DooDesch-Mods/ScheduleOne-Chassis",
+  "description": "Vehicle framework for Schedule I. Drivers and passengers sit visibly with hands on the wheel. Adds a first person view, horn, indicators, locks and owners, a base interior for vanilla cars and co-op sync. Yesla and RVRepairVan use it.",
+  "dependencies": [
+    "LavaGang-MelonLoader-0.7.3"
+  ],
+  "contributors": [
+    "DooDesch"
+  ]
+}

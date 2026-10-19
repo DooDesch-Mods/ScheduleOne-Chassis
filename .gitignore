@@ -2,3 +2,9 @@ bin/
 obj/
 *.user
 .vs/
+.claude/
+Mods/
+release/
+nexus/
+thunderstore-package/
+*.zip
