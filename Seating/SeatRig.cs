@@ -19,6 +19,7 @@ namespace Chassis.Seating
 
         internal readonly Player Player;
         internal readonly Transform Vehicle;
+        private readonly LandVehicle _lv;
         internal readonly string Code;
         internal readonly int SeatIndex;
 
@@ -46,9 +47,6 @@ namespace Chassis.Seating
         private bool _ikOn;
         private bool _shownLogged;
 
-        /// <summary>Extra input on top of the driver's for the push stroke: >0 forward, <0 back. Set by Push.</summary>
-        internal float StrokeDrive;
-
         internal bool Alive => Player != null && Vehicle != null && _avatar != null && _anchor != null;
 
         /// <summary>Seat index used for the one who pushes from behind; that pose comes from the push profile.</summary>
@@ -60,27 +58,27 @@ namespace Chassis.Seating
         internal SeatProfile Profile => _seat;
         internal Transform Head => _ik != null && _ik.BodyIK != null ? _ik.BodyIK.references.head : null;
 
-        private SeatRig(Player player, Transform vehicle, Transform frame, string code, int seat, GameAvatar avatar, AvatarIKController ik)
+        private SeatRig(Player player, LandVehicle lv, Transform frame, string code, int seat, GameAvatar avatar, AvatarIKController ik)
         {
-            Player = player; Vehicle = vehicle; _frame = frame; Code = code; SeatIndex = seat; _avatar = avatar; _ik = ik;
+            Player = player; _lv = lv; Vehicle = lv.transform; _frame = frame; Code = code; SeatIndex = seat; _avatar = avatar; _ik = ik;
         }
 
         /// <summary>Builds the rig and seats the avatar, or returns null with the reason logged.</summary>
-        internal static SeatRig Create(Player player, Transform vehicle, string code, int seatIndex, bool glide)
+        internal static SeatRig Create(Player player, LandVehicle lv, string code, int seatIndex, bool glide)
         {
             var profile = ChassisApi.Get(code);
             var seat = seatIndex == PushSeat ? FromPush(profile?.Push) : profile?.Seat(seatIndex);
             if (seat == null) { Core.Log.Msg("[Seat] '" + code + "' seat " + seatIndex + " has no profile, vanilla keeps the body."); return null; }
 
-            Transform frame = string.IsNullOrEmpty(profile.Frame) ? vehicle : vehicle.Find(profile.Frame);
-            if (frame == null) { Core.Log.Error("[Seat] '" + code + "': frame '" + profile.Frame + "' not found under " + vehicle.name + ", body stays hidden."); return null; }
+            Transform frame = Vehicles.Frames.Resolve(lv.transform, profile.Frame);
+            if (frame == null) { Core.Log.Error("[Seat] '" + code + "': frame '" + profile.Frame + "' not found under " + lv.name + ", body stays hidden."); return null; }
 
             var avatar = player.Avatar;
             if (avatar == null) { Core.Log.Error("[Seat] " + Who(player) + " has no avatar."); return null; }
             var ik = avatar.GetComponentInChildren<AvatarIKController>(true);
             if (ik == null || ik.BodyIK == null) { Core.Log.Error("[Seat] " + Who(player) + "'s avatar has no BipedIK, body sits without hand targets."); }
 
-            var rig = new SeatRig(player, vehicle, frame, code, seatIndex, avatar, ik);
+            var rig = new SeatRig(player, lv, frame, code, seatIndex, avatar, ik);
             rig.Attach(seat, glide);
             return rig;
         }
@@ -141,6 +139,7 @@ namespace Chassis.Seating
 
             Core.Log.Msg("[Seat] " + Who(Player) + (IsPusher ? " pushing " + Code : " seated in " + Code + " seat " + SeatIndex) + " (" + Vehicle.name + "), glide " + (glide ? GlideSeconds + " s" : "off")
                 + ", hands " + (seat.Hands != null ? seat.Hands.Mode : "none") + (seat.Hands?.Mode == "rim" ? (_rimL != null && _rimR != null ? " on both rims" : " but a rim is missing") : "")
+                + (seat.Hands?.Mode == "wheel" ? (Vehicles.Parts.Wheel(_lv, out _, out _, out _) ? " on the steering wheel" : " but the profile's steering wheel is missing, hands stay at the grip") : "")
                 + ", " + _ignored.Count + " vehicle collider(s) ignored by the capsule.");
         }
 
@@ -284,6 +283,7 @@ namespace Chassis.Seating
                 }
                 _gripR.rotation = _frame.rotation * Quaternion.Euler(0f, 0f, 90f);
                 _gripL.rotation = _frame.rotation * Quaternion.Euler(0f, 0f, -90f);
+                if (hands.Mode == "wheel") TurnWithWheel(hands);
                 Mirror(_elbowL, _elbowR, hands.Elbow);
                 // Closer to the stroke end, the body leans further towards the rims.
                 float w = Mathf.Lerp(hands.LeanStartWeight, hands.LeanEndWeight, lean);
@@ -394,6 +394,27 @@ namespace Chassis.Seating
             grip.position = _frame.TransformPoint(local);
         }
 
+        /// <summary>
+        /// Wheel mode: both grips turn about the steering column with the wheel, up to <see cref="HandProfile.FollowMax"/>
+        /// degrees either way. Further than that the hands stay; the wheel turns on under them.
+        /// </summary>
+        private void TurnWithWheel(HandProfile hands)
+        {
+            if (!Vehicles.Parts.Wheel(_lv, out Transform pivot, out Vector3 axis, out float angle)) return;
+            float follow = Mathf.Clamp(angle, -hands.FollowMax, hands.FollowMax);
+            if (Mathf.Abs(follow) < 0.01f) return;
+            Quaternion turn = Quaternion.AngleAxis(follow, axis);
+            Vector3 centre = pivot.position;
+            foreach (var g in new[] { _gripL, _gripR })
+            {
+                g.position = centre + turn * (g.position - centre);
+                g.rotation = turn * g.rotation;
+            }
+            _wheelFollow = follow;
+        }
+
+        private float _wheelFollow;
+
         /// <summary>True while the seated player gives drive input, or a pusher does.</summary>
         internal bool Driving()
         {
@@ -453,7 +474,7 @@ namespace Chassis.Seating
         {
             return Who(Player) + " in " + Code + "#" + SeatIndex + " glide " + _glideT.ToString("F2") + " ik " + _ikOn
                 + " strokeL " + _strokeL.Fraction.ToString("F2") + (_strokeL.Recovering > 0f ? "r" : "") + " strokeR " + _strokeR.Fraction.ToString("F2") + (_strokeR.Recovering > 0f ? "r" : "")
-                + " spin " + _strokeR.SpinDelta.ToString("F1") + " drive " + DriveInput.ToString("F2")
+                + " spin " + _strokeR.SpinDelta.ToString("F1") + " drive " + DriveInput.ToString("F2") + " wheel " + _wheelFollow.ToString("F0")
                 + " root " + (_avatar != null ? ProfileJson.F(_frame.InverseTransformPoint(_avatar.transform.position)) : "-");
         }
     }

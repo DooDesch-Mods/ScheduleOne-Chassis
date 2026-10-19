@@ -54,6 +54,11 @@ namespace Chassis
             Rideables.Push.Reset();
             Seating.Occupants.Reset();
             Rideables.PropSwap.Reset();
+            Vehicles.Registry.Reset();
+            Vehicles.Fleet.Reset();
+            Vehicles.Indicators.Reset();
+            Vehicles.Parts.Reset();
+            Vehicles.AutoLights.Reset();
 #if DEBUG
             Seating.SitDemo.Reset();
 #endif
@@ -63,6 +68,7 @@ namespace Chassis
         {
             if (!_inWorld) return;
             Guard("push placement", Rideables.Push.LateTick);
+            Guard("parts", Vehicles.Parts.LateTick);
 #if DEBUG
             Seating.SitDemo.LateProbe();
             Guard("look cam", Debugging.LookCam.LateTick);
@@ -72,6 +78,11 @@ namespace Chassis
         public override void OnUpdate()
         {
             if (!_inWorld) return;
+            Guard("vehicles", Vehicles.Registry.Tick);
+            Guard("owners", Vehicles.Fleet.Tick);
+            Guard("horn", Vehicles.Horn.Tick);
+            Guard("indicators", Vehicles.Indicators.Tick);
+            Guard("auto lights", Vehicles.AutoLights.Tick);
             Guard("prop swap", Rideables.PropSwap.Tick);
             Guard("push", Rideables.Push.Tick);
             Guard("view", Seating.FirstPersonView.Tick);

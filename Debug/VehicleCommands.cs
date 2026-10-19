@@ -1,0 +1,109 @@
+#if DEBUG
+using System;
+using Chassis.Api;
+using Chassis.Vehicles;
+
+namespace Chassis.Debugging
+{
+    /// <summary>
+    /// <c>chassis car ...</c>: horn, indicators, lock, lids and rain on the vehicle the local player sits in, or else
+    /// the nearest one within 15 m. The same calls the keys and the public API make.
+    /// </summary>
+    internal static class VehicleCommands
+    {
+        internal static void Help()
+        {
+            Say("car                          - the vehicle: code, profile, owner, signal, parts");
+            Say("car enter                    - get into the nearest vehicle (as the Enter prompt, lock checked)");
+            Say("car honk [flash]             - horn (key G)");
+            Say("car blink l|r|off            - indicator (arrow keys)");
+            Say("car lock on|off              - lock or unlock (owner only)");
+            Say("car part <name> open|close   - lid from the profile");
+            Say("car side front|rear          - which end the storage is opened from");
+            Say("car rain on|off|auto         - force rain for the wipers");
+            Say("car assign <code>|off        - give the vehicle another profile");
+            Say("car owners                   - every owner record this peer knows");
+        }
+
+        internal static void Run(string[] p)
+        {
+            string op = p.Length > 2 ? p[2].ToLower() : "";
+            string arg = p.Length > 3 ? p[3].ToLower() : "";
+            if (op == "help") { Help(); return; }
+            if (op == "owners") { Say(Fleet.Describe()); Say(Indicators.Describe()); return; }
+            if (op == "rain")
+            {
+                Parts.RainOverride = arg == "on" ? true : arg == "off" ? (bool?)false : null;
+                Say("rain " + (Parts.RainOverride.HasValue ? (Parts.RainOverride.Value ? "forced on" : "forced off") : "from the weather"));
+                return;
+            }
+            var lv = Target();
+            if (lv == null) { Say("car: no vehicle within 15 m"); return; }
+            switch (op)
+            {
+                case "":
+                {
+                    var profile = ChassisApi.For(lv);
+                    Say(Registry.Name(lv) + " profile " + (profile != null ? "'" + profile.Code + "'" : "none") + " owner '" + ChassisApi.OwnerOf(lv) + "'"
+                        + (ChassisApi.IsLocked(lv) ? " locked" : "") + " signal " + ChassisApi.Indicator(lv) + " headlights " + (lv.lights != null && lv.lights.HeadlightsOn)
+                        + " speed " + lv.Speed_Kmh.ToString("F1") + " steer " + lv.CurrentSteerAngle.ToString("F1"));
+                    Say(Parts.Describe(lv));
+                    break;
+                }
+                case "enter":
+                    if (!Fleet.CanEnter(lv, out string why)) { Say("car enter: refused, " + why); break; }
+                    lv.EnterVehicle();
+                    Say("car enter: " + Registry.Name(lv));
+                    break;
+                case "honk":
+                    ChassisApi.Honk(lv, arg == "flash");
+                    Say("car honk: asked");
+                    break;
+                case "blink":
+                    ChassisApi.SetIndicator(lv, arg == "l" || arg == "left" ? -1 : arg == "r" || arg == "right" ? 1 : 0);
+                    Say("car blink: asked " + arg);
+                    break;
+                case "lock":
+                    ChassisApi.SetLocked(lv, arg != "off");
+                    Say("car lock: asked " + (arg != "off" ? "on" : "off"));
+                    break;
+                case "part":
+                    if (p.Length < 5) { Say("car part <name> open|close"); break; }
+                    ChassisApi.SetPart(lv, p[3], p[4].ToLower() != "close");
+                    Say("car part: asked " + p[3] + " " + p[4]);
+                    break;
+                case "side":
+                    ChassisApi.SetStorageEnd(lv, arg == "front");
+                    Say("car side: asked " + arg);
+                    break;
+                case "assign":
+                    if (arg == "off" || arg.Length == 0) ChassisApi.Unassign(lv);
+                    else ChassisApi.Assign(lv, p[3]);
+                    Say("car assign: " + Registry.Name(lv) + " uses '" + ChassisApi.CodeOf(lv) + "'");
+                    break;
+                default:
+                    Say("car: unknown '" + op + "', try 'chassis car help'");
+                    break;
+            }
+        }
+
+        private static LandVehicle Target()
+        {
+            var lp = Player.Local;
+            if (lp == null) return null;
+            if (lp.CurrentVehicle != null) return lp.CurrentVehicle.GetComponent<LandVehicle>();
+            LandVehicle best = null;
+            float bd = 15f;
+            foreach (var v in Registry.All)
+            {
+                if (v == null) continue;
+                float d = Vector3.Distance(v.transform.position, lp.transform.position);
+                if (d < bd) { bd = d; best = v; }
+            }
+            return best;
+        }
+
+        private static void Say(string line) => DebugConsolePatch.Say(line);
+    }
+}
+#endif

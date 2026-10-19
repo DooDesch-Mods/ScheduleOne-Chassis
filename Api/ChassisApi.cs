@@ -12,7 +12,7 @@ namespace Chassis.Api
     /// file in UserData/Chassis/&lt;code&gt;.json. The file wins so a player or the debug console can always correct a mod's
     /// values. Changes take effect on the next seat change; <see cref="Changed"/> tells seated rigs to re-read now.
     /// </summary>
-    public static class ChassisApi
+    public static partial class ChassisApi
     {
         private static readonly Dictionary<string, ChassisProfile> _profiles = new Dictionary<string, ChassisProfile>(StringComparer.OrdinalIgnoreCase);
         private static readonly HashSet<string> _fromFile = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

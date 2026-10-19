@@ -84,6 +84,7 @@ namespace Chassis.Debugging
                         Say("spawn | despawn              - wheelchair vehicle 2 m ahead (host) | remove all");
                         Say("tree [i]                     - hierarchy of wheelchair prop i");
                         Say("profile list|show|save|reload|set <field> <values> [code] [seat] - seat profiles (see 'chassis profile')");
+                        Say("car [enter|honk|blink|lock|part|side|rain|assign|owners] - horn, indicators, lock, lids (see 'chassis car help')");
                         break;
 
                     case "status":
@@ -243,6 +244,10 @@ namespace Chassis.Debugging
 
                     case "profile":
                         ProfileCommands.Run(parts);
+                        break;
+
+                    case "car":
+                        VehicleCommands.Run(parts);
                         break;
 
                     case "spawn":

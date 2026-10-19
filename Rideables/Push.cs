@@ -142,7 +142,7 @@ namespace Chassis.Rideables
             if (lv == null || p == null) { Core.Log.Warning("[Push] pusher " + player + " on net " + vehicle + ": " + (lv == null ? "vehicle" : "player") + " not found here."); return; }
             _pushers[vehicle] = player;
             var rig = Occupants.Seat(p, lv, SeatRig.PushSeat, true, "pushing");
-            if (rig == null) { Core.Log.Error("[Push] no push pose for " + lv.vehicleCode + " - the pusher stands where they are."); }
+            if (rig == null) { Core.Log.Error("[Push] no push pose for " + ChassisApi.CodeOf(lv) + " - the pusher stands where they are."); }
             if (p.IsLocalPlayer) StartLocal(vehicle);
         }
 
@@ -209,7 +209,7 @@ namespace Chassis.Rideables
             var local = Player.Local;
             if (lv == null || local == null || !PlayerSingleton<PlayerMovement>.InstanceExists) return;
             var frame = lv.transform.Find(WheelchairType.FrameName) ?? lv.transform;
-            var push = ChassisApi.Get(lv.vehicleCode)?.Push;
+            var push = ChassisApi.For(lv)?.Push;
             if (push == null) return;
             var move = PlayerSingleton<PlayerMovement>.Instance;
             var cc = move.Controller;

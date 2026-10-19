@@ -33,7 +33,7 @@ namespace Chassis.Seating
             return _rigs.TryGetValue(p.GetInstanceID(), out var rig) ? rig : null;
         }
 
-        internal static bool HasProfile(LandVehicle lv) => lv != null && ChassisApi.Get(lv.vehicleCode) != null;
+        internal static bool HasProfile(LandVehicle lv) => lv != null && ChassisApi.For(lv) != null;
 
         /// <summary>Seats a player's body on a seat of a profiled vehicle (or behind it with <see cref="SeatRig.PushSeat"/>).</summary>
         internal static SeatRig Seat(Player p, LandVehicle lv, int seatIndex, bool glide, string why)
@@ -46,7 +46,7 @@ namespace Chassis.Seating
                 if (old.Vehicle == lv.transform && old.SeatIndex == seatIndex) return old;
                 Leave(p, "moved to another seat");
             }
-            var rig = SeatRig.Create(p, lv.transform, lv.vehicleCode, seatIndex, glide);
+            var rig = SeatRig.Create(p, lv, ChassisApi.CodeOf(lv), seatIndex, glide);
             if (rig == null) return null;
             _rigs[p.GetInstanceID()] = rig;
             if (p.IsLocalPlayer && !rig.IsPusher)
@@ -54,7 +54,7 @@ namespace Chassis.Seating
                 p.SetThirdPersonMeshesVisibility(true);
                 if (rig.Profile.Pose == "Sitting") p.SendAnimationBool("Sitting", true);
             }
-            Core.Log.Msg("[Seat] " + SeatRig.Who(p) + " -> " + lv.vehicleCode + " net " + Ids.Of(lv) + " (" + why + ").");
+            Core.Log.Msg("[Seat] " + SeatRig.Who(p) + " -> " + ChassisApi.CodeOf(lv) + " net " + Ids.Of(lv) + " (" + why + ").");
             return rig;
         }
 

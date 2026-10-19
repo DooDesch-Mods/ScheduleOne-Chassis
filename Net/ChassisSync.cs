@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using Chassis.Rideables;
 using Chassis.Seating;
+using Chassis.Vehicles;
 
 namespace Chassis.Net
 {
@@ -13,6 +14,13 @@ namespace Chassis.Net
     ///   req.drive vehicle sign        -> drive vehicle sign           (driver's stroke direction for the hands)
     ///   req.push vehicle player 1|0   -> push vehicle player|-1       (who pushes)
     ///   req.pushin vehicle fwd steer  -> pushin vehicle fwd steer     (pusher input, added on the driver's peer)
+    ///   req.honk vehicle player flash -> honk vehicle                 (host: player sits inside or owns it)
+    ///   req.blink vehicle side        -> blink vehicle side           (-1 left, 1 right, 0 off)
+    ///   req.part vehicle name 1|0     -> part vehicle name 1|0        (lid held open)
+    ///   req.side vehicle 1|0          -> side vehicle 1|0             (storage opened at the front)
+    ///   req.lock vehicle owner 1|0    -> chirp vehicle 1|0, own ...   (host: only the owner)
+    ///   req.bought buyer code         -> own ...                      (the next new vehicle of that code is the buyer's)
+    ///   req.sync player               -> own, blink, part, side       (a client that joined late)
     /// Ids are FishNet object ids; numbers are invariant culture.
     /// </summary>
     internal static class ChassisSync
@@ -34,6 +42,18 @@ namespace Chassis.Net
                 case "req.drive": ChassisNet.ToAll("drive", m.Arg(0), m.Arg(1)); break;
                 case "req.push": Push.HostRequest(I(m.Arg(0)), I(m.Arg(1)), m.Arg(2) == "1"); break;
                 case "req.pushin": Push.HostInput(I(m.Arg(0)), new Vector2(Fl(m.Arg(1)), Fl(m.Arg(2)))); break;
+                case "req.honk": Horn.HostHonk(I(m.Arg(0)), I(m.Arg(1)), m.Arg(2) == "1"); break;
+                case "req.blink": ChassisNet.ToAll("blink", m.Arg(0), Math.Sign(I(m.Arg(1))).ToString(CultureInfo.InvariantCulture)); break;
+                case "req.part": ChassisNet.ToAll("part", m.Arg(0), m.Arg(1), m.Arg(2) == "1" ? "1" : "0"); break;
+                case "req.side": ChassisNet.ToAll("side", m.Arg(0), m.Arg(1) == "1" ? "1" : "0"); break;
+                case "req.lock": Fleet.HostLock(I(m.Arg(0)), m.Arg(1), m.Arg(2) == "1"); break;
+                case "req.bought": Fleet.Announce(m.Arg(0), m.Arg(1)); break;
+                case "req.sync":
+                    Core.Log.Msg("[Net] " + m.Arg(0) + " asked for the current vehicle state.");
+                    Fleet.Broadcast(true);
+                    Indicators.HostReplay();
+                    Parts.HostReplay();
+                    break;
                 default: Core.Log.Warning("[Net] unknown request " + m + ", dropped."); break;
             }
         }
@@ -50,6 +70,12 @@ namespace Chassis.Net
                 case "drive": Occupants.OnDrive(I(m.Arg(0)), Fl(m.Arg(1))); break;
                 case "push": Push.OnPush(I(m.Arg(0)), I(m.Arg(1))); break;
                 case "pushin": Push.OnInput(I(m.Arg(0)), new Vector2(Fl(m.Arg(1)), Fl(m.Arg(2)))); break;
+                case "honk": Horn.OnHonk(I(m.Arg(0))); break;
+                case "chirp": Horn.OnChirp(I(m.Arg(0)), m.Arg(1) == "1"); break;
+                case "blink": Indicators.OnBlink(I(m.Arg(0)), I(m.Arg(1))); break;
+                case "part": Parts.OnPart(I(m.Arg(0)), m.Arg(1), m.Arg(2) == "1"); break;
+                case "side": Parts.OnStorageEnd(I(m.Arg(0)), m.Arg(1) == "1"); break;
+                case "own": Fleet.ApplyState(m.Arg(0)); break;
                 default: Core.Log.Warning("[Net] unknown state " + m + ", dropped."); break;
             }
         }

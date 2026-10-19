@@ -11,7 +11,7 @@ namespace Chassis.Api
         internal static readonly JsonSerializerSettings Settings = new JsonSerializerSettings
         {
             Formatting = Formatting.Indented,
-            Converters = { new Vector3Converter() },
+            Converters = { new Vector3Converter(), new ColorConverter() },
             NullValueHandling = NullValueHandling.Include,
             MissingMemberHandling = MissingMemberHandling.Ignore,
         };
@@ -42,6 +42,31 @@ namespace Chassis.Api
                 if (token is JObject o)
                     return new Vector3(o.Value<float>("x"), o.Value<float>("y"), o.Value<float>("z"));
                 throw new JsonSerializationException("a vector must be [x, y, z], got " + token.ToString(Formatting.None));
+            }
+        }
+
+        /// <summary>Color has computed properties (linear, gamma) that return a Color; written as [r, g, b, a].</summary>
+        private sealed class ColorConverter : JsonConverter
+        {
+            public override bool CanConvert(Type objectType) => objectType == typeof(Color);
+
+            public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+            {
+                var c = (Color)value;
+                writer.WriteStartArray();
+                writer.WriteValue(Math.Round(c.r, 3));
+                writer.WriteValue(Math.Round(c.g, 3));
+                writer.WriteValue(Math.Round(c.b, 3));
+                writer.WriteValue(Math.Round(c.a, 3));
+                writer.WriteEndArray();
+            }
+
+            public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
+            {
+                var token = JToken.Load(reader);
+                if (token is JArray a && (a.Count == 3 || a.Count == 4))
+                    return new Color(a[0].Value<float>(), a[1].Value<float>(), a[2].Value<float>(), a.Count == 4 ? a[3].Value<float>() : 1f);
+                throw new JsonSerializationException("a colour must be [r, g, b] or [r, g, b, a], got " + token.ToString(Formatting.None));
             }
         }
 
