@@ -6,7 +6,8 @@ namespace Chassis.Api
     /// <summary>
     /// Where occupants sit and hold on in one vehicle type, keyed by its vehicle code. Every point is in the space of
     /// the vehicle's model frame: the transform at <see cref="Frame"/> under the vehicle, or the vehicle root when
-    /// that is empty. Left-side points are the mirror (x negated) of the right-side values stored here.
+    /// that is empty. Left-side points are the mirror of the right-side values stored here, about the seat's own
+    /// centre plane (through the seat root, turned by its yaw); in wheel mode the hands mirror about the steering column.
     ///
     /// The same object backs the JSON file (UserData/Chassis/&lt;code&gt;.json) and the C# API, so a value set from code,
     /// from the file or from the debug console is the same value.

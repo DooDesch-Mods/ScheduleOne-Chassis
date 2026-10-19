@@ -59,6 +59,7 @@ namespace Chassis.Seating
             if (on) HideHead(rig);
             else ShowHead();
             Core.Log.Msg("[View] first person " + (on ? "on" : "off") + " (" + why + ").");
+            Api.ChassisApi.RaiseFirstPerson(on);
         }
 
         private static void HideHead(SeatRig rig)

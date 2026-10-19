@@ -240,10 +240,26 @@ namespace Chassis.Seating
         private void Save(string k, float v) => _weights[k] = v;
         private float Load(string k) => _weights.TryGetValue(k, out float v) ? v : 0f;
 
-        private void Mirror(Transform left, Transform right, Vector3 v)
+        /// <summary>
+        /// Places a right-side point and its left mirror. The mirror plane is the seat's own centre plane (through
+        /// <see cref="SeatProfile.Root"/>, turned by its yaw), shifted sideways by <paramref name="centre"/> metres:
+        /// a car seat sits off the vehicle's centre line, and a steering wheel can sit off the seat's.
+        /// </summary>
+        private void Mirror(Transform left, Transform right, Vector3 v, float centre = 0f)
         {
-            left.position = _frame.TransformPoint(new Vector3(-v.x, v.y, v.z));
+            Quaternion yaw = Quaternion.Euler(0f, _seat.Yaw, 0f);
+            Vector3 local = Quaternion.Inverse(yaw) * (v - _seat.Root);
+            local.x = 2f * centre - local.x;
+            left.position = _frame.TransformPoint(_seat.Root + yaw * local);
             right.position = _frame.TransformPoint(v);
+        }
+
+        /// <summary>Sideways offset of the steering column from the seat's centre plane, in seat space; 0 without one.</summary>
+        private float WheelCentre()
+        {
+            if (!Vehicles.Parts.Wheel(_lv, out Transform pivot, out _, out _)) return 0f;
+            Vector3 local = Quaternion.Inverse(Quaternion.Euler(0f, _seat.Yaw, 0f)) * (_frame.InverseTransformPoint(pivot.position) - _seat.Root);
+            return local.x;
         }
 
         /// <summary>
@@ -278,11 +294,12 @@ namespace Chassis.Seating
                 }
                 else
                 {
-                    Mirror(_gripL, _gripR, hands.GripStart);
+                    Mirror(_gripL, _gripR, hands.GripStart, hands.Mode == "wheel" ? WheelCentre() : 0f);
                     lean = 0f;
                 }
-                _gripR.rotation = _frame.rotation * Quaternion.Euler(0f, 0f, 90f);
-                _gripL.rotation = _frame.rotation * Quaternion.Euler(0f, 0f, -90f);
+                Quaternion seatRot = _frame.rotation * Quaternion.Euler(0f, _seat.Yaw, 0f);
+                _gripR.rotation = seatRot * Quaternion.Euler(0f, 0f, 90f);
+                _gripL.rotation = seatRot * Quaternion.Euler(0f, 0f, -90f);
                 if (hands.Mode == "wheel") TurnWithWheel(hands);
                 Mirror(_elbowL, _elbowR, hands.Elbow);
                 // Closer to the stroke end, the body leans further towards the rims.
@@ -300,8 +317,9 @@ namespace Chassis.Seating
             {
                 Mirror(_footL, _footR, feet.Position);
                 Mirror(_kneeL, _kneeR, feet.Knee);
-                _footR.rotation = _frame.rotation * Quaternion.Euler(feet.Rotation);
-                _footL.rotation = _frame.rotation * Quaternion.Euler(feet.Rotation.x, -feet.Rotation.y, -feet.Rotation.z);
+                Quaternion seatRot = _frame.rotation * Quaternion.Euler(0f, _seat.Yaw, 0f);
+                _footR.rotation = seatRot * Quaternion.Euler(feet.Rotation);
+                _footL.rotation = seatRot * Quaternion.Euler(feet.Rotation.x, -feet.Rotation.y, -feet.Rotation.z);
                 s.leftFoot.IKPositionWeight = 1f; s.rightFoot.IKPositionWeight = 1f;
                 s.leftFoot.IKRotationWeight = feet.RotationWeight; s.rightFoot.IKRotationWeight = feet.RotationWeight;
             }
