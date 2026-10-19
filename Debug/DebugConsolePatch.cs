@@ -85,6 +85,7 @@ namespace Chassis.Debugging
                         Say("tree [i]                     - hierarchy of wheelchair prop i");
                         Say("profile list|show|save|reload|set <field> <values> [code] [seat] - seat profiles (see 'chassis profile')");
                         Say("car [enter|honk|blink|lock|part|side|rain|assign|owners] - horn, indicators, lock, lids (see 'chassis car help')");
+                        Say("interior on|off|rebuild      - base interior and tinted glass in the vanilla cars");
                         break;
 
                     case "status":
@@ -249,6 +250,16 @@ namespace Chassis.Debugging
                     case "car":
                         VehicleCommands.Run(parts);
                         break;
+
+                    case "interior":
+                    {
+                        string op = parts.Length > 2 ? parts[2].ToLowerInvariant() : "";
+                        if (op == "on") { Interior.BaseInterior.Enabled = true; Say("interior on - vanilla cars get the base interior within a second"); }
+                        else if (op == "off") { Interior.BaseInterior.Enabled = false; Say("interior off, " + Interior.BaseInterior.RemoveAll() + " removed"); }
+                        else if (op == "rebuild") { int n = Interior.BaseInterior.RemoveAll(); Interior.BaseInterior.Reset(); Say("interior: " + n + " removed, rebuilding from the current profiles"); }
+                        else Say(Interior.BaseInterior.Describe() + " - use on|off|rebuild");
+                        break;
+                    }
 
                     case "spawn":
                     {

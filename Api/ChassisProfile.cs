@@ -41,6 +41,9 @@ namespace Chassis.Api
         /// <summary>Headlights switch on by themselves while the vehicle is driven between 17:30 and 06:00.</summary>
         public bool AutoLights;
 
+        /// <summary>The base interior Chassis builds into a vehicle without one, or null for none.</summary>
+        public InteriorProfile Interior;
+
         public SeatProfile Seat(int index)
         {
             for (int i = 0; i < Seats.Count; i++)
@@ -220,5 +223,50 @@ namespace Chassis.Api
         public Vector3 Position = new Vector3(0f, 0.6f, 1.8f);
 
         public float Volume = 0.8f;
+    }
+
+    /// <summary>
+    /// The base interior: seats, a dashboard and a steering wheel built from simple shapes, the inside of the body
+    /// shell drawn as a dark lining, and see-through tinted windows. Points are in the profile's frame.
+    /// </summary>
+    public sealed class InteriorProfile
+    {
+        /// <summary>Kit pieces: "seat", "bench", "dash", "wheel".</summary>
+        public List<KitPart> Parts = new List<KitPart>();
+
+        /// <summary>Draws the inside of the body shell, so the cabin is closed when seen through the glass.</summary>
+        public bool Lining = true;
+
+        /// <summary>Lining colour.</summary>
+        public Color LiningColor = new Color(0.16f, 0.16f, 0.17f);
+
+        /// <summary>The windows, or null to keep them as they are.</summary>
+        public GlassProfile Glass = new GlassProfile();
+    }
+
+    public sealed class KitPart
+    {
+        /// <summary>"seat" (cushion and backrest), "bench" (a seat across several places), "dash" or "wheel".</summary>
+        public string Kind = "seat";
+
+        /// <summary>Seat and bench: middle of the cushion top. Dash: middle of the top edge at the windscreen. Wheel: centre of the rim.</summary>
+        public Vector3 Position;
+
+        /// <summary>Euler angles in the frame. A wheel's column runs along its local forward axis.</summary>
+        public Vector3 Rotation;
+
+        /// <summary>Seat and bench: width, backrest height, cushion depth. Dash: width, height, depth. Wheel: rim radius, -, column length.</summary>
+        public Vector3 Size = new Vector3(0.5f, 0.6f, 0.5f);
+
+        public Color Color = new Color(0.2f, 0.2f, 0.22f);
+    }
+
+    public sealed class GlassProfile
+    {
+        /// <summary>Window materials are the ones whose name starts with one of these.</summary>
+        public List<string> Materials = new List<string> { "window_opaque" };
+
+        /// <summary>Glass colour; alpha is how much of the cabin it hides.</summary>
+        public Color Tint = new Color(0.1f, 0.12f, 0.14f, 0.55f);
     }
 }

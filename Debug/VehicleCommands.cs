@@ -14,7 +14,7 @@ namespace Chassis.Debugging
         internal static void Help()
         {
             Say("car                          - the vehicle: code, profile, owner, signal, parts");
-            Say("car enter                    - get into the nearest vehicle (as the Enter prompt, lock checked)");
+            Say("car enter [code]             - get into the nearest vehicle, or the nearest of this code (lock checked)");
             Say("car honk [flash]             - horn (key G)");
             Say("car blink l|r|off            - indicator (arrow keys)");
             Say("car lock on|off              - lock or unlock (owner only)");
@@ -37,8 +37,8 @@ namespace Chassis.Debugging
                 Say("rain " + (Parts.RainOverride.HasValue ? (Parts.RainOverride.Value ? "forced on" : "forced off") : "from the weather"));
                 return;
             }
-            var lv = Target();
-            if (lv == null) { Say("car: no vehicle within 15 m"); return; }
+            var lv = Target(op == "enter" ? arg : "");
+            if (lv == null) { Say("car: no vehicle" + (op == "enter" && arg != "" ? " '" + arg + "'" : "") + " within 15 m"); return; }
             switch (op)
             {
                 case "":
@@ -87,7 +87,7 @@ namespace Chassis.Debugging
             }
         }
 
-        private static LandVehicle Target()
+        private static LandVehicle Target(string code)
         {
             var lp = Player.Local;
             if (lp == null) return null;
@@ -96,7 +96,7 @@ namespace Chassis.Debugging
             float bd = 15f;
             foreach (var v in Registry.All)
             {
-                if (v == null) continue;
+                if (v == null || (code != "" && ChassisApi.CodeOf(v) != code)) continue;
                 float d = Vector3.Distance(v.transform.position, lp.transform.position);
                 if (d < bd) { bd = d; best = v; }
             }

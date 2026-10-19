@@ -138,6 +138,14 @@ namespace Chassis.Vehicles
             }
         }
 
+        /// <summary>Drops the rig of <paramref name="lv"/> so the next frame looks its parts up again, for parts added after it was built.</summary>
+        internal static void Forget(LandVehicle lv)
+        {
+            if (lv == null || !_rigs.TryGetValue(lv.GetInstanceID(), out var rig)) return;
+            if (rig != null) Restore(rig);
+            _rigs.Remove(lv.GetInstanceID());
+        }
+
         private static Rig RigOf(LandVehicle lv)
         {
             if (lv == null) return null;
