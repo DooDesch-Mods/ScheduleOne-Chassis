@@ -16,6 +16,7 @@ global using RootMotion.FinalIK;          // BipedIK, IKSolverLimb
 global using FishNet;                     // InstanceFinder
 
 global using GameAvatar = ScheduleOne.AvatarFramework.Avatar;
+global using NPC = ScheduleOne.NPCs.NPC;
 global using AvatarEffects = ScheduleOne.AvatarFramework.AvatarEffects;
 global using FishNetObject = FishNet.Object.NetworkObject;
 global using GameConsole = ScheduleOne.Console;

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 #if DEBUG
 using HarmonyLib;
 
@@ -36,13 +37,19 @@ namespace Chassis.Debugging
             return "cam: " + _dist + " m at " + _yaw + " deg, " + _height + " m up" + (Target() == null ? " (no wheelchair vehicle yet)" : "");
         }
 
+        private static IEnumerable<Seating.SeatRig> Seated()
+        {
+            foreach (var rig in Seating.Occupants.All) yield return rig;
+            foreach (var rig in Seating.NpcRiders.All) yield return rig;
+        }
+
         private static Transform Target()
         {
             var local = Player.Local;
             if (local == null) return null;
             if (local.CurrentVehicle != null) return local.CurrentVehicle.transform;
             Transform best = null; float bd = float.MaxValue;
-            foreach (var rig in Seating.Occupants.All)
+            foreach (var rig in Seated())
             {
                 if (rig.Vehicle == null || rig.IsPusher) continue;
                 float d = Vector3.Distance(rig.Vehicle.position, local.transform.position);
@@ -66,7 +73,7 @@ namespace Chassis.Debugging
             Vector3 fwd = Vector3.ProjectOnPlane(t.forward, Vector3.up).normalized;
             Vector3 centre = t.position + Vector3.up * 0.7f;
             // Frame a seated body's head where there is one, so a car shot shows the driver and not the bonnet.
-            foreach (var rig in Seating.Occupants.All)
+            foreach (var rig in Seated())
                 if (rig.Vehicle == t && !rig.IsPusher && rig.Head != null) { centre = rig.Head.position; break; }
             Vector3 dir = Quaternion.Euler(0f, _yaw, 0f) * fwd;
             at = t.position + dir * _dist + Vector3.up * _height;

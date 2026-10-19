@@ -16,6 +16,7 @@ global using Il2CppRootMotion.FinalIK;          // BipedIK, IKSolverLimb
 global using Il2CppFishNet;                     // InstanceFinder
 
 global using GameAvatar = Il2CppScheduleOne.AvatarFramework.Avatar;
+global using NPC = Il2CppScheduleOne.NPCs.NPC;
 global using AvatarEffects = Il2CppScheduleOne.AvatarFramework.AvatarEffects;
 global using FishNetObject = Il2CppFishNet.Object.NetworkObject;
 global using GameConsole = Il2CppScheduleOne.Console;

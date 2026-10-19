@@ -59,6 +59,8 @@ namespace Chassis
             Vehicles.Indicators.Reset();
             Vehicles.Parts.Reset();
             Vehicles.AutoLights.Reset();
+            Interior.BaseInterior.Reset();
+            Seating.NpcRiders.Reset();
 #if DEBUG
             Seating.SitDemo.Reset();
 #endif
@@ -79,6 +81,8 @@ namespace Chassis
         {
             if (!_inWorld) return;
             Guard("vehicles", Vehicles.Registry.Tick);
+            Guard("interior", Interior.BaseInterior.Tick);
+            Guard("npc riders", Seating.NpcRiders.Tick);
             Guard("owners", Vehicles.Fleet.Tick);
             Guard("horn", Vehicles.Horn.Tick);
             Guard("indicators", Vehicles.Indicators.Tick);

@@ -18,6 +18,8 @@ namespace Chassis.Seating
         internal const float GlideSeconds = 0.35f;
 
         internal readonly Player Player;
+        /// <summary>The NPC in this seat when the rig seats one instead of a player.</summary>
+        internal readonly NPC Npc;
         internal readonly Transform Vehicle;
         private readonly LandVehicle _lv;
         internal readonly string Code;
@@ -47,7 +49,7 @@ namespace Chassis.Seating
         private bool _ikOn;
         private bool _shownLogged;
 
-        internal bool Alive => Player != null && Vehicle != null && _avatar != null && _anchor != null;
+        internal bool Alive => (Player != null || Npc != null) && Vehicle != null && _avatar != null && _anchor != null;
 
         /// <summary>Seat index used for the one who pushes from behind; that pose comes from the push profile.</summary>
         internal const int PushSeat = -1;
@@ -58,27 +60,33 @@ namespace Chassis.Seating
         internal SeatProfile Profile => _seat;
         internal Transform Head => _ik != null && _ik.BodyIK != null ? _ik.BodyIK.references.head : null;
 
-        private SeatRig(Player player, LandVehicle lv, Transform frame, string code, int seat, GameAvatar avatar, AvatarIKController ik)
+        private SeatRig(Player player, NPC npc, LandVehicle lv, Transform frame, string code, int seat, GameAvatar avatar, AvatarIKController ik)
         {
-            Player = player; _lv = lv; Vehicle = lv.transform; _frame = frame; Code = code; SeatIndex = seat; _avatar = avatar; _ik = ik;
+            Player = player; Npc = npc; _lv = lv; Vehicle = lv.transform; _frame = frame; Code = code; SeatIndex = seat; _avatar = avatar; _ik = ik;
         }
 
         /// <summary>Builds the rig and seats the avatar, or returns null with the reason logged.</summary>
-        internal static SeatRig Create(Player player, LandVehicle lv, string code, int seatIndex, bool glide)
+        internal static SeatRig Create(Player player, LandVehicle lv, string code, int seatIndex, bool glide) =>
+            Create(player, null, player != null ? player.Avatar : null, Who(player), lv, code, seatIndex, glide);
+
+        /// <summary>Seats an NPC that vanilla parked in the vehicle, or returns null with the reason logged.</summary>
+        internal static SeatRig CreateNpc(NPC npc, LandVehicle lv, string code, int seatIndex) =>
+            Create(null, npc, npc != null ? npc.Avatar : null, Who(npc), lv, code, seatIndex, false);
+
+        private static SeatRig Create(Player player, NPC npc, GameAvatar avatar, string who, LandVehicle lv, string code, int seatIndex, bool glide)
         {
             var profile = ChassisApi.Get(code);
             var seat = seatIndex == PushSeat ? FromPush(profile?.Push) : profile?.Seat(seatIndex);
-            if (seat == null) { Core.Log.Msg("[Seat] '" + code + "' seat " + seatIndex + " has no profile, vanilla keeps the body."); return null; }
+            if (seat == null) { Core.Log.Msg("[Seat] '" + code + "' seat " + seatIndex + " has no profile, vanilla keeps " + who + "'s body."); return null; }
 
             Transform frame = Vehicles.Frames.Resolve(lv.transform, profile.Frame);
             if (frame == null) { Core.Log.Error("[Seat] '" + code + "': frame '" + profile.Frame + "' not found under " + lv.name + ", body stays hidden."); return null; }
 
-            var avatar = player.Avatar;
-            if (avatar == null) { Core.Log.Error("[Seat] " + Who(player) + " has no avatar."); return null; }
+            if (avatar == null) { Core.Log.Error("[Seat] " + who + " has no avatar."); return null; }
             var ik = avatar.GetComponentInChildren<AvatarIKController>(true);
-            if (ik == null || ik.BodyIK == null) { Core.Log.Error("[Seat] " + Who(player) + "'s avatar has no BipedIK, body sits without hand targets."); }
+            if (ik == null || ik.BodyIK == null) { Core.Log.Error("[Seat] " + who + "'s avatar has no BipedIK, body sits without hand targets."); }
 
-            var rig = new SeatRig(player, lv, frame, code, seatIndex, avatar, ik);
+            var rig = new SeatRig(player, npc, lv, frame, code, seatIndex, avatar, ik);
             rig.Attach(seat, glide);
             return rig;
         }
@@ -99,6 +107,10 @@ namespace Chassis.Seating
         }
 
         internal static string Who(Player p) => p == null ? "nobody" : (p.IsLocalPlayer ? "local " : "remote ") + p.PlayerName;
+        internal static string Who(NPC n) => n == null ? "nobody" : "npc " + n.FirstName;
+
+        /// <summary>Who sits here, for the log.</summary>
+        internal string Name => Npc != null ? Who(Npc) : Who(Player);
 
         private void Attach(SeatProfile seat, bool glide)
         {
@@ -123,7 +135,7 @@ namespace Chassis.Seating
 
             // The capsule rides inside the vehicle and must not push against it.
             _ignored.Clear();
-            if (Player.CapCol != null)
+            if (Player != null && Player.CapCol != null)
             {
                 foreach (var c in Vehicle.GetComponentsInChildren<Collider>(true))
                 {
@@ -137,7 +149,7 @@ namespace Chassis.Seating
             _rimR = FindRim(seat.Hands?.RightWheel);
             if (_ik != null && _ik.BodyIK != null) SetIK();
 
-            Core.Log.Msg("[Seat] " + Who(Player) + (IsPusher ? " pushing " + Code : " seated in " + Code + " seat " + SeatIndex) + " (" + Vehicle.name + "), glide " + (glide ? GlideSeconds + " s" : "off")
+            Core.Log.Msg("[Seat] " + Name + (IsPusher ? " pushing " + Code : " seated in " + Code + " seat " + SeatIndex) + " (" + Vehicle.name + "), glide " + (glide ? GlideSeconds + " s" : "off")
                 + ", hands " + (seat.Hands != null ? seat.Hands.Mode : "none") + (seat.Hands?.Mode == "rim" ? (_rimL != null && _rimR != null ? " on both rims" : " but a rim is missing") : "")
                 + (seat.Hands?.Mode == "wheel" ? (Vehicles.Parts.Wheel(_lv, out _, out _, out _) ? " on the steering wheel" : " but the profile's steering wheel is missing, hands stay at the grip") : "")
                 + ", " + _ignored.Count + " vehicle collider(s) ignored by the capsule.");
@@ -273,7 +285,13 @@ namespace Chassis.Seating
             if (_avatar.BodyContainer != null && !_avatar.BodyContainer.gameObject.activeSelf)
             {
                 _avatar.SetVisible(true);
-                if (!_shownLogged) { _shownLogged = true; Core.Log.Msg("[Seat] " + Who(Player) + "'s body was hidden by vanilla, shown again."); }
+                if (!_shownLogged) { _shownLogged = true; Core.Log.Msg("[Seat] " + Name + "'s body was hidden by vanilla, shown again."); }
+            }
+            // An NPC in a vehicle is hidden by switching off its whole avatar (NPC.SetVisible).
+            if (Npc != null && !_avatar.gameObject.activeSelf)
+            {
+                _avatar.gameObject.SetActive(true);
+                if (!_shownLogged) { _shownLogged = true; Core.Log.Msg("[Seat] " + Name + " was hidden in the vehicle by vanilla, shown again."); }
             }
             if (_glideT < 1f) { _glideT = Mathf.Min(1f, _glideT + dt / GlideSeconds); }
             ApplyGlide();
@@ -471,26 +489,32 @@ namespace Chassis.Seating
                     if (root.parent == _anchor)
                     {
                         if (_avatarParent0 != null) root.SetParent(_avatarParent0, false);
-                        else Core.Log.Warning("[Seat] " + Who(Player) + "'s avatar had no parent before sitting; it stays under the vehicle until vanilla moves it.");
+                        else Core.Log.Warning("[Seat] " + Name + "'s avatar had no parent before sitting; it stays under the vehicle until vanilla moves it.");
                         root.localPosition = _avatarPos0;
                         root.localRotation = _avatarRot0;
                         root.localScale = _avatarScale0;
                     }
-                    else Core.Log.Msg("[Seat] " + Who(Player) + "'s avatar was already moved to " + (root.parent != null ? root.parent.name : "the scene root") + ", left there.");
+                    else Core.Log.Msg("[Seat] " + Name + "'s avatar was already moved to " + (root.parent != null ? root.parent.name : "the scene root") + ", left there.");
                 }
                 if (Player != null && Player.CapCol != null)
                     foreach (var c in _ignored) if (c != null) Physics.IgnoreCollision(Player.CapCol, c, false);
+                if (Npc != null && _avatar != null)
+                {
+                    if (_avatar.Animation != null) _avatar.Animation.SetBool("Sitting", false);
+                    // Still in the vehicle (out of range, profile gone): back to how vanilla keeps it, hidden.
+                    if (Npc.IsInVehicle) _avatar.gameObject.SetActive(false);
+                }
             }
-            catch (Exception e) { Core.Log.Error("[Seat] detaching " + Who(Player) + " failed: " + e); }
+            catch (Exception e) { Core.Log.Error("[Seat] detaching " + Name + " failed: " + e); }
             foreach (var t in new[] { _gripL, _gripR, _footL, _footR, _kneeL, _kneeR, _elbowL, _elbowR, _anchor })
                 if (t != null) UnityEngine.Object.Destroy(t.gameObject);
             _anchor = null;
-            Core.Log.Msg("[Seat] " + Who(Player) + " left " + Code + " seat " + SeatIndex + " (" + why + ").");
+            Core.Log.Msg("[Seat] " + Name + " left " + Code + " seat " + SeatIndex + " (" + why + ").");
         }
 
         internal string Describe()
         {
-            return Who(Player) + " in " + Code + "#" + SeatIndex + " glide " + _glideT.ToString("F2") + " ik " + _ikOn
+            return Name + " in " + Code + "#" + SeatIndex + " glide " + _glideT.ToString("F2") + " ik " + _ikOn
                 + " strokeL " + _strokeL.Fraction.ToString("F2") + (_strokeL.Recovering > 0f ? "r" : "") + " strokeR " + _strokeR.Fraction.ToString("F2") + (_strokeR.Recovering > 0f ? "r" : "")
                 + " spin " + _strokeR.SpinDelta.ToString("F1") + " drive " + DriveInput.ToString("F2") + " wheel " + _wheelFollow.ToString("F0")
                 + " root " + (_avatar != null ? ProfileJson.F(_frame.InverseTransformPoint(_avatar.transform.position)) : "-");
