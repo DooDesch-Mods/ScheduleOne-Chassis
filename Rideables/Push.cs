@@ -34,6 +34,7 @@ namespace Chassis.Rideables
         /// <summary>Debug: drive input standing in for the driver's keys until <see cref="DebugUntil"/>.</summary>
         internal static Vector2 DebugDrive;
         internal static float DebugUntil;
+        private static float _debugSteer;
         /// <summary>Debug: pusher input standing in for the pusher's keys until <see cref="DebugPushUntil"/>.</summary>
         internal static Vector2 DebugPush;
         internal static float DebugPushUntil;
@@ -272,7 +273,12 @@ namespace Chassis.Rideables
             private static void Postfix(LandVehicle __instance)
             {
                 if (Time.time < DebugUntil && DebugDrive.y != 0f && __instance.LocalPlayerIsDriver)
-                    __instance.CurrentSteerAngle = Mathf.MoveTowards(__instance.CurrentSteerAngle, DebugDrive.y * __instance.ActualMaxSteeringAngle, __instance.steerRate * Time.deltaTime);
+                {
+                    // Vanilla eases its own angle back towards the keys each frame, so the debug angle runs on its own.
+                    _debugSteer = Mathf.MoveTowards(_debugSteer, DebugDrive.y * __instance.ActualMaxSteeringAngle, __instance.steerRate * Time.deltaTime);
+                    __instance.CurrentSteerAngle = _debugSteer;
+                }
+                else if (__instance.LocalPlayerIsDriver) _debugSteer = __instance.CurrentSteerAngle;
                 if (_input.Count == 0 || !__instance.LocalPlayerIsDriver || !WheelchairType.Is(__instance)) return;
                 if (!_input.TryGetValue(Ids.Of(__instance), out var input) || input.y == 0f) return;
                 if (Mathf.Abs(GameInput.MotionAxis.x) > 0.001f) return; // the driver's own steering wins
