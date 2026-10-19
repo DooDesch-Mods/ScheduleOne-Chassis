@@ -1,0 +1,112 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Shared release hardening: strip Release debug info + assembly identity, cuts AV false positives (see Workspace/build/Hardening.props). -->
+  <Import Project="$(MSBuildThisFileDirectory)../Workspace/build/Hardening.props" Condition="Exists('$(MSBuildThisFileDirectory)../Workspace/build/Hardening.props')" />
+  <Import Project="$(MSBuildThisFileDirectory)Workspace/build/Hardening.props" Condition="Exists('$(MSBuildThisFileDirectory)Workspace/build/Hardening.props')" />
+
+  <!-- CI checks out the shared Workspace repo as a SUBFOLDER of this project; compile only this mod's own source. -->
+  <ItemGroup>
+    <Compile Remove="Workspace/**/*.cs" />
+  </ItemGroup>
+
+  <!-- Generates DooDesch.ModVersion.Current from the version property. MUST come after the Workspace Remove. -->
+  <Import Project="$(MSBuildThisFileDirectory)../Workspace/build/ModVersion.props" Condition="Exists('$(MSBuildThisFileDirectory)../Workspace/build/ModVersion.props')" />
+  <Import Project="$(MSBuildThisFileDirectory)Workspace/build/ModVersion.props" Condition="Exists('$(MSBuildThisFileDirectory)Workspace/build/ModVersion.props')" />
+  <!-- Where a build is allowed to install: the test copy by default. See Workspace/build/Deploy.props. -->
+  <Import Project="$(MSBuildThisFileDirectory)../Workspace/build/Deploy.props" Condition="Exists('$(MSBuildThisFileDirectory)../Workspace/build/Deploy.props')" />
+  <Import Project="$(MSBuildThisFileDirectory)Workspace/build/Deploy.props" Condition="Exists('$(MSBuildThisFileDirectory)Workspace/build/Deploy.props')" />
+
+  <!--
+    Chassis - MelonLoader IL2CPP vehicle framework for Schedule I.
+    Visible occupants, hands on the wheel, first-person cabins and new rideables, for vanilla vehicles and mods.
+  -->
+
+  <PropertyGroup>
+    <!-- net6.0 = IL2CPP (deployed to the test copy), netstandard2.1 = Mono (compile only). -->
+    <TargetFrameworks>net6.0;netstandard2.1</TargetFrameworks>
+    <!-- The outer multi-target pass has no TargetFileName, so the root deploy check would hash the Mods folder
+         itself. The net6.0 pass still checks the deployed DLL. -->
+    <DeployVerifyDisable Condition="'$(TargetFramework)' == ''">true</DeployVerifyDisable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Chassis</RootNamespace>
+    <AssemblyName>Chassis</AssemblyName>
+    <NeutralLanguage>en-US</NeutralLanguage>
+    <!-- NEVER bumped. The release version comes from the tag (Workspace/docs/RELEASE-PROCESS.md, "Versioning"). -->
+    <Version Condition="'$(Version)' == ''">0.0.0-dev</Version>
+    <NoWarn>$(NoWarn);MSB3277;MSB3245</NoWarn>
+    <WorkspaceLibPath Condition="'$(WorkspaceLibPath)' == ''">$(MSBuildThisFileDirectory)../Workspace/lib</WorkspaceLibPath>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net6.0'">
+    <Backend>il2cpp</Backend>
+    <DefineConstants>$(DefineConstants);IL2CPP</DefineConstants>
+  </PropertyGroup>
+  <!--
+    Mono backend. There is no Mono test copy, so this target never deploys: the Chassis.dll in ModsDirectory is
+    the IL2CPP one and must not be overwritten or compared. Only Mono: dotnet build -f netstandard2.1.
+  -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
+    <Backend>mono</Backend>
+    <DefineConstants>$(DefineConstants);MONO</DefineConstants>
+    <DeployVerifyDisable>true</DeployVerifyDisable>
+  </PropertyGroup>
+  <PropertyGroup>
+    <GameManagedPath>$(WorkspaceLibPath)/$(Backend)/game</GameManagedPath>
+    <MelonLoaderPath>$(WorkspaceLibPath)/$(Backend)/melonloader</MelonLoaderPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Compat/GlobalUsings.Il2Cpp.cs" Condition="'$(Backend)' != 'il2cpp'" />
+    <Compile Remove="Compat/GlobalUsings.Mono.cs" Condition="'$(Backend)' != 'mono'" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="MelonLoader"><HintPath>$(MelonLoaderPath)/MelonLoader.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="0Harmony"><HintPath>$(MelonLoaderPath)/0Harmony.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Newtonsoft.Json"><HintPath>$(MelonLoaderPath)/Newtonsoft.Json.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(Backend)' == 'il2cpp'">
+    <Reference Include="Il2CppInterop.Runtime"><HintPath>$(MelonLoaderPath)/Il2CppInterop.Runtime.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2Cppmscorlib"><HintPath>$(GameManagedPath)/Il2Cppmscorlib.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2CppSystem"><HintPath>$(GameManagedPath)/Il2CppSystem.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Assembly-CSharp"><HintPath>$(GameManagedPath)/Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2CppScheduleOne.Core"><HintPath>$(GameManagedPath)/Il2CppScheduleOne.Core.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2CppFishNet.Runtime"><HintPath>$(GameManagedPath)/Il2CppFishNet.Runtime.dll</HintPath><Private>false</Private></Reference>
+    <!-- Final IK: the avatar's BipedIK, which puts the hands on the wheel. -->
+    <Reference Include="Il2CppRootMotion"><HintPath>$(GameManagedPath)/Il2CppRootMotion.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(GameManagedPath)/UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(GameManagedPath)/UnityEngine.PhysicsModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.AnimationModule"><HintPath>$(GameManagedPath)/UnityEngine.AnimationModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.VehiclesModule"><HintPath>$(GameManagedPath)/UnityEngine.VehiclesModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.AudioModule"><HintPath>$(GameManagedPath)/UnityEngine.AudioModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.InputLegacyModule"><HintPath>$(GameManagedPath)/UnityEngine.InputLegacyModule.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+  <!-- IL2CPP interop exposes every game member; on Mono the same private members need a publicized reference. -->
+  <ItemGroup Condition="'$(Backend)' == 'mono'">
+    <PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.3" PrivateAssets="all" />
+    <Reference Include="Assembly-CSharp" Publicize="true"><HintPath>$(GameManagedPath)/Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="ScheduleOne.Core"><HintPath>$(GameManagedPath)/ScheduleOne.Core.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="FishNet.Runtime"><HintPath>$(GameManagedPath)/FishNet.Runtime.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="RootMotion"><HintPath>$(GameManagedPath)/RootMotion.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine"><HintPath>$(GameManagedPath)/UnityEngine.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(GameManagedPath)/UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(GameManagedPath)/UnityEngine.PhysicsModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.AnimationModule"><HintPath>$(GameManagedPath)/UnityEngine.AnimationModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.VehiclesModule"><HintPath>$(GameManagedPath)/UnityEngine.VehiclesModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.AudioModule"><HintPath>$(GameManagedPath)/UnityEngine.AudioModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.InputLegacyModule"><HintPath>$(GameManagedPath)/UnityEngine.InputLegacyModule.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="Build" Condition="'$(OS)' == 'Windows_NT' And '$(Backend)' == 'il2cpp'">
+    <Exec Condition="Exists('$(ModsDirectory)')"
+          Command="cmd /c if exist &quot;$(ModsDirectory)&quot; copy /Y &quot;$(TargetPath)&quot; &quot;$(ModsDirectory)&quot;"
+          ContinueOnError="true" />
+  </Target>
+
+</Project>
