@@ -10,6 +10,8 @@
 ![Game](https://img.shields.io/badge/game-Schedule%20I-purple)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 
+![Chassis](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/header.jpg)
+
 ## Features
 
 - Players and NPCs in a vehicle sit visibly in their seats, police included. The driver holds
@@ -35,6 +37,12 @@ Yesla and RVRepairVan build their vehicles on Chassis and install it as a depend
 | `G` | Horn |
 | `H` | Headlights (vanilla) |
 | `Left arrow` / `Right arrow` | Indicator left / right. Press again to switch off. |
+
+## Screenshots
+
+![Driver in the seat](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/01-seated-driver.jpg)
+
+![First person view](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/02-first-person.jpg)
 
 ## Requirements
 
