@@ -12,6 +12,7 @@
 ![Game](https://img.shields.io/badge/game-Schedule%20I-purple)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 ![Status](https://img.shields.io/badge/status-working-brightgreen)
+[![Polyfill](https://polyfill.doomods.com/badge/chassis.svg)](https://polyfill.doomods.com/mod/chassis)
 
 [![MLVScan Chassis.dll](https://mlvscan.com/attestations/att_5A4u5R1voioYmBj0IXZCVH5T/badge.svg)](https://mlvscan.com/attestations/att_5A4u5R1voioYmBj0IXZCVH5T)
 
