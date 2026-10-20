@@ -153,9 +153,9 @@ namespace Chassis.Interior
                 Transform root = lv.transform;
                 float belt = band.min.y, roof = band.max.y;
                 // The avatars' heads are large for the vanilla cabins. The body sits low enough that the top of the head
-                // stays under the roof (head bone 0.78 m above the cushion, its top 0.35 m above the bone). First
-                // person looks from the natural eye height, under the roof and at least just above the belt line.
-                float cushion = Mathf.Min(belt + (roof - belt) * 0.45f - 0.70f, roof - 1.14f);
+                // and a tall hairstyle stay under the roof: they reach about 1.2 m above the cushion. First person looks
+                // from the natural eye height, under the roof and at least just above the belt line.
+                float cushion = Mathf.Min(belt + (roof - belt) * 0.45f - 0.70f, roof - 1.26f);
                 float eyes = Mathf.Max(Mathf.Min(cushion + 0.86f, roof - 0.08f), belt + 0.19f);
                 // These bodies close the cabin with a lid at the belt line. It is cut out of the body mesh; where that
                 // fails, dashboard, wheel and eyes sit above it.

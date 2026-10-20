@@ -274,6 +274,21 @@ namespace Chassis.Seating
             return local.x;
         }
 
+        private int _poseHeld;
+
+        /// <summary>
+        /// Switching the animator's object off and on resets its parameters (keepAnimatorStateOnDisable is off), so a body
+        /// shown again stands up unless the seat's pose bool is set again. Set locally: every peer shows the body itself.
+        /// </summary>
+        private void HoldPose()
+        {
+            if (IsPusher || _seat == null || string.IsNullOrEmpty(_seat.Pose)) return;
+            if (_avatar.Animation == null) { Core.Log.Warning("[Seat] " + Name + " has no avatar animation, the pose " + _seat.Pose + " is not set."); return; }
+            _avatar.Animation.SetBool(_seat.Pose, true);
+            _poseHeld++;
+            if (_poseHeld <= 3) Core.Log.Msg("[Seat] " + Name + "'s pose " + _seat.Pose + " set again after the body was shown (" + _poseHeld + ").");
+        }
+
         /// <summary>
         /// Every frame, after the player's own update and before the animator and Final IK run: glide, grips, feet.
         /// </summary>
@@ -285,12 +300,14 @@ namespace Chassis.Seating
             if (_avatar.BodyContainer != null && !_avatar.BodyContainer.gameObject.activeSelf)
             {
                 _avatar.SetVisible(true);
+                HoldPose();
                 if (!_shownLogged) { _shownLogged = true; Core.Log.Msg("[Seat] " + Name + "'s body was hidden by vanilla, shown again."); }
             }
             // An NPC in a vehicle is hidden by switching off its whole avatar (NPC.SetVisible).
             if (Npc != null && !_avatar.gameObject.activeSelf)
             {
                 _avatar.gameObject.SetActive(true);
+                HoldPose();
                 if (!_shownLogged) { _shownLogged = true; Core.Log.Msg("[Seat] " + Name + " was hidden in the vehicle by vanilla, shown again."); }
             }
             if (_glideT < 1f) { _glideT = Mathf.Min(1f, _glideT + dt / GlideSeconds); }
