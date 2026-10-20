@@ -102,6 +102,7 @@ namespace Chassis.Debugging
                         Say("profile list|show|save|reload|set <field> <values> [code] [seat] - seat profiles (see 'chassis profile')");
                         Say("target seat|patrol|near|gun|shoot|keep|list - shots into cars (see 'chassis target')");
                         Say("car [enter|honk|blink|lock|part|side|rain|assign|owners] - horn, indicators, lock, lids (see 'chassis car help')");
+                        Say("tune [part|remove|set|clear|stats|demo] - paint, parts, lights and driving of a car (see 'chassis tune help')");
                         Say("interior on|off|rebuild      - base interior and tinted glass in the vanilla cars");
                         Say("interior lift <m>            - lowest cushion top above the car's underside, fits the vanilla cars again");
                         Say("interior glass [r g b a] [smooth] [metal] [premul 0|1] [inside] - retint the glass live");
@@ -404,6 +405,10 @@ namespace Chassis.Debugging
 
                     case "target":
                         TargetCommands.Run(parts);
+                        break;
+
+                    case "tune":
+                        TuneCommands.Run(parts);
                         break;
 
                     case "interior":

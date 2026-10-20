@@ -132,7 +132,7 @@ namespace Chassis.Debugging
             }
         }
 
-        private static LandVehicle Target(string code)
+        internal static LandVehicle Target(string code)
         {
             var lp = Player.Local;
             if (lp == null) return null;

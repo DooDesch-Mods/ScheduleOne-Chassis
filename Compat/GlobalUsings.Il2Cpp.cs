@@ -46,3 +46,5 @@ global using GameUiText = Il2CppTMPro.TextMeshProUGUI;
 global using GameHud = Il2CppScheduleOne.UI.HUD;
 global using GameMoneyManager = Il2CppScheduleOne.Money.MoneyManager;
 global using VehicleSalesman = Il2CppScheduleOne.Dialogue.DialogueHandler_VehicleSalesman;
+global using GameVehicleSound = Il2CppScheduleOne.Vehicles.Sound.VehicleSound;
+global using GameVehicleModMenu = Il2CppScheduleOne.UI.VehicleModMenu;

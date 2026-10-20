@@ -127,6 +127,17 @@ namespace Chassis.Interior
             if (_gone.Count > 0) Core.Log.Msg("[Interior] rebuilding " + _gone.Count + " interior(s) of '" + code + "'.");
         }
 
+        /// <summary>Takes the interior out of one car so the next tick builds it again; false when it has none built.</summary>
+        internal static bool RebuildVehicle(LandVehicle lv)
+        {
+            if (lv == null || !_built.TryGetValue(lv.GetInstanceID(), out var b)) return false;
+            Remove(b);
+            _built.Remove(lv.GetInstanceID());
+            _next = 0f;
+            Core.Log.Msg("[Interior] rebuilding the interior of " + Registry.Name(lv) + ".");
+            return true;
+        }
+
         /// <summary>
         /// The vehicle's cockpit is in place for gauges and switches to bind: it has no base interior, or the interior is
         /// built. Before that, their paths would not be found yet.
@@ -591,7 +602,8 @@ namespace Chassis.Interior
                 bool any = false;
                 for (int i = 0; i < mats.Length; i++) any |= window[i] = IsWindow(mats[i], glass);
                 if (!any) continue;
-                Mesh src = mf.sharedMesh;
+                // Under a tuning cut, the cabin opens from the whole mesh; the tuning cuts the opened copy again.
+                Mesh src = Chassis.Tune.Body.Uncut(mf) ?? mf.sharedMesh;
                 Matrix4x4 toRoot = root.worldToLocalMatrix * r.transform.localToWorldMatrix;
                 Mesh open = ShellCut.Open(src, code, toRoot, band, window, out string report);
                 if (b == null) Core.Log.Msg("[Interior] " + code + " " + src.name + ": " + report + ".");
@@ -609,7 +621,7 @@ namespace Chassis.Interior
         private static int Glaze(LandVehicle lv, GlassProfile glass, Built b)
         {
             int slots = 0;
-            Material tinted = Glass(glass.Tint);
+            Material tinted = Glass(Chassis.Tune.Apply.TintOf(lv) ?? glass.Tint);
             foreach (var r in lv.GetComponentsInChildren<MeshRenderer>(true))
             {
                 if (r == null || r.gameObject.name == LiningName) continue;
@@ -640,7 +652,7 @@ namespace Chassis.Interior
         {
             int lined = 0;
             Material lining = Lining(ip.LiningColor);
-            Material glassInside = ip.Glass != null ? Glass(ip.Glass.Tint, true) : null;
+            Material glassInside = ip.Glass != null ? Glass(Chassis.Tune.Apply.TintOf(lv) ?? ip.Glass.Tint, true) : null;
             var lod0 = Lod0(lod);
             for (int i = 0; i < b.Glazed.Count; i++)
             {

@@ -30,17 +30,65 @@ namespace Chassis.Interior
         {
             string key = code + "|" + src.GetInstanceID();
             if (_cut.TryGetValue(key, out var done)) { report = done != null ? "open copy reused" : "no lid"; return done; }
+            float belt = band.min.y;
+            float x0 = band.min.x - Margin, x1 = band.max.x + Margin, z0 = band.min.z - Margin, z1 = band.max.z + Margin;
             Mesh made = null;
-            try { made = Build(src, toRoot, band, window, out report); }
+            try
+            {
+                made = Copy(src, toRoot, (int s, Vector3 a, Vector3 b, Vector3 c, out float ar) =>
+                {
+                    ar = 0f;
+                    bool glass = window != null && s < window.Length && window[s];
+                    return !glass && IsLid(a, b, c, belt, x0, x1, z0, z1, out ar);
+                }, "_Chassis_open", out int removed, out float area, out report);
+                if (made != null) report = "lid of " + removed + " triangle(s), " + area.ToString("F2") + " m2 removed";
+                else if (report == null) report = "no lid";
+            }
             catch (Exception e) { report = "readback threw: " + e.Message; Core.Log.Error("[Interior] opening " + src.name + " failed: " + e); }
+            _cut[key] = made;
+            return made;
+        }
+
+        /// <summary>
+        /// A copy of <paramref name="src"/> without the triangles whose centre lies inside one of <paramref name="boxes"/>
+        /// (in the car's root space, which <paramref name="toRoot"/> maps to), or null when no triangle lies inside or the
+        /// mesh could not be read. Tuning parts cut the stock bumper, wing or hood out of the baked body this way.
+        /// </summary>
+        internal static Mesh Cut(Mesh src, string boxesKey, Matrix4x4 toRoot, List<Bounds> boxes, out string report)
+        {
+            string key = "cut|" + boxesKey + "|" + src.GetInstanceID();
+            if (_cut.TryGetValue(key, out var done)) { report = done != null ? "cut copy reused" : "nothing inside the boxes"; return done; }
+            Mesh made = null;
+            try
+            {
+                made = Copy(src, toRoot, (int s, Vector3 a, Vector3 b, Vector3 c, out float ar) =>
+                {
+                    ar = Vector3.Cross(b - a, c - a).magnitude * 0.5f;
+                    Vector3 mid = (a + b + c) / 3f;
+                    foreach (var box in boxes) if (box.Contains(mid)) return true;
+                    return false;
+                }, "_Chassis_cut", out int removed, out float area, out report);
+                if (made != null) report = removed + " triangle(s), " + area.ToString("F2") + " m2 cut";
+                else if (report == null) report = "nothing inside the boxes";
+            }
+            catch (Exception e) { report = "readback threw: " + e.Message; Core.Log.Error("[Tuning] cutting " + src.name + " failed: " + e); }
             _cut[key] = made;
             return made;
         }
 
         internal static void Reset() => _cut.Clear();
 
-        private static Mesh Build(Mesh src, Matrix4x4 toRoot, Bounds band, bool[] window, out string report)
+        private delegate bool DropTriangle(int submesh, Vector3 a, Vector3 b, Vector3 c, out float area);
+
+        /// <summary>
+        /// Reads <paramref name="src"/> back from the GPU and copies it without the triangles <paramref name="drop"/> picks
+        /// (corners in root space). Null with <paramref name="report"/> set when the mesh cannot be read, null with no
+        /// report when nothing was dropped.
+        /// </summary>
+        private static Mesh Copy(Mesh src, Matrix4x4 toRoot, DropTriangle drop, string suffix, out int removed, out float area, out string report)
         {
+            removed = 0;
+            area = 0f;
             int count = src.vertexCount, subs = src.subMeshCount;
             if (count <= 0 || subs <= 0) { report = "empty mesh"; return null; }
             if (src.vertexBufferCount != 1) { report = src.vertexBufferCount + " vertex streams, only one is read"; return null; }
@@ -91,31 +139,26 @@ namespace Chassis.Interior
                 return null;
             }
 
-            float belt = band.min.y;
-            float x0 = band.min.x - Margin, x1 = band.max.x + Margin, z0 = band.min.z - Margin, z1 = band.max.z + Margin;
             var root = new Vector3[count];
             for (int v = 0; v < count; v++) root[v] = toRoot.MultiplyPoint3x4(pos[v]);
 
             var tris = new List<int[]>();
-            int removed = 0;
-            float area = 0f;
             for (int s = 0; s < subs; s++)
             {
                 var d = src.GetSubMesh(s);
                 if (d.topology != MeshTopology.Triangles) { report = "submesh " + s + " is " + d.topology; return null; }
                 var keep = new List<int>(d.indexCount);
-                bool glass = window != null && s < window.Length && window[s];
                 for (int t = d.indexStart; t + 2 < d.indexStart + d.indexCount; t += 3)
                 {
                     int a = indices[t] + d.baseVertex, b = indices[t + 1] + d.baseVertex, c = indices[t + 2] + d.baseVertex;
-                    if (!glass && IsLid(root[a], root[b], root[c], belt, x0, x1, z0, z1, out float ar)) { removed++; area += ar; continue; }
+                    if (drop(s, root[a], root[b], root[c], out float ar)) { removed++; area += ar; continue; }
                     keep.Add(a); keep.Add(b); keep.Add(c);
                 }
                 tris.Add(keep.ToArray());
             }
-            if (removed == 0) { report = "no lid"; return null; }
+            if (removed == 0) { report = null; return null; }
 
-            var m = new Mesh { name = src.name + "_Chassis_open" };
+            var m = new Mesh { name = src.name + suffix };
             if (count > 65535) m.indexFormat = IndexFormat.UInt32;
             m.vertices = pos;
             foreach (var c in channels)
@@ -137,7 +180,7 @@ namespace Chassis.Interior
             m.bounds = srcBounds;
             m.UploadMeshData(true);
             m.hideFlags |= HideFlags.DontUnloadUnusedAsset;
-            report = "lid of " + removed + " triangle(s), " + area.ToString("F2") + " m2 removed";
+            report = null;
             return m;
         }
 

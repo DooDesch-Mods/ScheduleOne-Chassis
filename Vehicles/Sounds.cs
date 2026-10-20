@@ -36,6 +36,9 @@ namespace Chassis.Vehicles
             Core.Log.Msg("[Sound] '" + name + "' registered, " + clip.length.ToString("F2") + " s.");
         }
 
+        /// <summary>Whether a clip of this name was registered.</summary>
+        internal static bool Has(string name) => !string.IsNullOrEmpty(name) && _clips.TryGetValue(name, out var clip) && clip != null;
+
         /// <summary>The clip by name; an empty or unknown name falls back to the built-in one (logged once).</summary>
         internal static AudioClip Get(string name, string fallback)
         {

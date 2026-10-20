@@ -69,7 +69,9 @@ namespace Chassis.Vehicles
             var horn = ChassisApi.For(lv)?.Horn;
             try
             {
-                var clip = Sounds.Get(horn?.Clip, Sounds.Horn);
+                // A horn from the car's tuning wins over the profile's.
+                string tuned = Tune.State.Get(lv, "horn");
+                var clip = Sounds.Get(!string.IsNullOrEmpty(tuned) ? tuned : horn?.Clip, Sounds.Horn);
                 var source = Sounds.On(lv, "ChassisHorn", horn != null ? horn.Position : new Vector3(0f, 0.6f, 1.8f));
                 source.PlayOneShot(clip, (horn != null ? horn.Volume : 0.8f) * Sounds.Volume());
                 Core.Log.Msg("[Horn] honked " + Registry.Name(lv) + " at " + lv.transform.position.ToString("F0") + ".");

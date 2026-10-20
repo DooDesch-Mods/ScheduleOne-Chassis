@@ -28,6 +28,7 @@ namespace Chassis
             Log.Msg("[Core] Harmony patches applied by MelonLoader on " + patched + " method(s).");
             Net.ChassisNet.Apply(HarmonyInstance);
             Net.ChassisSync.Init();
+            Tune.RepaintPatch.Apply(HarmonyInstance);
             Interior.BaseInterior.LoadSetting();
             Instruments.Sources.LoadSetting();
             // A profile edited in place: gauges and switches look up their transforms again.
@@ -75,6 +76,8 @@ namespace Chassis
             Instruments.Controls.Reset();
             Instruments.Cockpit.Reset();
             Instruments.Watch.Reset();
+            Tune.State.Reset();
+            Tune.Apply.Reset();
 #if DEBUG
             Seating.SitDemo.Reset();
 #endif
@@ -112,6 +115,8 @@ namespace Chassis
             Guard("switches", Instruments.Controls.Tick);
             Guard("cockpit", Instruments.Cockpit.Tick);
             Guard("driving events", Instruments.Watch.Tick);
+            Guard("tuning state", Tune.State.Tick);
+            Guard("tuning", Tune.Apply.Tick);
             Guard("sweep", Seating.Occupants.Sweep);
             Debugging.ConsoleRegistration.EnsureRegistered();
             Debugging.DebugConsolePatch.FlushToConsole();
