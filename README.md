@@ -2,6 +2,8 @@
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/chassis](https://support.doodesch.de/chassis).
 
+📖 **API documentation:** [docs.doodesch.de/mods/chassis/api/](https://docs.doodesch.de/mods/chassis/api/)
+
 > Drivers and passengers sit in the car where you can see them, with their hands on a steering
 > wheel that turns. Chassis adds a first person view, a horn, indicators, locks and owners, and a
 > base interior for the vanilla cars. Other mods build their vehicles on it.
@@ -87,6 +89,7 @@ Settings live in `UserData/MelonPreferences.cfg` under `Chassis`.
 
 The public API is the static class `ChassisApi` in the namespace `Chassis.Api`
 ([`Api/`](Api/)). Reference `Chassis.dll` and add Chassis as a dependency of your package.
+Every type and member: [API reference](https://docs.doodesch.de/mods/chassis/api/).
 
 - **Profiles:** A `ChassisProfile` per vehicle code holds seats, steering wheel, lids, lamps,
   horn and interior. `ChassisApi.Register` adds one from code, `ChassisApi.Assign` gives one

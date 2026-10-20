@@ -2,6 +2,8 @@
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/chassis](https://support.doodesch.de/chassis).
 
+📖 **API documentation:** [docs.doodesch.de/mods/chassis/api/](https://docs.doodesch.de/mods/chassis/api/)
+
 > Drivers and passengers sit in the car where you can see them, with their hands on a steering
 > wheel that turns. Chassis adds a first person view, a horn, indicators, locks and owners, and a
 > base interior for the vanilla cars. Other mods build their vehicles on it.
@@ -63,7 +65,8 @@ turns the base interior and the visible NPC drivers of the vanilla cars on or of
 Chassis has a public C# API in `Chassis.Api` (`ChassisApi`). With it you give a vehicle seat
 profiles, a steering wheel, lids, lamps and a horn sound, sound the horn, set indicators, and
 read or set owner and lock. Profiles are JSON files in `UserData/Chassis/<vehicle code>.json`,
-and a file there wins over a profile from code. Source and API:
+and a file there wins over a profile from code. Every type and member:
+[API reference](https://docs.doodesch.de/mods/chassis/api/). Source:
 [GitHub](https://github.com/DooDesch-Mods/ScheduleOne-Chassis).
 
 ## License
