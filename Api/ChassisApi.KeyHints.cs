@@ -28,6 +28,16 @@ namespace Chassis.Api
         /// frame and picks the vehicles and seats the key works in; null shows it in every vehicle. The same id again
         /// replaces the entry. Letters follow the keyboard layout, so <c>KeyCode.Y</c> shows the key labelled Y.
         /// </summary>
+        /// <param name="id">Your own unique id, e.g. "mymod.siren".</param>
+        /// <param name="label">The text next to the key, e.g. "Siren".</param>
+        /// <param name="show">Whether the line shows for the vehicle and seat in <see cref="KeyHintContext"/>; null shows it always.</param>
+        /// <param name="keys">One key or several shown side by side, e.g. <c>KeyCode.LeftArrow, KeyCode.RightArrow</c>.</param>
+        /// <example>
+        /// A siren key only for the driver of the mod's own vehicle:
+        /// <code>
+        /// ChassisApi.AddKeyHint("mymod.siren", "Siren", c => c.Driver &amp;&amp; ChassisApi.CodeOf(c.Vehicle) == "mymod_cruiser", KeyCode.H);
+        /// </code>
+        /// </example>
         public static void AddKeyHint(string id, string label, Func<KeyHintContext, bool> show, params KeyCode[] keys)
         {
             if (keys == null || keys.Length == 0) throw new ArgumentException("a key hint needs at least one key");
@@ -39,6 +49,10 @@ namespace Chassis.Api
         /// Adds a key hint whose key can change while the game runs, for a key from a mod's preferences. The key is
         /// read every frame and the hint follows it.
         /// </summary>
+        /// <param name="id">Your own unique id, e.g. "mymod.siren".</param>
+        /// <param name="label">The text next to the key, e.g. "Siren".</param>
+        /// <param name="show">Whether the line shows for the vehicle and seat in <see cref="KeyHintContext"/>; null shows it always.</param>
+        /// <param name="key">Read every frame, e.g. <c>() =&gt; myKeyEntry.Value</c> for a MelonPreferences entry.</param>
         public static void AddKeyHint(string id, string label, Func<KeyHintContext, bool> show, Func<KeyCode> key)
         {
             if (key == null) throw new ArgumentNullException(nameof(key));

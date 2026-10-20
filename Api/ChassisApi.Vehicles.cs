@@ -25,6 +25,7 @@ namespace Chassis.Api
         /// under a camper van): without this, the profile would follow the vanilla code to every vehicle of that kind.
         /// Call it on every peer; it holds until <see cref="Unassign"/> or until the vehicle is gone.
         /// </summary>
+        /// <param name="code">The profile code to use, e.g. "mymod_camper"; it may be registered before or after this call.</param>
         public static void Assign(LandVehicle vehicle, string code)
         {
             if (vehicle == null) throw new ArgumentNullException(nameof(vehicle));
@@ -80,6 +81,7 @@ namespace Chassis.Api
         // ---- sounds ------------------------------------------------------------------------------------------------
 
         /// <summary>Makes a clip available to profiles by name (<see cref="HornProfile.Clip"/>, <see cref="HornProfile.Chirp"/>).</summary>
+        /// <param name="name">The name profiles use, e.g. "mymod_horn". The same name again replaces the clip.</param>
         public static void RegisterSound(string name, AudioClip clip) => Sounds.Register(name, clip);
 
         // ---- horn --------------------------------------------------------------------------------------------------
@@ -88,6 +90,7 @@ namespace Chassis.Api
         /// Sounds the horn of a vehicle on every peer, and with <paramref name="flash"/> blinks its headlights twice.
         /// The host allows it when the local player sits in the vehicle or owns it. Every vehicle has a horn; the key is G.
         /// </summary>
+        /// <param name="flash">true also blinks the headlights twice.</param>
         public static void Honk(LandVehicle vehicle, bool flash = false) => Horn.Request(vehicle, flash);
 
         // ---- indicators --------------------------------------------------------------------------------------------
@@ -96,6 +99,7 @@ namespace Chassis.Api
         public static event Action<LandVehicle, int> IndicatorChanged;
 
         /// <summary>Switches the indicator of a vehicle for every peer: -1 left, 1 right, 0 off. The keys are the left and right arrows.</summary>
+        /// <param name="side">-1 left, 1 right, 0 off.</param>
         public static void SetIndicator(LandVehicle vehicle, int side) => Indicators.Request(vehicle, side, false);
 
         /// <summary>The side a vehicle signals: -1 left, 1 right, 0 off.</summary>
@@ -114,6 +118,8 @@ namespace Chassis.Api
         // ---- moving parts ------------------------------------------------------------------------------------------
 
         /// <summary>Opens or closes a lid from the profile for every peer.</summary>
+        /// <param name="part">A <see cref="PartProfile.Name"/> from the vehicle's profile, e.g. "boot"; case is ignored.</param>
+        /// <param name="open">true opens the lid, false closes it.</param>
         public static void SetPart(LandVehicle vehicle, string part, bool open) => Parts.Request(vehicle, part, open);
 
         /// <summary>Whether a lid is held open by <see cref="SetPart"/>.</summary>
@@ -123,6 +129,7 @@ namespace Chassis.Api
         /// Tells every peer which end the vehicle's storage is opened from, for lids with <see cref="PartProfile.Storage"/>.
         /// Vanilla storage counts as "rear" until a mod says otherwise.
         /// </summary>
+        /// <param name="front">true for storage opened at the front, false for the rear.</param>
         public static void SetStorageEnd(LandVehicle vehicle, bool front) => Parts.RequestStorageEnd(vehicle, front);
 
         // ---- owner and lock ----------------------------------------------------------------------------------------
@@ -155,6 +162,7 @@ namespace Chassis.Api
         public static void SetLocked(LandVehicle vehicle, bool locked) => Fleet.RequestLock(vehicle, locked);
 
         /// <summary>Host only: gives a vehicle a new owner. Returns false on a client or for a vehicle that is not player owned.</summary>
+        /// <param name="playerCode">The new owner's <c>Player.PlayerCode</c>, the same kind of value as <see cref="LocalPlayerCode"/>.</param>
         public static bool SetOwner(LandVehicle vehicle, string playerCode) => Fleet.HostSetOwner(vehicle, playerCode, "set by a mod");
 
         internal static void RaiseOwners()
