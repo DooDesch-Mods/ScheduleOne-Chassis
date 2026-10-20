@@ -25,7 +25,7 @@
   Press the same key again to switch off. After the turn they switch off on their own.
 - **Owner and lock per player:** Each player-owned vehicle has an owner, and the owner can lock
   it. A locked vehicle lets in only its owner. Others can ride along while the owner sits
-  inside. There is no key for the lock: mods do it, for example the Yesla phone app. Vehicles
+  inside. There is no key for the lock: other mods set it through the API. Vehicles
   from older saves belong to the host.
 - **Moving parts:** The steering wheel follows the front wheels.
 - **Base interior for the vanilla cars:** Seats, a dashboard, a steering wheel and tinted glass,
@@ -34,8 +34,6 @@
   Sit, then roll with the driving keys. A second player can take the handles and push. When it is
   empty again, it stays as a wheelchair where it stopped.
 - **Co-op:** Seats, horn, indicators, locks and owners sync through the host.
-
-Yesla and RVRepairVan build their vehicles on Chassis and install it as a dependency.
 
 ## Controls
 
@@ -52,7 +50,6 @@ Yesla and RVRepairVan build their vehicles on Chassis and install it as a depend
 |---|---|
 | ![Driver in the seat](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/01-seated-driver.jpg) | ![First person view](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/02-first-person.jpg) |
 | ![Base interior](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/03-interior.jpg) | ![NPC driver](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/04-npc-driver.jpg) |
-| ![Yesla](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/05-yesla.jpg) | ![RV Repair Van](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/06-rv.jpg) |
 | ![Wheelchair](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/07-wheelchair.jpg) | |
 
 ## Requirements

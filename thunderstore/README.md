@@ -21,15 +21,13 @@
 - The left and right arrow keys switch the indicators on vehicles that have indicator lamps.
   After the turn they switch off on their own.
 - Each player-owned vehicle has an owner, and the owner can lock it. A locked vehicle lets in
-  only its owner. Others can ride along while the owner sits inside. Mods do the locking, for
-  example the Yesla phone app. Vehicles from older saves belong to the host.
+  only its owner. Others can ride along while the owner sits inside. Other mods set the lock
+  through the API. Vehicles from older saves belong to the host.
 - The vanilla cars get a base interior: seats, a dashboard, a steering wheel and tinted glass,
   so you can see who sits inside.
 - The wheelchairs placed around town can be ridden: look at the seat, press Sit and roll with the
   driving keys. A second player can take the handles and push.
 - In co-op, seats, horn, indicators, locks and owners sync through the host.
-
-Yesla and RVRepairVan build their vehicles on Chassis and install it as a dependency.
 
 ## Controls
 
