@@ -381,7 +381,7 @@ jobs:
           repo: thunderstore.io
           namespace: DooDesch
           name: Chassis
-          description: Vehicle framework for Schedule I. Drivers and passengers sit visibly with hands on the wheel. Adds a first person view, horn, indicators, locks and owners, a base interior for vanilla cars and co-op sync. Yesla and RVRepairVan use it.
+          description: Vehicle framework for Schedule I. Drivers and passengers sit visibly with hands on the wheel. Adds a first person view, horn, indicators, locks and owners, a base interior for vanilla cars and co-op sync.
           version: ${{ needs.build.outputs.version }}
           path: thunderstore-package
           deps: |
