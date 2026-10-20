@@ -41,6 +41,7 @@ namespace Chassis.Seating
         private readonly List<KeyValuePair<IKSolverLimb, (Transform goal, IKSolverLimb.BendModifier mod, float w, Transform target)>> _limbs =
             new List<KeyValuePair<IKSolverLimb, (Transform, IKSolverLimb.BendModifier, float, Transform)>>();
         private readonly List<Collider> _ignored = new List<Collider>();
+        private readonly List<Collider> _bodyCollidersOff = new List<Collider>();
 
         private SeatProfile _seat;
         private Vector3 _glideFrom;
@@ -144,6 +145,7 @@ namespace Chassis.Seating
                     _ignored.Add(c);
                 }
             }
+            if (Npc != null) NpcBodyColliders(false);
 
             _rimL = FindRim(seat.Hands?.LeftWheel);
             _rimR = FindRim(seat.Hands?.RightWheel);
@@ -153,6 +155,36 @@ namespace Chassis.Seating
                 + ", hands " + (seat.Hands != null ? seat.Hands.Mode : "none") + (seat.Hands?.Mode == "rim" ? (_rimL != null && _rimR != null ? " on both rims" : " but a rim is missing") : "")
                 + (seat.Hands?.Mode == "wheel" ? (Vehicles.Parts.Wheel(_lv, out _, out _, out _) ? " on the steering wheel" : " but the profile's steering wheel is missing, hands stay at the grip") : "")
                 + ", " + _ignored.Count + " vehicle collider(s) ignored by the capsule.");
+        }
+
+        /// <summary>
+        /// A player's avatar has its colliders off, an NPC's keeps them on. Vanilla hides an NPC in a vehicle, which takes
+        /// them out of the world; shown on the seat they ride along as part of the vehicle. The driving AI then finds the
+        /// body under its own ground rays (VehicleAgent.GetAxleGroundHit skips nothing of the vehicle), and in a low car the
+        /// legs reach the road: the nose lifts and the NPC never drives off. So the seated body gets no colliders, as in
+        /// vanilla, and gets them back when it leaves the seat.
+        /// </summary>
+        private void NpcBodyColliders(bool on)
+        {
+            if (!on)
+            {
+                int before = _bodyCollidersOff.Count;
+                foreach (var c in _avatar.GetComponentsInChildren<Collider>(true))
+                {
+                    if (c == null || c.isTrigger || !c.enabled) continue;
+                    c.enabled = false;
+                    _bodyCollidersOff.Add(c);
+                }
+                if (_bodyCollidersOff.Count > before)
+                    Core.Log.Msg("[Seat] " + Name + "'s body: " + (_bodyCollidersOff.Count - before) + " collider(s) off while seated in " + Code + ".");
+                else if (before == 0)
+                    Core.Log.Warning("[Seat] " + Name + "'s body has no enabled collider to switch off in " + Code + ".");
+                return;
+            }
+            int back = 0;
+            foreach (var c in _bodyCollidersOff) if (c != null) { c.enabled = true; back++; }
+            _bodyCollidersOff.Clear();
+            Core.Log.Msg("[Seat] " + Name + "'s body: " + back + " collider(s) back on.");
         }
 
         private Transform FindRim(string name)
@@ -308,6 +340,7 @@ namespace Chassis.Seating
             {
                 _avatar.gameObject.SetActive(true);
                 HoldPose();
+                NpcBodyColliders(false);
                 if (!_shownLogged) { _shownLogged = true; Core.Log.Msg("[Seat] " + Name + " was hidden in the vehicle by vanilla, shown again."); }
             }
             if (_glideT < 1f) { _glideT = Mathf.Min(1f, _glideT + dt / GlideSeconds); }
@@ -517,6 +550,7 @@ namespace Chassis.Seating
                     foreach (var c in _ignored) if (c != null) Physics.IgnoreCollision(Player.CapCol, c, false);
                 if (Npc != null && _avatar != null)
                 {
+                    NpcBodyColliders(true);
                     if (_avatar.Animation != null) _avatar.Animation.SetBool("Sitting", false);
                     // Still in the vehicle (out of range, profile gone): back to how vanilla keeps it, hidden.
                     if (Npc.IsInVehicle) _avatar.gameObject.SetActive(false);
