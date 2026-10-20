@@ -16,6 +16,7 @@ namespace Chassis.Debugging
             Say("car                          - the vehicle: code, profile, owner, signal, parts");
             Say("car enter [code] [seat]      - get into the nearest vehicle, or the nearest of this code (lock checked); seat 1+ as passenger");
             Say("car put <code> <x> <y> <z> [yaw] - spawn a car at this pose (host), stand beside it");
+            Say("car bones                    - head, hips, knees and feet of your avatar in the vehicle space");
             Say("car remove                   - despawn the vehicle you sit in, or the nearest one (host)");
             Say("car honk [flash]             - horn (key G)");
             Say("car blink l|r|off            - indicator (arrow keys)");
@@ -78,6 +79,19 @@ namespace Chassis.Debugging
                     try { lv.EnterVehicle(); }
                     finally { foreach (var f in filled) f.Occupant = null; }
                     Say("car enter: " + Registry.Name(lv) + " seat " + seat + (lv.LocalPlayerIsDriver ? " (driver)" : " (passenger)"));
+                    break;
+                }
+                case "bones":
+                {
+                    // Head, hips and feet of the local avatar in the vehicle's space, to fit the seats against roof and underside.
+                    var av = Player.Local != null ? Player.Local.Avatar : null;
+                    if (av == null) { Say("car bones: no avatar"); break; }
+                    foreach (var t in av.GetComponentsInChildren<Transform>(true))
+                    {
+                        string n = t.name.ToLowerInvariant();
+                        if (n.Contains("head") || n.Contains("hip") || n.Contains("foot") || n.Contains("toe") || n.Contains("knee") || n.Contains("calf") || n.Contains("shin"))
+                            Say("car bones: " + t.name + " " + lv.transform.InverseTransformPoint(t.position).ToString("F2"));
+                    }
                     break;
                 }
                 case "remove":

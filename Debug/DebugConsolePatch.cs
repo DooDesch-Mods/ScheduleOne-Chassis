@@ -101,6 +101,7 @@ namespace Chassis.Debugging
                         Say("profile list|show|save|reload|set <field> <values> [code] [seat] - seat profiles (see 'chassis profile')");
                         Say("car [enter|honk|blink|lock|part|side|rain|assign|owners] - horn, indicators, lock, lids (see 'chassis car help')");
                         Say("interior on|off|rebuild      - base interior and tinted glass in the vanilla cars");
+                        Say("interior lift <m>            - lowest cushion top above the car's underside, fits the vanilla cars again");
                         Say("interior glass [r g b a] [smooth] [metal] [premul 0|1] [inside] - retint the glass live");
 #endif
                         break;
@@ -363,6 +364,11 @@ namespace Chassis.Debugging
                         string op = parts.Length > 2 ? parts[2].ToLowerInvariant() : "";
                         if (op == "on") { Interior.BaseInterior.Enabled = true; Say("interior on - vanilla cars get the base interior within a second"); }
                         else if (op == "off") { Interior.BaseInterior.Enabled = false; Say("interior off, " + Interior.BaseInterior.RemoveAll() + " removed"); }
+                        else if (op == "lift" && parts.Length > 3)
+                        {
+                            Interior.BaseInterior.CushionAboveUnderside = float.Parse(parts[3], System.Globalization.CultureInfo.InvariantCulture);
+                            Say("interior lift: cushions at least " + Interior.BaseInterior.CushionAboveUnderside + " m above the underside, " + Interior.BaseInterior.Refit() + " code(s) fitted again");
+                        }
                         else if (op == "rebuild") { int n = Interior.BaseInterior.RemoveAll(); Interior.BaseInterior.Reset(); Say("interior: " + n + " removed, rebuilding from the current profiles"); }
                         else if (op == "glass")
                         {
