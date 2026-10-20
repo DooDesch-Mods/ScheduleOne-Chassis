@@ -100,6 +100,7 @@ namespace Chassis.Debugging
                         Say("spawn | despawn              - wheelchair vehicle 2 m ahead (host) | remove all");
                         Say("tree [i]                     - hierarchy of wheelchair prop i");
                         Say("profile list|show|save|reload|set <field> <values> [code] [seat] - seat profiles (see 'chassis profile')");
+                        Say("target seat|patrol|near|gun|shoot|keep|list - shots into cars (see 'chassis target')");
                         Say("car [enter|honk|blink|lock|part|side|rain|assign|owners] - horn, indicators, lock, lids (see 'chassis car help')");
                         Say("interior on|off|rebuild      - base interior and tinted glass in the vanilla cars");
                         Say("interior lift <m>            - lowest cushion top above the car's underside, fits the vanilla cars again");
@@ -401,6 +402,10 @@ namespace Chassis.Debugging
                         VehicleCommands.Run(parts);
                         break;
 
+                    case "target":
+                        TargetCommands.Run(parts);
+                        break;
+
                     case "interior":
                     {
                         string op = parts.Length > 2 ? parts[2].ToLowerInvariant() : "";
@@ -487,7 +492,7 @@ namespace Chassis.Debugging
         }
 
         /// <summary>The car the local player sits in; else the one with that net id; else the nearest within 30 m.</summary>
-        private static LandVehicle Target(string id)
+        internal static LandVehicle Target(string id)
         {
             if (!string.IsNullOrEmpty(id))
             {
