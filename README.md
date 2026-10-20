@@ -8,7 +8,7 @@
 > wheel that turns. Chassis adds a first person view, a horn, indicators, locks and owners, and a
 > base interior for the vanilla cars. Other mods build their vehicles on it.
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Version](https://img.shields.io/badge/version-1.1.0-blue)
 ![Game](https://img.shields.io/badge/game-Schedule%20I-purple)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 ![Status](https://img.shields.io/badge/status-working-brightgreen)
@@ -37,6 +37,9 @@
 - **Wheelchairs:** The wheelchairs placed around town can be ridden. Look at the seat and press
   Sit, then roll with the driving keys. A second player can take the handles and push. When it is
   empty again, it stays as a wheelchair where it stopped.
+- **Key hints:** The keys of the vehicle show at the bottom left, next to the game's own: First
+  Person, Horn, and Indicators on vehicles with indicator lamps. Behind a wheelchair they show
+  Push and Let Go with your own key bindings.
 - **Co-op:** Seats, horn, indicators, locks and owners sync through the host.
 
 ## Controls
@@ -54,7 +57,7 @@
 |---|---|
 | ![Driver in the seat](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/01-seated-driver.jpg) | ![First person view](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/02-first-person.jpg) |
 | ![Base interior](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/03-interior.jpg) | ![NPC driver](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/04-npc-driver.jpg) |
-| ![Wheelchair](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/07-wheelchair.jpg) | |
+| ![Wheelchair](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/07-wheelchair.jpg) | ![Key hints](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/08-key-hints.jpg) |
 
 ## Requirements
 
@@ -103,6 +106,9 @@ Every type and member: [API reference](https://docs.doodesch.de/mods/chassis/api
 - **Owner and lock:** `OwnerOf`, `IsMine`, `IsLocked`, `SetLocked`, `SetOwner` (host),
   `OwnersChanged`, `ResolveUnknownOwner` (host, for vehicles without a record).
 - **First person:** `FirstPersonActive`, `FirstPersonKey`, `FirstPersonChanged`.
+- **Key hints:** `AddKeyHint` puts your own key into the key hints, `RemoveKeyHint` takes it
+  out. The `show` callback gets a `KeyHintContext` (`Vehicle`, `Profile`, `Seat`, `Driver`,
+  `Pushing`).
 
 ## Building from source
 

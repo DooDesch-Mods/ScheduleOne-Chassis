@@ -8,7 +8,7 @@
 > wheel that turns. Chassis adds a first person view, a horn, indicators, locks and owners, and a
 > base interior for the vanilla cars. Other mods build their vehicles on it.
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Version](https://img.shields.io/badge/version-1.1.0-blue)
 ![Game](https://img.shields.io/badge/game-Schedule%20I-purple)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 
@@ -22,6 +22,8 @@
   the steering wheel with both hands, and the wheel turns when you steer.
 - Press V in a vehicle for a first person view from your seat. Your body stays visible below you.
 - Press G for the horn. H stays the headlights.
+- The key hints at the bottom left show the vehicle's keys. Behind a wheelchair they show Push
+  and Let Go.
 - The left and right arrow keys switch the indicators on vehicles that have indicator lamps.
   After the turn they switch off on their own.
 - Each player-owned vehicle has an owner, and the owner can lock it. A locked vehicle lets in
@@ -48,6 +50,8 @@
 
 ![First person view](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/02-first-person.jpg)
 
+![Key hints](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/08-key-hints.jpg)
+
 ![Wheelchair](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/07-wheelchair.jpg)
 
 ## Requirements
@@ -64,7 +68,7 @@ turns the base interior and the visible NPC drivers of the vanilla cars on or of
 
 Chassis has a public C# API in `Chassis.Api` (`ChassisApi`). With it you give a vehicle seat
 profiles, a steering wheel, lids, lamps and a horn sound, sound the horn, set indicators, and
-read or set owner and lock. Profiles are JSON files in `UserData/Chassis/<vehicle code>.json`,
+read or set owner and lock, and add your own keys to the key hints. Profiles are JSON files in `UserData/Chassis/<vehicle code>.json`,
 and a file there wins over a profile from code. Every type and member:
 [API reference](https://docs.doodesch.de/mods/chassis/api/). Source:
 [GitHub](https://github.com/DooDesch-Mods/ScheduleOne-Chassis).
