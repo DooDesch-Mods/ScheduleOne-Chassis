@@ -67,6 +67,8 @@ namespace Chassis.Debugging
                         Say("click | scroll <n>           - click or turn the switch in view, as the mouse would");
                         Say("ctl <switch> [value]         - use a switch of your car through the API");
                         Say("coast [km/h] [s]             - hold your car at that speed along its facing (default 40 km/h, 5 s)");
+                        Say("creator                      - finish an open character creator with the default looks (test clients)");
+                        Say("notice                       - close the offense notice after an arrest");
                         Say("chairs                       - every wheelchair in the scene with its position");
                         Say("hints [format]               - vehicle key hints; a format with {0} relabels the arrow keys");
                         Say("demo [tp [n]]                - sit in the nearest wheelchair (tp: any distance, n: index from 'chairs')");
@@ -121,6 +123,30 @@ namespace Chassis.Debugging
                             if (string.Equals(b.P.Name, parts[2], StringComparison.OrdinalIgnoreCase)) hit = b;
                         if (hit == null) { Say("aim: no switch '" + parts[2] + "' bound on " + lv.vehicleCode); break; }
                         Say("aim: " + Seating.FirstPersonView.LookAt(hit.T.TransformPoint(hit.BoxCenter)));
+                        break;
+                    }
+                    case "creator":
+                    {
+                        // A joining test client without saved looks starts in the character creator; finish it with the defaults.
+#if IL2CPP
+                        var cc = Singleton<Il2CppScheduleOne.CharacterCreator.CharacterCreator>.Instance;
+#else
+                        var cc = Singleton<ScheduleOne.CharacterCreator.CharacterCreator>.Instance;
+#endif
+                        if (cc == null || !cc.IsOpen) Say("creator: not open");
+                        else { cc.Done(); Say("creator: done with the default looks"); }
+                        break;
+                    }
+                    case "notice":
+                    {
+                        // The offense notice after an arrest holds the player until its Close button; tests close it here.
+#if IL2CPP
+                        var ns = Singleton<Il2CppScheduleOne.UI.ArrestNoticeScreen>.Instance;
+#else
+                        var ns = Singleton<ScheduleOne.UI.ArrestNoticeScreen>.Instance;
+#endif
+                        if (ns == null) Say("notice: no offense notice screen");
+                        else { ns.Exit(); Say("notice: closed"); }
                         break;
                     }
                     case "coast":

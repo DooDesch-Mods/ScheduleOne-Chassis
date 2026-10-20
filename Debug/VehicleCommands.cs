@@ -123,6 +123,13 @@ namespace Chassis.Debugging
             var lp = Player.Local;
             if (lp == null) return null;
             if (lp.CurrentVehicle != null) return lp.CurrentVehicle.GetComponent<LandVehicle>();
+            // A net id picks that vehicle at any distance, so a test client can board the host's car from anywhere.
+            if (int.TryParse(code, out int id))
+            {
+                foreach (var v in Registry.All)
+                    if (v != null && Net.Ids.Of(v) == id) return v;
+                return null;
+            }
             LandVehicle best = null;
             float bd = 15f;
             foreach (var v in Registry.All)
