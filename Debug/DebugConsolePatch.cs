@@ -72,6 +72,8 @@ namespace Chassis.Debugging
                         Say("notice                       - close the offense notice after an arrest");
                         Say("hints [format]               - vehicle key hints; a format with {0} relabels the arrow keys");
                         Say("status                       - seated bodies and pushers, view, key hints, current vehicle");
+                        Say("showroom [tp|enter|hover|press <i>] - showroom cars; tp to car i's door, enter gets in, hover/press fire its prompt events");
+                        Say("showroom ghost on|off        - draw the hidden display props over their cars (alignment check)");
                         Say("view [pitch]                 - first person on/off while seated (key V); a pitch turns it on looking down that far");
                         Say("exit                         - leave the vehicle (as the Interact key)");
                         Say("drive <fwd> <steer> [s]       - driver input for s seconds (default 3)");
@@ -181,6 +183,30 @@ namespace Chassis.Debugging
                         Say("ctl: used '" + parts[2] + "'" + (val.HasValue ? " with " + val.Value.ToString(CultureInfo.InvariantCulture) : "") + ", value now " + Api.ChassisApi.ControlValue(lv, parts[2]).ToString("0.##", CultureInfo.InvariantCulture));
                         break;
                     }
+
+                    case "showroom":
+                        {
+                            // showroom [tp|enter <i>]: the display cars; tp stands at car i's door, enter also gets in.
+                            string act = parts.Length > 2 ? parts[2].ToLower() : "";
+                            if (act == "tp" || act == "enter")
+                            {
+                                int si = parts.Length > 3 && int.TryParse(parts[3], out int n) ? n : -1;
+                                var car = Rideables.Showroom.CarAt(si, out string dn);
+                                if (car == null) { Say("showroom " + act + ": no car at index " + si + (dn != null ? " (" + dn + ")" : "") + ", 0-" + (Rideables.Showroom.Count - 1)); break; }
+                                PlayerSingleton<PlayerMovement>.Instance.Teleport(car.GetExitPoint(0).position + Vector3.up * 0.1f, true);
+                                if (act == "enter") car.EnterVehicle();
+                                Say("showroom " + act + ": " + dn + " " + Vehicles.Registry.Name(car));
+                                break;
+                            }
+                            if (act == "ghost") { Say(Rideables.Showroom.Ghost(parts.Length > 3 && parts[3] == "on")); break; }
+                            if (act == "hover" || act == "press")
+                            {
+                                Say(Rideables.Showroom.Press(parts.Length > 3 && int.TryParse(parts[3], out int pi) ? pi : -1, act == "press"));
+                                break;
+                            }
+                            Say(Rideables.Showroom.Describe());
+                        }
+                        break;
 
                     case "status":
                         Say(Seating.Occupants.Describe());

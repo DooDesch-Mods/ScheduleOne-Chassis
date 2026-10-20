@@ -49,3 +49,4 @@ global using VehicleSalesman = ScheduleOne.Dialogue.DialogueHandler_VehicleSales
 global using GameVehicleSound = ScheduleOne.Vehicles.Sound.VehicleSound;
 global using GameVehicleModMenu = ScheduleOne.UI.VehicleModMenu;
 global using GameVehicleColor = ScheduleOne.Vehicles.Modification.EVehicleColor;
+global using VehicleSaleSign = ScheduleOne.Tools.VehicleSaleSign;

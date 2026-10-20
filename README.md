@@ -44,6 +44,8 @@
   the car, and the car stops.
 - **Wheelchairs:** Riding and pushing the wheelchairs moved to its own mod,
   [Rollin](https://github.com/DooDesch-Mods/ScheduleOne-Rollin). Without Rollin the wheelchairs stay vanilla props.
+- **Showroom cars:** The display cars at Hyland Auto can be entered before you buy one. The engine
+  starts, but they stay on their display. They are not saved and do not belong to anyone.
 - **Key hints:** The keys of the vehicle show at the bottom left, next to the game's own: First
   Person, Horn, and Indicators on vehicles with indicator lamps. While you push a vehicle (Rollin's
   wheelchair) they show Push and Let Go with your own key bindings.
