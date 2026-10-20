@@ -137,6 +137,10 @@ Every type and member: [API reference](https://docs.doodesch.de/mods/chassis/api
 - **Console:** `chassis telemetry` prints every source with its validity and every bound gauge
   and switch of your car. `chassis zones` shows the hit zones of the switches. Both work in the
   release build. A gauge or switch whose path is not found logs one warning per vehicle code.
+- **Debug build:** every GitHub release also carries `Chassis_<version>_debug.zip`. It adds the
+  developer console commands, among them `chassis profile` (edit and save seat profiles live),
+  `chassis interior`, `aim`, `click` and `ctl`; `chassis help` lists them all. Players use the
+  normal build.
 - **Example:** [`Examples/ChassisCockpitExample`](Examples/ChassisCockpitExample) gives the
   Shitbox a cockpit of its own with a speedometer, odometer digits and a beacon switch.
 

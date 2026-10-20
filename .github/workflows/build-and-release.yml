@@ -234,6 +234,27 @@ jobs:
           name: Chassis
           path: "Chassis_${{ steps.version-check.outputs.version }}.zip"
 
+      # DEBUG BUILD - GitHub release only, never Thunderstore or Nexus.
+      #
+      # Mod authors building an interior, gauges or switches against the API want the developer console commands
+      # (profile, interior, aim, click, ctl, car, `chassis help` lists them), which exist only in the Debug build. It
+      # stays off the player channels: the commands are test tools and the Debug build logs more.
+      - name: Build the project (Debug, IL2CPP)
+        run: dotnet build Chassis.csproj --configuration Debug -f net6.0 /p:Version="${{ steps.version-check.outputs.version }}" /p:WorkspaceLibPath="${{ github.workspace }}/Workspace/lib"
+
+      - name: Package the Debug build
+        run: |
+          mkdir -p debug
+          cp bin/Debug/net6.0/Chassis.dll debug/
+          [ -f "LICENSE.md" ] && cp LICENSE.md debug/ || true
+          (cd debug && zip -r "../Chassis_${{ steps.version-check.outputs.version }}_debug.zip" .)
+
+      - name: Upload Debug ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Chassis-debug
+          path: "Chassis_${{ steps.version-check.outputs.version }}_debug.zip"
+
       # Nexus is installed through Vortex, whose Schedule 1 extension deploys relative to the game root and
       # maps loose non-.md files at the archive root (manifest.json, icon.png) to a bare "mods" path - which
       # lands a FILE named "mods" in the game folder, replacing the real Mods DIRECTORY and wiping other mods.
@@ -281,13 +302,22 @@ jobs:
           unzip -q "Chassis_${{ needs.build.outputs.version }}.zip" -d release/
           ls -la release/
 
+      - name: Download Debug ZIP
+        uses: actions/download-artifact@v4
+        with:
+          name: Chassis-debug
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           generate_release_notes: true
-          files: release/Chassis.dll
+          files: |
+            release/Chassis.dll
+            Chassis_${{ needs.build.outputs.version }}_debug.zip
           body: |
             ## Changes in ${{ needs.build.outputs.version }}
+
+            **Building a mod on top of Chassis?** `Chassis_${{ needs.build.outputs.version }}_debug.zip` is the same version built in Debug. It adds the developer console commands, among them `chassis profile` (edit and save seat profiles live), `interior`, `aim`, `click` and `ctl`; `chassis help` lists them all. Players want `Chassis.dll`.
 
             ${{ needs.build.outputs.notes }}
 
