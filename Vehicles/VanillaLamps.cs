@@ -6,11 +6,12 @@ using UnityEngine.Rendering;
 namespace Chassis.Vehicles
 {
     /// <summary>
-    /// Amber turn signals for vehicles whose profile names no indicator lamps, which is every vanilla car. Where the model
-    /// has indicator lamps of its own (renderers or submeshes with an indicator or blinker material), those glow; a
-    /// corner without one borrows the headlight at the front and the brake light at the rear. Each lamp is a copy of its
-    /// triangles on one side of the car, lifted a few millimetres off the surface and shown only in the lit half of a
-    /// flash, so the vanilla materials are never touched and the headlights and brake lights keep working.
+    /// Turn signals for vehicles whose profile names no indicator lamps, which is every vanilla car. The model's own
+    /// indicator lamps (renderers or submeshes with an indicator or blinker material) glow amber. A car without one at the
+    /// rear flashes red in one part of each brake light, as many American cars do; a front without one stays dark, as a
+    /// flashing headlight reads as a warning flash. Each lamp is a copy of its triangles on one side of the car, lifted a
+    /// few millimetres off the surface and shown only in the lit half of a flash, so the vanilla materials are never
+    /// touched and the headlights and brake lights keep working.
     /// </summary>
     internal static class VanillaLamps
     {
@@ -19,7 +20,11 @@ namespace Chassis.Vehicles
         /// <summary>Triangles closer than this to the car's centre line belong to neither side.</summary>
         private const float CentreGap = 0.05f;
 
+        /// <summary>Parts of one brake light closer than this to its outermost part count as outermost too, in metres.</summary>
+        private const float SameEdge = 0.03f;
+
         private static readonly Color Amber = new Color(1f, 0.42f, 0f);
+        private static readonly Color Red = new Color(1f, 0.04f, 0.02f);
 
         private sealed class Set
         {
@@ -34,6 +39,8 @@ namespace Chassis.Vehicles
             internal MeshRenderer R;
             internal int Sub;           // submesh index, -1 for every submesh
             internal int End;           // 0 both ends, 1 front only, -1 rear only
+            internal bool Brake;        // a borrowed brake light: red, one part per side
+            internal List<Bounds> Skip; // boxes in the car's space whose triangles stay out (the reverse lights)
             internal string What;
         }
 
@@ -46,7 +53,7 @@ namespace Chassis.Vehicles
         }
 
         private static readonly Dictionary<string, Half> _meshes = new Dictionary<string, Half>();
-        private static Material _glow;
+        private static Material _amber, _red;
 
         /// <summary>Builds the lamps of a signalling vehicle the first time its signal shows.</summary>
         internal static void Ensure(LandVehicle lv)
@@ -102,12 +109,15 @@ namespace Chassis.Vehicles
             bool front = false, rear = false;
             var used = new List<string>();
             AddLamps(set, sources, used, ref left, ref right, ref front, ref rear);
-            // A corner the model has no indicator for borrows the headlight at the front and the brake light at the rear.
+            // A rear the model has no indicator for flashes one part of each brake light red.
             var vl = lv.GetComponent<VehicleLights>();
-            var borrowed = new List<Source>();
-            if (!front && vl != null) AddLights(borrowed, vl.headLightMeshes, 1, "headlight");
-            if (!rear && vl != null) AddLights(borrowed, vl.brakeLightMeshes, -1, "brake light");
-            AddLamps(set, borrowed, used, ref left, ref right, ref front, ref rear);
+            if (!rear && vl != null)
+            {
+                var borrowed = new List<Source>();
+                AddLights(borrowed, vl.brakeLightMeshes, -1, "brake light", Boxes(vl.reverseLightMeshes, lv.transform));
+                AddLamps(set, borrowed, used, ref left, ref right, ref front, ref rear);
+            }
+            if (!front) Core.Log.Msg("[Indicators] " + Registry.Name(lv) + " has no indicator lamp at the front - the front stays dark.");
             if (left + right == 0) Core.Log.Warning("[Indicators] " + Registry.Name(lv) + " has no lamp a turn signal could light - it flashes on the dashboard only.");
             else Core.Log.Msg("[Indicators] " + Registry.Name(lv) + ": " + left + " left and " + right + " right lamp(s) from " + string.Join(", ", used) + ".");
         }
@@ -123,8 +133,8 @@ namespace Chassis.Vehicles
                 Matrix4x4 toRoot = root.worldToLocalMatrix * s.R.transform.localToWorldMatrix;
                 var halves = Halves(mf.sharedMesh, s, toRoot, lv.vehicleCode, out string report);
                 if (halves == null) { Core.Log.Warning("[Indicators] " + Registry.Name(lv) + ": " + s.What + " could not be copied (" + report + "), skipped."); continue; }
-                if (halves.Left != null) { set.Left.Add(Lamp(s.R.transform, halves.Left, "Chassis_Indicator_L")); left++; }
-                if (halves.Right != null) { set.Right.Add(Lamp(s.R.transform, halves.Right, "Chassis_Indicator_R")); right++; }
+                if (halves.Left != null) { set.Left.Add(Lamp(s.R.transform, halves.Left, "Chassis_Indicator_L", s.Brake)); left++; }
+                if (halves.Right != null) { set.Right.Add(Lamp(s.R.transform, halves.Right, "Chassis_Indicator_R", s.Brake)); right++; }
                 front |= halves.Front; rear |= halves.Rear;
                 used.Add(s.What + " (" + report + ")");
             }
@@ -133,10 +143,36 @@ namespace Chassis.Vehicles
         private static bool IsIndicator(string material)
             => material.IndexOf("indicator", StringComparison.OrdinalIgnoreCase) >= 0 || material.IndexOf("blinker", StringComparison.OrdinalIgnoreCase) >= 0;
 
-        private static void AddLights(List<Source> into, MeshRenderer[] lights, int end, string what)
+        private static void AddLights(List<Source> into, MeshRenderer[] lights, int end, string what, List<Bounds> skip)
         {
             if (lights == null) return;
-            foreach (var r in lights) if (r != null) into.Add(new Source { R = r, Sub = -1, End = end, What = what + " " + r.name });
+            foreach (var r in lights) if (r != null) into.Add(new Source { R = r, Sub = -1, End = end, Brake = true, Skip = skip, What = what + " " + r.name });
+        }
+
+        /// <summary>
+        /// The boxes of these lights in the car's space, a centimetre larger. A reverse light often sits inside the brake
+        /// light's housing; a red copy over it would hide it.
+        /// </summary>
+        private static List<Bounds> Boxes(MeshRenderer[] lights, Transform root)
+        {
+            var boxes = new List<Bounds>();
+            if (lights == null) return boxes;
+            foreach (var r in lights)
+            {
+                var mf = r != null ? r.GetComponent<MeshFilter>() : null;
+                if (mf == null || mf.sharedMesh == null) continue;
+                Bounds local = mf.sharedMesh.bounds;
+                Matrix4x4 toRoot = root.worldToLocalMatrix * r.transform.localToWorldMatrix;
+                var box = new Bounds(toRoot.MultiplyPoint3x4(local.center), Vector3.zero);
+                for (int i = 0; i < 8; i++)
+                {
+                    var corner = local.center + Vector3.Scale(local.extents, new Vector3((i & 1) == 0 ? -1 : 1, (i & 2) == 0 ? -1 : 1, (i & 4) == 0 ? -1 : 1));
+                    box.Encapsulate(toRoot.MultiplyPoint3x4(corner));
+                }
+                box.Expand(0.02f);
+                boxes.Add(box);
+            }
+            return boxes;
         }
 
         /// <summary>The renderers that only lower LODs use; their lamps would double the ones of LOD 0.</summary>
@@ -157,32 +193,33 @@ namespace Chassis.Vehicles
             return set;
         }
 
-        private static GameObject Lamp(Transform parent, Mesh mesh, string name)
+        private static GameObject Lamp(Transform parent, Mesh mesh, string name, bool red)
         {
             var go = new GameObject(name);
             go.transform.SetParent(parent, false);
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             var mr = go.AddComponent<MeshRenderer>();
-            mr.sharedMaterial = Glow();
+            // Red glows at half the strength: at full strength its glow spills onto the next parts of a tail light.
+            mr.sharedMaterial = red ? Glow(ref _red, "Chassis_IndicatorRed", Red, 2f) : Glow(ref _amber, "Chassis_IndicatorGlow", Amber, 4f);
             mr.shadowCastingMode = ShadowCastingMode.Off;
             mr.receiveShadows = false;
             go.SetActive(false);
             return go;
         }
 
-        /// <summary>The glowing amber material of every lamp, made once from the URP Lit shader.</summary>
-        private static Material Glow()
+        /// <summary>A glowing lamp material, made once from the URP Lit shader.</summary>
+        private static Material Glow(ref Material cached, string name, Color colour, float glow)
         {
-            if (_glow != null) return _glow;
+            if (cached != null) return cached;
             var shader = Shader.Find("Universal Render Pipeline/Lit");
             if (shader == null) { Core.Log.Warning("[Indicators] the URP Lit shader was not found - the lamps use the default shader."); shader = Shader.Find("Standard"); }
-            _glow = new Material(shader) { name = "Chassis_IndicatorGlow" };
-            _glow.hideFlags |= HideFlags.DontUnloadUnusedAsset;
-            _glow.SetColor("_BaseColor", Amber);
-            _glow.EnableKeyword("_EMISSION");
-            _glow.SetColor("_EmissionColor", Amber * 4f);
-            _glow.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
-            return _glow;
+            cached = new Material(shader) { name = name };
+            cached.hideFlags |= HideFlags.DontUnloadUnusedAsset;
+            cached.SetColor("_BaseColor", colour);
+            cached.EnableKeyword("_EMISSION");
+            cached.SetColor("_EmissionColor", colour * glow);
+            cached.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+            return cached;
         }
 
         /// <summary>
@@ -192,7 +229,7 @@ namespace Chassis.Vehicles
         private static Half Halves(Mesh src, Source s, Matrix4x4 toRoot, string code, out string report)
         {
             // The same mesh can sit mirrored on both sides of a car, so its place in the car is part of the key.
-            string key = code + "|" + src.GetInstanceID() + "|" + s.Sub + "|" + s.End + "|" + toRoot.ToString("F3");
+            string key = code + "|" + src.GetInstanceID() + "|" + s.Sub + "|" + s.End + "|" + s.Brake + "|" + toRoot.ToString("F3");
             if (_meshes.TryGetValue(key, out var done)) { report = "copy reused"; return done; }
             Half made = null;
             try { made = Split(src, s, toRoot, out report); }
@@ -228,6 +265,7 @@ namespace Chassis.Vehicles
             for (int v = 0; v < count; v++) { int i = v * step + pAt; pos[v] = new Vector3(vdata[i], vdata[i + 1], vdata[i + 2]); }
 
             bool front = false, rear = false;
+            int hidden = 0;
             var left = new List<int>();
             var right = new List<int>();
             int first = s.Sub < 0 ? 0 : s.Sub, last = s.Sub < 0 ? src.subMeshCount - 1 : s.Sub;
@@ -240,15 +278,75 @@ namespace Chassis.Vehicles
                     int a = indices[t] + d.baseVertex, b = indices[t + 1] + d.baseVertex, c = indices[t + 2] + d.baseVertex;
                     Vector3 centre = toRoot.MultiplyPoint3x4((pos[a] + pos[b] + pos[c]) / 3f);
                     if (s.End > 0 && centre.z < 0f || s.End < 0 && centre.z > 0f) continue;
+                    if (s.Skip != null && Inside(s.Skip, centre)) { hidden++; continue; }
                     if (centre.x < -CentreGap) { left.Add(a); left.Add(b); left.Add(c); }
                     else if (centre.x > CentreGap) { right.Add(a); right.Add(b); right.Add(c); }
                     else continue;
                     if (centre.z > 0f) front = true; else rear = true;
                 }
             }
-            if (left.Count + right.Count == 0) { report = "no triangles off the centre line"; return null; }
-            report = left.Count / 3 + "+" + right.Count / 3 + " triangles";
+            if (left.Count + right.Count == 0) { report = hidden > 0 ? "every triangle under a reverse light" : "no triangles off the centre line"; return null; }
+            string parts = string.Empty;
+            if (s.Brake) parts = ", parts " + Outermost(left, pos, toRoot) + "+" + Outermost(right, pos, toRoot) + ", " + hidden + " under a reverse light";
+            report = left.Count / 3 + "+" + right.Count / 3 + " triangles" + parts;
             return new Half { Left = Copy(src.name, "L", pos, vdata, step, nAt, left), Right = Copy(src.name, "R", pos, vdata, step, nAt, right), Front = front, Rear = rear };
+        }
+
+        private static bool Inside(List<Bounds> boxes, Vector3 p)
+        {
+            foreach (var b in boxes) if (b.Contains(p)) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// Keeps one part of a brake light: the triangles that touch each other form a part, and the highest of the parts
+        /// furthest from the centre line (within <see cref="SameEdge"/>) stays. Vertices are joined by position, as a seam
+        /// in the texture splits a surface into separate vertices. Returns "kept/all".
+        /// </summary>
+        private static string Outermost(List<int> tris, Vector3[] pos, Matrix4x4 toRoot)
+        {
+            int n = tris.Count / 3;
+            if (n == 0) return "0/0";
+            var weld = new Dictionary<Vector3Int, int>();
+            var parent = new int[tris.Count];
+            for (int i = 0; i < parent.Length; i++) parent[i] = i;
+            int Find(int i) { while (parent[i] != i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; }
+            for (int i = 0; i < tris.Count; i++)
+            {
+                Vector3 p = pos[tris[i]] * 1000f;
+                var q = new Vector3Int(Mathf.RoundToInt(p.x), Mathf.RoundToInt(p.y), Mathf.RoundToInt(p.z));
+                if (weld.TryGetValue(q, out int other)) parent[Find(i)] = Find(other); else weld[q] = i;
+                if (i % 3 != 0) parent[Find(i)] = Find(i - 1);
+            }
+            // Each part's distance from the centre line and its height, weighted by triangle area.
+            var sum = new Dictionary<int, float>();
+            var height = new Dictionary<int, float>();
+            var area = new Dictionary<int, float>();
+            for (int t = 0; t < n; t++)
+            {
+                Vector3 a = toRoot.MultiplyPoint3x4(pos[tris[t * 3]]), b = toRoot.MultiplyPoint3x4(pos[tris[t * 3 + 1]]), c = toRoot.MultiplyPoint3x4(pos[tris[t * 3 + 2]]);
+                float w = Vector3.Cross(b - a, c - a).magnitude + 1e-9f;
+                int root = Find(t * 3);
+                sum.TryGetValue(root, out float s0);
+                height.TryGetValue(root, out float h0);
+                area.TryGetValue(root, out float w0);
+                sum[root] = s0 + Mathf.Abs((a.x + b.x + c.x) / 3f) * w;
+                height[root] = h0 + (a.y + b.y + c.y) / 3f * w;
+                area[root] = w0 + w;
+            }
+            float edge = 0f;
+            foreach (var kv in sum) edge = Mathf.Max(edge, kv.Value / area[kv.Key]);
+            // Of the parts at the outer edge (a tall lamp split into an upper and a lower part), the highest stays.
+            int keep = -1;
+            float top = float.MinValue;
+            foreach (var kv in sum)
+                if (kv.Value / area[kv.Key] >= edge - SameEdge && height[kv.Key] / area[kv.Key] > top) { top = height[kv.Key] / area[kv.Key]; keep = kv.Key; }
+            var kept = new List<int>(tris.Count);
+            for (int t = 0; t < n; t++)
+                if (Find(t * 3) == keep) { kept.Add(tris[t * 3]); kept.Add(tris[t * 3 + 1]); kept.Add(tris[t * 3 + 2]); }
+            tris.Clear();
+            tris.AddRange(kept);
+            return "1/" + sum.Count;
         }
 
         /// <summary>A mesh of just these triangles, every vertex moved <see cref="Lift"/> along its normal.</summary>
