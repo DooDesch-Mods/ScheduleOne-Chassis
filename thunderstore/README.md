@@ -25,6 +25,8 @@
   example the Yesla phone app. Vehicles from older saves belong to the host.
 - The vanilla cars get a base interior: seats, a dashboard, a steering wheel and tinted glass,
   so you can see who sits inside.
+- The wheelchairs placed around town can be ridden: look at the seat, press Sit and roll with the
+  driving keys. A second player can take the handles and push.
 - In co-op, seats, horn, indicators, locks and owners sync through the host.
 
 Yesla and RVRepairVan build their vehicles on Chassis and install it as a dependency.
@@ -43,6 +45,8 @@ Yesla and RVRepairVan build their vehicles on Chassis and install it as a depend
 ![Driver in the seat](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/01-seated-driver.jpg)
 
 ![First person view](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/02-first-person.jpg)
+
+![Wheelchair](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/07-wheelchair.jpg)
 
 ## Requirements
 

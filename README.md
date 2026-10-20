@@ -30,6 +30,9 @@
 - **Moving parts:** The steering wheel follows the front wheels.
 - **Base interior for the vanilla cars:** Seats, a dashboard, a steering wheel and tinted glass,
   so you can see who sits inside.
+- **Wheelchairs:** The wheelchairs placed around town can be ridden. Look at the seat and press
+  Sit, then roll with the driving keys. A second player can take the handles and push. When it is
+  empty again, it stays as a wheelchair where it stopped.
 - **Co-op:** Seats, horn, indicators, locks and owners sync through the host.
 
 Yesla and RVRepairVan build their vehicles on Chassis and install it as a dependency.
@@ -50,6 +53,7 @@ Yesla and RVRepairVan build their vehicles on Chassis and install it as a depend
 | ![Driver in the seat](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/01-seated-driver.jpg) | ![First person view](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/02-first-person.jpg) |
 | ![Base interior](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/03-interior.jpg) | ![NPC driver](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/04-npc-driver.jpg) |
 | ![Yesla](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/05-yesla.jpg) | ![RV Repair Van](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/06-rv.jpg) |
+| ![Wheelchair](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/07-wheelchair.jpg) | |
 
 ## Requirements
 
