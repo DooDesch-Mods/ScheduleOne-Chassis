@@ -4,6 +4,35 @@ All notable changes to Chassis are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.2.0] - 2026-10-21
+
+### Added
+- The speedometer and rev counter in the vanilla cars move, dash lamps show indicators and headlights. `SpeedUnit` sets
+  `kmh` or `mph`.
+- In first person, look at a dash switch and left-click it: lights, hazard lights, indicator stalk (also mouse wheel),
+  horn. Switches click, indicators tick.
+- A dot in the screen centre shows where you look while your view is below the windscreen, with the switch's name.
+- The vanilla cars flash their own amber indicator lamps outside, at the rear part of the brake light in red where a car
+  has none.
+- Guns hit NPCs in cars. A driver who goes down falls out and the car stops.
+
+### Fixed
+- Vehicle owners and locks are no longer lost when the game saves.
+- Seats and the driver's legs no longer stick out under the cars.
+- The steering wheel no longer spins faster than the hands could turn it.
+- Getting in crouched no longer leaves you crouched in the seat.
+
+### For mod authors
+- `ChassisApi.SetInterior` builds your own interior; `ChassisProfile.Gauges` and `ChassisProfile.Controls` bind
+  needles, lamps, digits and clickable switches.
+- `ChassisApi.Telemetry`, `ReadGauge` and `RegisterGaugeSource`: speed, rpm, pedals, lamps, steering, clock, odometer,
+  trip, each with a validity flag.
+- `RegisterControlAction`, `UseControl`, `ControlUsed` and the events `HeadlightsChanged`, `BrakeChanged`,
+  `ReverseChanged`, `DriverChanged`.
+- `RegisterOccupantDown` keeps a shot NPC slumped in its seat instead of falling out; `RemoveOccupantDown` removes it.
+- `chassis telemetry` and `chassis zones` work in the release build. The GitHub release also carries
+  `Chassis_1.2.0_debug.zip` with the developer console commands.
+
 ## [1.1.0] - 2026-10-20
 
 ### Added
