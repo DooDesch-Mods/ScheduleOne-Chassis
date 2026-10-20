@@ -102,6 +102,10 @@ namespace Chassis.Api
         /// <summary>Name of the switch, unique in the profile; the saved state and <see cref="ChassisApi.ControlValue"/> use it.</summary>
         public string Name = string.Empty;
 
+        /// <summary>The name the player reads under the centre dot while looking at the switch.</summary>
+        /// <value>For example "Hazard lights". Empty shows <see cref="Name"/> with a capital first letter and spaces for "_".</value>
+        public string Label = string.Empty;
+
         /// <summary>"button", "toggle" or "knob".</summary>
         /// <value>
         /// "button" fires its action on a click and springs back. "toggle" flips between 0 and 1 on a click. "knob" steps

@@ -93,7 +93,36 @@ namespace Chassis.Vehicles
             Keys();
             AutoCancel();
             Flash();
+            Relay();
         }
+
+        /// <summary>The relay ticks on each half of a flash, in the car the local player sits in.</summary>
+        private static void Relay()
+        {
+            bool phase = Phase;
+            if (phase == _relayPhase) return;
+            _relayPhase = phase;
+            var lp = Player.Local;
+            var lv = lp != null && lp.CurrentVehicle != null ? lp.CurrentVehicle.GetComponent<LandVehicle>() : null;
+            if (lv == null || SideOf(lv) == 0) return;
+            Camera cam = Camera.main;
+            if (cam == null) { if (!_noCamera) Core.Log.Warning("[Indicators] no main camera - the relay does not tick."); _noCamera = true; return; }
+            _noCamera = false;
+            try
+            {
+                Sounds.InCabin(lv, cam.transform.position + lv.transform.forward * 0.5f - lv.transform.up * 0.2f, phase ? Sounds.Tick : Sounds.Tock, 0.45f);
+                if (_relayFailed || !_relayLogged) Core.Log.Msg("[Indicators] relay tick played in " + Registry.Name(lv) + "; later ticks are not logged.");
+                _relayFailed = false;
+                _relayLogged = true;
+            }
+            catch (Exception e)
+            {
+                if (!_relayFailed) Core.Log.Error("[Indicators] the relay tick could not play, logged once until one plays: " + e);
+                _relayFailed = true;
+            }
+        }
+
+        private static bool _relayPhase, _relayFailed, _relayLogged, _noCamera;
 
         private static void Keys()
         {

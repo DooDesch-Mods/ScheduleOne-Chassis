@@ -81,7 +81,10 @@ namespace Chassis.Api
         // ---- sounds ------------------------------------------------------------------------------------------------
 
         /// <summary>Makes a clip available to profiles by name (<see cref="HornProfile.Clip"/>, <see cref="HornProfile.Chirp"/>).</summary>
-        /// <param name="name">The name profiles use, e.g. "mymod_horn". The same name again replaces the clip.</param>
+        /// <param name="name">
+        /// The name profiles use, e.g. "mymod_horn". The same name again replaces the clip. "chassis.click" (a cabin
+        /// switch moves), "chassis.tick" and "chassis.tock" (the indicator relay) replace the built-in cabin sounds.
+        /// </param>
         public static void RegisterSound(string name, AudioClip clip) => Sounds.Register(name, clip);
 
         // ---- horn --------------------------------------------------------------------------------------------------

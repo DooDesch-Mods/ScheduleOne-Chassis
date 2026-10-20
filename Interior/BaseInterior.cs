@@ -372,10 +372,10 @@ namespace Chassis.Interior
             profile.Gauges.Add(new GaugeProfile { Name = "indicator_right", Kind = "lamp", Path = "Chassis_LampRight", Source = "indicator_right", Color = green });
             profile.Gauges.Add(new GaugeProfile { Name = "lights", Kind = "lamp", Path = "Chassis_LampLights", Source = "lights", Color = new Color(0.3f, 0.65f, 1f) });
 
-            profile.Controls.Add(new ControlProfile { Name = "lights", Kind = "toggle", Path = LightSwitch, Action = "lights", Source = "lights", Axis = Vector3.right, Angle = 24f });
-            profile.Controls.Add(new ControlProfile { Name = "hazard", Kind = "toggle", Path = HazardSwitch, Action = "hazard", Source = "hazard", Axis = Vector3.right, Angle = 20f });
-            profile.Controls.Add(new ControlProfile { Name = "indicator", Kind = "knob", Path = IndicatorStalk, Action = "indicator", Source = "indicator", Axis = Vector3.back, Angle = 24f, Min = -1f, Max = 1f, Step = 1f, Default = 0f });
-            profile.Controls.Add(new ControlProfile { Name = "horn", Kind = "button", Path = HornButton, Action = "horn", Axis = Vector3.forward, Press = 0.006f });
+            profile.Controls.Add(new ControlProfile { Name = "lights", Label = "Lights", Kind = "toggle", Path = LightSwitch, Action = "lights", Source = "lights", Axis = Vector3.right, Angle = 24f });
+            profile.Controls.Add(new ControlProfile { Name = "hazard", Label = "Hazard lights", Kind = "toggle", Path = HazardSwitch, Action = "hazard", Source = "hazard", Axis = Vector3.right, Angle = 20f });
+            profile.Controls.Add(new ControlProfile { Name = "indicator", Label = "Indicator", Kind = "knob", Path = IndicatorStalk, Action = "indicator", Source = "indicator", Axis = Vector3.back, Angle = 24f, Min = -1f, Max = 1f, Step = 1f, Default = 0f });
+            profile.Controls.Add(new ControlProfile { Name = "horn", Label = "Horn", Kind = "button", Path = HornButton, Action = "horn", Axis = Vector3.forward, Press = 0.006f });
         }
 
         internal const string SpeedNeedle = "Chassis_SpeedNeedle", RpmNeedle = "Chassis_RpmNeedle";

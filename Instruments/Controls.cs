@@ -24,7 +24,8 @@ namespace Chassis.Instruments
         internal const float Reach = 0.9f;
         /// <summary>Switches are not animated beyond this distance from the camera.</summary>
         private const float Range = 30f;
-        private const float PressSeconds = 0.18f, MoveSeconds = 0.06f;
+        private const float PressSeconds = 0.18f, MoveSeconds = 0.06f, QuietSeconds = 1f;
+        private static bool _soundFailed, _soundLogged;
 
         internal static readonly HashSet<string> BuiltIn = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -45,6 +46,9 @@ namespace Chassis.Instruments
             internal Vector3 BoxCenter, BoxSize;
             internal float Angle, Pressed;
             internal float PressUntil;
+            /// <summary>The pose the switch last moved toward; a new one clicks. No click before <see cref="QuietUntil"/>, while states arrive after binding.</summary>
+            internal float Goal, QuietUntil;
+            internal bool WasPressed;
             internal readonly List<GameObject> Outline = new List<GameObject>();
             /// <summary>The mesh bounds each outline copies, in the space of the mesh it hangs below.</summary>
             internal readonly List<Bounds> OutlineBounds = new List<Bounds>();
@@ -105,7 +109,8 @@ namespace Chassis.Instruments
                     Warn(profile.Code, "box|" + c.Name, "switch '" + c.Name + "' has no renderer and no BoxSize - nothing to aim at, it cannot be used.");
                     continue;
                 }
-                b.Angle = Target(b);
+                b.Angle = b.Goal = Target(b);
+                b.QuietUntil = Time.time + QuietSeconds;
                 cab.Items.Add(b);
             }
             Core.Log.Msg("[Controls] " + Registry.Name(lv) + ": " + cab.Items.Count + " of " + profile.Controls.Count + " switch(es) bound.");
@@ -457,6 +462,9 @@ namespace Chassis.Instruments
                     if (b.Kind == "button")
                     {
                         float press = Time.time < b.PressUntil ? b.P.Press : 0f;
+                        bool down = Time.time < b.PressUntil;
+                        if (down && !b.WasPressed) Knock(b);
+                        b.WasPressed = down;
                         if (Mathf.Abs(press - b.Pressed) < 1e-5f) continue;
                         b.Pressed = Mathf.Lerp(b.Pressed, press, k);
                         if (Mathf.Abs(press - b.Pressed) < 1e-4f) b.Pressed = press;
@@ -464,6 +472,11 @@ namespace Chassis.Instruments
                         continue;
                     }
                     float target = Target(b);
+                    if (Mathf.Abs(target - b.Goal) > 0.01f)
+                    {
+                        b.Goal = target;
+                        if (Time.time >= b.QuietUntil) Knock(b);
+                    }
                     if (Mathf.Abs(target - b.Angle) < 0.01f) continue;
                     b.Angle = Mathf.Lerp(b.Angle, target, k);
                     if (Mathf.Abs(target - b.Angle) < 0.05f) b.Angle = target;
@@ -475,6 +488,23 @@ namespace Chassis.Instruments
             _gone.Clear();
             foreach (var kv in _cabs) if (kv.Value.V == null) _gone.Add(kv.Key);
             foreach (int key in _gone) _cabs.Remove(key);
+        }
+
+        /// <summary>The click of a switch that moves, heard in and next to the car.</summary>
+        private static void Knock(Bound b)
+        {
+            try
+            {
+                Sounds.InCabin(b.V, b.T.position, Sounds.Click, 0.6f);
+                if (_soundFailed || !_soundLogged) Core.Log.Msg("[Controls] switch click played ('" + b.P.Name + "' on " + Registry.Name(b.V) + "); later clicks are not logged.");
+                _soundFailed = false;
+                _soundLogged = true;
+            }
+            catch (Exception e)
+            {
+                if (!_soundFailed) Core.Log.Error("[Controls] the click of switch '" + b.P.Name + "' could not play, logged once until one plays: " + e);
+                _soundFailed = true;
+            }
         }
 
         private static float Target(Bound b)

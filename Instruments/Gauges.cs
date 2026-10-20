@@ -248,7 +248,7 @@ namespace Chassis.Instruments
             catch (Exception e) { Core.Log.Error("[Gauges] digits '" + b.P.Name + "' could not be made, they stay empty: " + e); }
         }
 
-        private static GameFontAsset Font()
+        internal static GameFontAsset Font()
         {
             if (_font != null || _fontSought) return _font;
             _fontSought = true;

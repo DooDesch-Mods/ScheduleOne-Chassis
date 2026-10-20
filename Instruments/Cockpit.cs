@@ -24,6 +24,7 @@ namespace Chassis.Instruments
         private static Controls.Bound _hover;
         private static int _aimFrame = -10;
         private static GameObject _canvas, _dot;
+        private static GameUiText _label;
         private static Material _outline, _zoneMat, _reachMat;
         private static bool _gateLogged;
 
@@ -105,6 +106,23 @@ namespace Chassis.Instruments
                 if (!b.OutlineMade) MakeOutline(b);
                 foreach (var go in b.Outline) if (go != null) go.SetActive(true);
             }
+            ShowLabel(b);
+        }
+
+        /// <summary>The switch's name under the dot while it is in view.</summary>
+        private static void ShowLabel(Controls.Bound b)
+        {
+            if (_label == null) return;
+            string text = b != null ? LabelOf(b.P) : string.Empty;
+            if (text.Length > 0) _label.text = text;
+            _label.gameObject.SetActive(text.Length > 0);
+        }
+
+        internal static string LabelOf(ControlProfile c)
+        {
+            if (!string.IsNullOrEmpty(c.Label)) return c.Label;
+            string n = (c.Name ?? string.Empty).Replace('_', ' ').Trim();
+            return n.Length > 0 ? char.ToUpperInvariant(n[0]) + n.Substring(1) : n;
         }
 
         /// <summary>
@@ -268,6 +286,8 @@ namespace Chassis.Instruments
                 img.color = new Color(1f, 1f, 1f, 0.92f);
                 img.raycastTarget = false;
                 Core.Log.Msg("[Cockpit] centre dot made.");
+                try { MakeLabel(); }
+                catch (Exception e) { Core.Log.Error("[Cockpit] the switch name under the dot could not be made, the dot shows alone: " + e); _label = null; }
             }
             catch (Exception e)
             {
@@ -275,6 +295,40 @@ namespace Chassis.Instruments
                 if (_canvas != null) UnityEngine.Object.Destroy(_canvas);
                 _canvas = null; _dot = null;
             }
+        }
+
+        /// <summary>The name line under the dot, in the font and look of the hotbar's item name.</summary>
+        private static void MakeLabel()
+        {
+            var go = new GameObject("Label");
+            go.transform.SetParent(_canvas.transform, false);
+            var rt = go.AddComponent<RectTransform>();
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.pivot = new Vector2(0.5f, 1f);
+            rt.anchoredPosition = new Vector2(0f, -12f);
+            rt.sizeDelta = new Vector2(480f, 40f);
+            var text = go.AddComponent<GameUiText>();
+            GameUiText hud = null;
+            try { if (Singleton<GameHud>.InstanceExists) hud = Singleton<GameHud>.Instance.selectedItemLabel; }
+            catch (Exception e) { Core.Log.Warning("[Cockpit] could not read the hotbar label for its font: " + e.Message); }
+            if (hud != null && hud.font != null)
+            {
+                text.font = hud.font;
+                text.fontSharedMaterial = hud.fontSharedMaterial;
+            }
+            else
+            {
+                var font = Gauges.Font();
+                if (font != null) text.font = font;
+                Core.Log.Warning("[Cockpit] no hotbar label yet - the switch name uses " + (font != null ? "'" + font.name + "'" : "the default font") + ".");
+            }
+            text.fontSize = 20f;
+            text.alignment = GameTextAlign.Top;
+            text.color = new Color(1f, 1f, 1f, 0.92f);
+            text.raycastTarget = false;
+            go.SetActive(false);
+            _label = text;
+            Core.Log.Msg("[Cockpit] switch name under the dot made" + (hud != null ? " in the hotbar font '" + (hud.font != null ? hud.font.name : "?") + "'" : "") + ".");
         }
 
         /// <summary>A white disc with a soft edge and a dark rim, so it reads on bright and dark backgrounds.</summary>
@@ -389,6 +443,7 @@ namespace Chassis.Instruments
             _dashOf = null;
             _dash = null;
             if (_dot != null) _dot.SetActive(false);
+            if (_label != null) _label.gameObject.SetActive(false);
             if (_reach != null) UnityEngine.Object.Destroy(_reach);
             _reach = null;
             _gateLogged = false;
