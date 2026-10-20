@@ -57,6 +57,7 @@ namespace Chassis.Debugging
                 {
                     case "help":
                         Say("chairs                       - every wheelchair in the scene with its position");
+                        Say("hints [format]               - vehicle key hints; a format with {0} relabels the arrow keys");
                         Say("demo [tp [n]]                - sit in the nearest wheelchair (tp: any distance, n: index from 'chairs')");
                         Say("demo off                     - stand up again");
                         Say("demo state                   - seat, grip and IK state");
@@ -75,7 +76,7 @@ namespace Chassis.Debugging
                         Say("demo cam out [dist] [yaw] [height] | fp [pitch] [forward] | off - look-check camera");
                         Say("status                       - seated bodies, swapped props, pushers, view, current vehicle");
                         Say("sit [tp <i>]                  - sit on the nearest wheelchair prop (as the Sit prompt); tp: go to prop i first");
-                        Say("push [off [net]]             - push the nearest occupied wheelchair, or let go");
+                        Say("push [off [net]|fake]        - push the nearest occupied wheelchair, or let go; fake: push an empty one");
                         Say("view [pitch]                 - first person on/off while seated (key V); a pitch turns it on looking down that far");
                         Say("exit                         - leave the vehicle (as the Interact key)");
                         Say("move <yaw> [m]             - turn the nearest wheelchair vehicle by yaw, then shift it m along its facing");
@@ -95,6 +96,7 @@ namespace Chassis.Debugging
                         Say(Rideables.PropSwap.Describe());
                         Say(Rideables.Push.Describe());
                         Say(Seating.FirstPersonView.Describe());
+                        Say(Vehicles.KeyHints.Describe());
                         {
                             var lp = Player.Local;
                             var cur = lp != null && lp.CurrentVehicle != null ? lp.CurrentVehicle.GetComponent<LandVehicle>() : null;
@@ -237,9 +239,20 @@ namespace Chassis.Debugging
                                 if (d < bd) { bd = d; best = v; }
                             }
                             if (best == null) { Say("push: no wheelchair vehicle"); break; }
+                            // fake: an empty chair counts as occupied, so one player can test pushing alone.
+                            if (parts.Length > 2 && parts[2] == "fake") { best.IsOccupied = true; Say("push: net " + Net.Ids.Of(best) + " marked occupied"); }
                             Net.ChassisNet.ToHost("req.push", Net.Ids.Of(best).ToString(), Net.Ids.Of(lp).ToString(), "1");
                             Say("push: asked for net " + Net.Ids.Of(best) + " at " + bd.ToString("F1") + " m");
                         }
+                        break;
+                    case "hints":
+                        // hints [arrow format]: the current key hints; a format ({0} = arrow glyph) relabels the arrow keys.
+                        if (parts.Length > 2)
+                        {
+                            Vehicles.KeyHints.ArrowFormat = string.Join(" ", parts, 2, parts.Length - 2);
+                            Vehicles.KeyHints.Rebuild();
+                        }
+                        Say(Vehicles.KeyHints.Describe() + ", arrows '" + Vehicles.KeyHints.ArrowFormat + "'");
                         break;
                     case "chairs":
                     {
