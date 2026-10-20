@@ -86,6 +86,7 @@ namespace Chassis.Debugging
                         Say("profile list|show|save|reload|set <field> <values> [code] [seat] - seat profiles (see 'chassis profile')");
                         Say("car [enter|honk|blink|lock|part|side|rain|assign|owners] - horn, indicators, lock, lids (see 'chassis car help')");
                         Say("interior on|off|rebuild      - base interior and tinted glass in the vanilla cars");
+                        Say("interior glass [r g b a] [smooth] [metal] [premul 0|1] [inside] - retint the glass live");
                         break;
 
                     case "status":
@@ -257,7 +258,21 @@ namespace Chassis.Debugging
                         if (op == "on") { Interior.BaseInterior.Enabled = true; Say("interior on - vanilla cars get the base interior within a second"); }
                         else if (op == "off") { Interior.BaseInterior.Enabled = false; Say("interior off, " + Interior.BaseInterior.RemoveAll() + " removed"); }
                         else if (op == "rebuild") { int n = Interior.BaseInterior.RemoveAll(); Interior.BaseInterior.Reset(); Say("interior: " + n + " removed, rebuilding from the current profiles"); }
-                        else Say(Interior.BaseInterior.Describe() + " - use on|off|rebuild");
+                        else if (op == "glass")
+                        {
+                            // glass [r g b a] [smoothness] [metallic]: retints every tinted window already made.
+                            var ci = System.Globalization.CultureInfo.InvariantCulture;
+                            Color? tint = null;
+                            float sm = Interior.BaseInterior.GlassSmoothness, me = Interior.BaseInterior.GlassMetallic;
+                            if (parts.Length >= 7) tint = new Color(float.Parse(parts[3], ci), float.Parse(parts[4], ci), float.Parse(parts[5], ci), float.Parse(parts[6], ci));
+                            if (parts.Length >= 8) sm = float.Parse(parts[7], ci);
+                            if (parts.Length >= 9) me = float.Parse(parts[8], ci);
+                            bool pre = parts.Length >= 10 ? parts[9] != "0" : Interior.BaseInterior.GlassPremultiply;
+                            float inn = parts.Length >= 11 ? float.Parse(parts[10], ci) : Interior.BaseInterior.GlassInside;
+                            int n = Interior.BaseInterior.Retint(tint, sm, me, pre, inn);
+                            Say("interior glass: " + n + " material(s), tint " + (tint.HasValue ? tint.Value.ToString() : "kept") + ", smoothness " + sm + ", metallic " + me + ", premultiply " + pre + ", inside " + inn);
+                        }
+                        else Say(Interior.BaseInterior.Describe() + " - use on|off|rebuild|glass [r g b a] [smooth] [metal]");
                         break;
                     }
 

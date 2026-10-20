@@ -15,6 +15,8 @@ namespace Chassis.Debugging
         {
             Say("car                          - the vehicle: code, profile, owner, signal, parts");
             Say("car enter [code]             - get into the nearest vehicle, or the nearest of this code (lock checked)");
+            Say("car put <code> <x> <y> <z> [yaw] - spawn a car at this pose (host), stand beside it");
+            Say("car remove                   - despawn the vehicle you sit in, or the nearest one (host)");
             Say("car honk [flash]             - horn (key G)");
             Say("car blink l|r|off            - indicator (arrow keys)");
             Say("car lock on|off              - lock or unlock (owner only)");
@@ -31,6 +33,20 @@ namespace Chassis.Debugging
             string arg = p.Length > 3 ? p[3].ToLower() : "";
             if (op == "help") { Help(); return; }
             if (op == "owners") { Say(Fleet.Describe()); Say(Indicators.Describe()); return; }
+            if (op == "put")
+            {
+                // put <code> <x> <y> <z> [yaw]: a vanilla car at an exact pose (host), the player 3 m to its left -
+                // for look checks on a free spot instead of 4 m ahead of the player.
+                if (p.Length < 7) { Say("car put <code> <x> <y> <z> [yaw]"); return; }
+                var ci = System.Globalization.CultureInfo.InvariantCulture;
+                var pos = new Vector3(float.Parse(p[4], ci), float.Parse(p[5], ci), float.Parse(p[6], ci));
+                var rot = Quaternion.Euler(0f, p.Length > 7 ? float.Parse(p[7], ci) : 0f, 0f);
+                var made = NetworkSingleton<VehicleManager>.Instance.SpawnAndReturnVehicle(p[3], pos, rot, true);
+                if (made == null) { Say("car put: '" + p[3] + "' not spawned (unknown code or not the host)"); return; }
+                PlayerSingleton<PlayerMovement>.Instance.Teleport(pos + rot * Vector3.left * 3f + Vector3.up * 0.2f, true);
+                Say("car put: " + Registry.Name(made) + " at " + pos.ToString("F1") + " yaw " + rot.eulerAngles.y.ToString("F0"));
+                return;
+            }
             if (op == "rain")
             {
                 Parts.RainOverride = arg == "on" ? true : arg == "off" ? (bool?)false : null;
@@ -54,6 +70,12 @@ namespace Chassis.Debugging
                     if (!Fleet.CanEnter(lv, out string why)) { Say("car enter: refused, " + why); break; }
                     lv.EnterVehicle();
                     Say("car enter: " + Registry.Name(lv));
+                    break;
+                case "remove":
+                    if (!InstanceFinder.IsServer) { Say("car remove: only the host despawns vehicles"); break; }
+                    if (Player.Local != null && Player.Local.CurrentVehicle != null) lv.ExitVehicle();
+                    Say("car remove: " + Registry.Name(lv));
+                    Compat.Interop.Despawn(lv.gameObject);
                     break;
                 case "honk":
                     ChassisApi.Honk(lv, arg == "flash");

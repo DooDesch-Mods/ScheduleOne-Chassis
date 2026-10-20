@@ -55,6 +55,36 @@ namespace Chassis.Compat
         internal static T[] Arr<T>(params T[] items) => items;
 #endif
 
+        /// <summary>Copies a GPU buffer back into managed arrays, so a mesh that is not readable on the CPU can still be read.</summary>
+        internal static float[] ReadFloats(GraphicsBuffer buffer, int count)
+        {
+#if IL2CPP
+            var data = new Il2CppStructArray<float>(count);
+            // GetData's unstripped body asks the array for its element type through a method the interop lacks; the
+            // native call behind it takes the element size directly.
+            buffer.InternalGetData(new Il2CppSystem.Array(data.Pointer), 0, 0, count, 4);
+            return data;
+#else
+            var data = new float[count];
+            buffer.GetData(data);
+            return data;
+#endif
+        }
+
+        /// <summary>An index buffer read back, widened to int.</summary>
+        internal static int[] ReadIndices(GraphicsBuffer buffer, int count, bool wide)
+        {
+            var r = new int[count];
+#if IL2CPP
+            if (wide) { var d = new Il2CppStructArray<int>(count); buffer.InternalGetData(new Il2CppSystem.Array(d.Pointer), 0, 0, count, 4); for (int i = 0; i < count; i++) r[i] = d[i]; }
+            else { var d = new Il2CppStructArray<ushort>(count); buffer.InternalGetData(new Il2CppSystem.Array(d.Pointer), 0, 0, count, 2); for (int i = 0; i < count; i++) r[i] = d[i]; }
+#else
+            if (wide) buffer.GetData(r);
+            else { var d = new ushort[count]; buffer.GetData(d); for (int i = 0; i < count; i++) r[i] = d[i]; }
+#endif
+            return r;
+        }
+
         /// <summary>Server despawn without a despawn type, as FishNet's optional parameter.</summary>
         internal static void Despawn(GameObject go)
         {

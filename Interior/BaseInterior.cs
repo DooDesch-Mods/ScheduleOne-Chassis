@@ -60,6 +60,8 @@ namespace Chassis.Interior
             internal readonly List<Renderer> Glazed = new List<Renderer>();
             internal readonly List<Material[]> Original = new List<Material[]>();
             internal readonly List<GameObject> Linings = new List<GameObject>();
+            internal readonly List<MeshFilter> Opened = new List<MeshFilter>();
+            internal readonly List<Mesh> Closed = new List<Mesh>();
         }
 
         private static readonly Dictionary<int, Built> _built = new Dictionary<int, Built>();
@@ -155,13 +157,16 @@ namespace Chassis.Interior
                 // person looks from the natural eye height, under the roof and at least just above the belt line.
                 float cushion = Mathf.Min(belt + (roof - belt) * 0.45f - 0.70f, roof - 1.14f);
                 float eyes = Mathf.Max(Mathf.Min(cushion + 0.86f, roof - 0.08f), belt + 0.19f);
-                // These bodies close the cabin with a lid at the belt line; dashboard, wheel and eyes sit above it.
+                // These bodies close the cabin with a lid at the belt line. It is cut out of the body mesh; where that
+                // fails, dashboard, wheel and eyes sit above it.
                 bool lid = LiddedCodes.Contains(code);
-                float lift = lid ? 0.16f : 0f;
-                if (lid) eyes = Mathf.Max(eyes, Mathf.Min(belt + 0.30f, roof - 0.08f));
+                bool opened = lid && OpenShell(lv, glass, code, band, Lod0(lv.GetComponentInChildren<LODGroup>(true)), null) > 0;
+                bool closed = lid && !opened;
+                float lift = closed ? 0.16f : 0f;
+                if (closed) eyes = Mathf.Max(eyes, Mathf.Min(belt + 0.30f, roof - 0.08f));
                 float floor = cushion - 0.32f;
 
-                var profile = new ChassisProfile { Code = code, Interior = new InteriorProfile { Glass = glass } };
+                var profile = new ChassisProfile { Code = code, Interior = new InteriorProfile { Glass = glass, OpenLid = lid } };
                 var parts = profile.Interior.Parts;
 
                 int driver = -1;
@@ -195,9 +200,11 @@ namespace Chassis.Interior
                 {
                     Kind = "dash",
                     Position = new Vector3(band.center.x, belt + 0.02f + lift, dashFront),
-                    Size = new Vector3(Mathf.Max(0.6f, band.size.x - 0.12f), lid ? 0.2f : Mathf.Clamp(belt + 0.02f - floor - 0.3f, 0.2f, 0.45f), Mathf.Max(0.08f, dashFront - dashBack)),
-                    Color = new Color(0.18f, 0.18f, 0.19f),
+                    Size = new Vector3(Mathf.Max(0.6f, band.size.x - 0.12f), closed ? 0.2f : Mathf.Clamp(belt + 0.02f - floor - 0.3f, 0.2f, 0.45f), Mathf.Max(0.08f, dashFront - dashBack)),
+                    Color = new Color(0.22f, 0.22f, 0.23f),
                 });
+                float dashTop = belt + 0.02f + lift;
+                parts.Add(new KitPart { Kind = "gauges", Position = new Vector3(d.x, dashTop - 0.06f, dashBack), Size = new Vector3(0.3f, 0.1f, 0.05f), Color = new Color(0.16f, 0.16f, 0.17f) });
 
                 // Seats: the front row one each, a row behind it as one bench.
                 var done = new bool[seats.Length];
@@ -240,7 +247,7 @@ namespace Chassis.Interior
 
                 bool used = ChassisApi.Register(profile);
                 Core.Log.Msg("[Interior] fitted " + code + ": window band " + ProfileJson.F(band.min) + " .. " + ProfileJson.F(band.max) + ", cushion "
-                    + cushion.ToString("F2") + ", driver z " + seatZ.ToString("F2") + (shift < 0f ? " (moved back " + (-shift).ToString("F2") + ")" : "") + (lid ? ", above the cabin lid" : "") + ", wheel z " + wheelAt.z.ToString("F2") + ", dash " + (dashFront - dashBack).ToString("F2") + " m deep, " + parts.Count + " kit part(s), " + profile.Seats.Count + " seat(s)" + (used ? "." : " - a JSON file wins."));
+                    + cushion.ToString("F2") + ", driver z " + seatZ.ToString("F2") + (shift < 0f ? " (moved back " + (-shift).ToString("F2") + ")" : "") + (opened ? ", cabin lid cut out" : closed ? ", above the cabin lid" : "") + ", wheel z " + wheelAt.z.ToString("F2") + ", dash " + (dashFront - dashBack).ToString("F2") + " m deep, " + parts.Count + " kit part(s), " + profile.Seats.Count + " seat(s)" + (used ? "." : " - a JSON file wins."));
             }
             catch (Exception e)
             {
@@ -275,12 +282,15 @@ namespace Chassis.Interior
                     if (r != null) kitRenderers.Add(r);
                 }
 
+                int opened = 0;
+                if (ip.OpenLid && ip.Glass != null && WindowBand(lv, ip.Glass, out Bounds band))
+                    opened = OpenShell(lv, ip.Glass, profile.Code, band, Lod0(lod), b);
                 int glazed = ip.Glass != null ? Glaze(lv, ip.Glass, b) : 0;
                 int lined = ip.Lining ? Line(lv, ip, b, kitRenderers, lod) : 0;
                 AddToLod(lod, kitRenderers, Registry.Name(lv));
                 // The steering wheel only exists from now on; the parts rig looks it up again.
                 Vehicles.Parts.Forget(lv);
-                Core.Log.Msg("[Interior] " + Registry.Name(lv) + ": " + kitRenderers.Count + " kit renderer(s), " + glazed + " window slot(s) tinted, " + lined + " shell(s) lined.");
+                Core.Log.Msg("[Interior] " + Registry.Name(lv) + ": " + kitRenderers.Count + " kit renderer(s), " + glazed + " window slot(s) tinted, " + lined + " shell(s) lined" + (ip.OpenLid ? ", " + opened + " opened" : "") + ".");
             }
             catch (Exception e) { Core.Log.Error("[Interior] building the interior of " + Registry.Name(lv) + " failed: " + e); }
         }
@@ -302,6 +312,9 @@ namespace Chassis.Interior
                 case "wheel":
                     mesh = KitMesh.Wheel(part.Size.x, part.Size.z, "Chassis_wheel");
                     break;
+                case "gauges":
+                    mesh = KitMesh.Gauges(part.Size, "Chassis_gauges");
+                    break;
                 default:
                     Core.Log.Warning("[Interior] unknown kit part '" + part.Kind + "' - skipped.");
                     return null;
@@ -312,9 +325,44 @@ namespace Chassis.Interior
             go.transform.localRotation = Quaternion.Euler(part.Rotation);
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             var r = go.AddComponent<MeshRenderer>();
-            r.sharedMaterial = Flat(part.Color);
+            if (mesh.subMeshCount > 1) r.sharedMaterials = new[] { Flat(part.Color), Flat(Accent(kind, part.Color)) };
+            else r.sharedMaterial = Flat(part.Color);
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             return r;
+        }
+
+        /// <summary>
+        /// Swaps the body meshes of the most detailed LOD that carry windows for copies without the cabin lid. With no
+        /// <paramref name="b"/> it only makes the copies, to learn whether the lid can go. Runs before the glass goes in,
+        /// while the window slots still have their vanilla materials.
+        /// </summary>
+        private static int OpenShell(LandVehicle lv, GlassProfile glass, string code, Bounds band, HashSet<int> lod0, Built b)
+        {
+            int opened = 0;
+            Transform root = lv.transform;
+            foreach (var r in lv.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                if (r == null || r.gameObject.name == LiningName) continue;
+                if (lod0 != null && !lod0.Contains(r.GetInstanceID())) continue;
+                var mf = r.GetComponent<MeshFilter>();
+                if (mf == null || mf.sharedMesh == null) continue;
+                var mats = r.sharedMaterials;
+                var window = new bool[mats.Length];
+                bool any = false;
+                for (int i = 0; i < mats.Length; i++) any |= window[i] = IsWindow(mats[i], glass);
+                if (!any) continue;
+                Mesh src = mf.sharedMesh;
+                Matrix4x4 toRoot = root.worldToLocalMatrix * r.transform.localToWorldMatrix;
+                Mesh open = ShellCut.Open(src, code, toRoot, band, window, out string report);
+                if (b == null) Core.Log.Msg("[Interior] " + code + " " + src.name + ": " + report + ".");
+                if (open == null) continue;
+                opened++;
+                if (b == null) continue;
+                b.Opened.Add(mf);
+                b.Closed.Add(src);
+                mf.sharedMesh = open;
+            }
+            return opened;
         }
 
         /// <summary>Puts the tinted glass into every window slot of the car's renderers.</summary>
@@ -421,6 +469,7 @@ namespace Chassis.Interior
                 try
                 {
                     for (int i = 0; i < b.Glazed.Count; i++) if (b.Glazed[i] != null) b.Glazed[i].sharedMaterials = b.Original[i];
+                    for (int i = 0; i < b.Opened.Count; i++) if (b.Opened[i] != null) b.Opened[i].sharedMesh = b.Closed[i];
                     foreach (var go in b.Linings) if (go != null) UnityEngine.Object.Destroy(go);
                     if (b.Root != null) UnityEngine.Object.Destroy(b.Root);
                     Vehicles.Parts.Forget(b.V);
@@ -469,6 +518,17 @@ namespace Chassis.Interior
 
         private static Material Flat(Color c) => Lit("kit_" + c, c);
 
+        /// <summary>The second colour of a kit piece: dark vents on the dashboard, pale dials, a lighter horn pad.</summary>
+        private static Color Accent(string kind, Color c)
+        {
+            switch (kind)
+            {
+                case "gauges": return new Color(0.78f, 0.8f, 0.74f);
+                case "wheel": return new Color(c.r * 1.9f, c.g * 1.9f, c.b * 1.9f);
+                default: return new Color(c.r * 0.35f, c.g * 0.35f, c.b * 0.35f);
+            }
+        }
+
         /// <summary>The lining shows the back faces of the body shell.</summary>
         private static Material Lining(Color c)
         {
@@ -479,24 +539,107 @@ namespace Chassis.Interior
             return mat;
         }
 
-        /// <summary>URP/Lit set to Transparent / Alpha, the state the material inspector writes, without a shadow.</summary>
+        /// <summary>The vanilla glass the copies start from: the RV's windows, a transparent URP/Lit the game ships.</summary>
+        private const string VanillaGlassName = "Rv glass mat";
+
+        private static Material _vanillaGlass;
+        private static bool _vanillaGlassSought;
+
+        /// <summary>Smoothness and metallic of the tinted glass; the reflections are what make it read as glass.</summary>
+        internal static float GlassSmoothness = 0.97f, GlassMetallic = 0.6f;
+
+        /// <summary>
+        /// The inside face is lit with the outward normal, so it catches the sky; it gets this share of the tint's alpha
+        /// and a duller surface, so the view out stays clear.
+        /// </summary>
+        internal static float GlassInside = 0.3f;
+
+        /// <summary>Premultiplied alpha, as the vanilla Car_Glass: reflections stay at full strength however clear the tint.</summary>
+        internal static bool GlassPremultiply = true;
+
+        /// <summary>
+        /// Tinted glass: a copy of the vanilla RV glass, so the shader variant for transparency is one the game already
+        /// uses, recoloured. Without it, URP/Lit set to Transparent / Alpha as the material inspector writes it.
+        /// </summary>
         private static Material Glass(Color tint, bool inside = false)
         {
             string key = "glass_" + tint + (inside ? "_in" : "");
             if (_materials.TryGetValue(key, out var mat) && mat != null) return mat;
-            mat = Lit(key, tint);
-            mat.SetFloat("_Smoothness", 0.9f);
-            mat.SetFloat("_Surface", 1f);
-            mat.SetFloat("_Blend", 0f);
-            mat.SetFloat("_SrcBlend", 5f);   // SrcAlpha
-            mat.SetFloat("_DstBlend", 10f);  // OneMinusSrcAlpha
-            mat.SetFloat("_ZWrite", 0f);
-            mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-            mat.SetOverrideTag("RenderType", "Transparent");
-            mat.renderQueue = 3000;
+            Material vanilla = VanillaGlass();
+            if (vanilla != null)
+            {
+                mat = new Material(vanilla) { name = "Chassis_" + key };
+                mat.hideFlags |= HideFlags.DontUnloadUnusedAsset;
+                _materials[key] = mat;
+            }
+            else
+            {
+                mat = Lit(key, tint);
+                mat.SetFloat("_Surface", 1f);
+                mat.SetFloat("_Blend", 0f);
+                mat.SetFloat("_SrcBlend", 5f);   // SrcAlpha
+                mat.SetFloat("_DstBlend", 10f);  // OneMinusSrcAlpha
+                mat.SetFloat("_ZWrite", 0f);
+                mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                mat.SetOverrideTag("RenderType", "Transparent");
+                mat.renderQueue = 3000;
+            }
             mat.SetShaderPassEnabled("ShadowCaster", false);
+            Tune(mat, tint, inside);
             if (inside) mat.SetFloat("_Cull", 1f);
             return mat;
+        }
+
+        private static void Tune(Material mat, Color tint, bool inside)
+        {
+            if (inside) tint.a *= GlassInside;
+            mat.SetColor("_BaseColor", tint);
+            mat.SetFloat("_Smoothness", inside ? GlassSmoothness * 0.5f : GlassSmoothness);
+            mat.SetFloat("_Metallic", GlassMetallic);
+            mat.SetFloat("_Blend", GlassPremultiply ? 1f : 0f);
+            mat.SetFloat("_SrcBlend", GlassPremultiply ? 1f : 5f); // One : SrcAlpha
+            mat.SetFloat("_DstBlend", 10f);                        // OneMinusSrcAlpha
+            if (GlassPremultiply) mat.EnableKeyword("_ALPHAPREMULTIPLY_ON"); else mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            mat.SetFloat("_EnvironmentReflections", 1f);
+            mat.SetFloat("_SpecularHighlights", 1f);
+            mat.DisableKeyword("_ENVIRONMENTREFLECTIONS_OFF");
+            mat.DisableKeyword("_SPECULARHIGHLIGHTS_OFF");
+        }
+
+        private static Material VanillaGlass()
+        {
+            if (_vanillaGlass != null) return _vanillaGlass;
+            if (_vanillaGlassSought) return null;
+            _vanillaGlassSought = true;
+            try
+            {
+                foreach (var m in Resources.FindObjectsOfTypeAll<Material>())
+                    if (m != null && m.name == VanillaGlassName) { _vanillaGlass = m; break; }
+            }
+            catch (Exception e) { Core.Log.Warning("[Interior] looking for the vanilla glass failed: " + e.Message); }
+            if (_vanillaGlass != null) Core.Log.Msg("[Interior] tinted glass copies '" + VanillaGlassName + "' (" + _vanillaGlass.shader.name + ").");
+            else Core.Log.Warning("[Interior] '" + VanillaGlassName + "' is not loaded - the tinted glass is a transparent URP/Lit of its own.");
+            return _vanillaGlass;
+        }
+
+        /// <summary>Sets every tinted glass already made to these values (debug console).</summary>
+        internal static int Retint(Color? tint, float smoothness, float metallic, bool premultiply, float inside)
+        {
+            GlassSmoothness = smoothness;
+            GlassMetallic = metallic;
+            GlassPremultiply = premultiply;
+            GlassInside = inside;
+            int n = 0;
+            foreach (var kv in _materials)
+            {
+                if (!kv.Key.StartsWith("glass_") || kv.Value == null) continue;
+                bool inner = kv.Key.EndsWith("_in");
+                Color c = tint ?? kv.Value.GetColor("_BaseColor");
+                if (!tint.HasValue && inner && GlassInside > 0f) c.a /= GlassInside;
+                Tune(kv.Value, c, inner);
+                n++;
+            }
+            return n;
         }
 
         private static IEnumerable<Vector3> Corners(Bounds b)
