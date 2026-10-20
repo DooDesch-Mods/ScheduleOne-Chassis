@@ -1,4 +1,3 @@
-#if DEBUG
 using System;
 using MelonLoader;
 #if IL2CPP
@@ -46,13 +45,13 @@ namespace Chassis.Debugging
                             return;
                         }
                     }
-                    catch { }
+                    catch (Exception e) { Core.Log.Warning("[Console] skipped an unreadable command entry: " + e.Message); }
                 }
 
                 ChassisConsoleCommand cmd = new ChassisConsoleCommand();
                 cmd.Configure(
                     DebugConsolePatch.Word,
-                    "Chassis tooling: seats, poses, cameras. 'chassis help' lists everything.",
+                    "Chassis: instrument telemetry and switch hit zones. 'chassis help' lists everything.",
                     DebugConsolePatch.Usage);
                 list.Add(cmd);
 
@@ -118,4 +117,3 @@ namespace Chassis.Debugging
         }
     }
 }
-#endif

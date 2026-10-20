@@ -29,6 +29,9 @@ namespace Chassis
             Net.ChassisNet.Apply(HarmonyInstance);
             Net.ChassisSync.Init();
             Interior.BaseInterior.LoadSetting();
+            Instruments.Sources.LoadSetting();
+            // A profile edited in place: gauges and switches look up their transforms again.
+            Api.ChassisApi.Changed += code => { Instruments.Gauges.ForgetAll(); Instruments.Controls.ForgetAll(); };
 
 #if DEBUG
             Log.Msg("Chassis (DEBUG) loaded. Type 'chassis help' in the console.");
@@ -63,6 +66,15 @@ namespace Chassis
             Vehicles.AutoLights.Reset();
             Interior.BaseInterior.Reset();
             Seating.NpcRiders.Reset();
+            Seating.SeatedTargets.Reset();
+            Instruments.Store.Reset();
+            Instruments.Odometer.Reset();
+            Instruments.Pedals.Reset();
+            Instruments.Sources.Reset();
+            Instruments.Gauges.Reset();
+            Instruments.Controls.Reset();
+            Instruments.Cockpit.Reset();
+            Instruments.Watch.Reset();
 #if DEBUG
             Seating.SitDemo.Reset();
 #endif
@@ -85,6 +97,7 @@ namespace Chassis
             Guard("vehicles", Vehicles.Registry.Tick);
             Guard("interior", Interior.BaseInterior.Tick);
             Guard("npc riders", Seating.NpcRiders.Tick);
+            Guard("seated targets", Seating.SeatedTargets.Tick);
             Guard("owners", Vehicles.Fleet.Tick);
             Guard("horn", Vehicles.Horn.Tick);
             Guard("indicators", Vehicles.Indicators.Tick);
@@ -93,11 +106,15 @@ namespace Chassis
             Guard("push", Rideables.Push.Tick);
             Guard("view", Seating.FirstPersonView.Tick);
             Guard("key hints", Vehicles.KeyHints.Tick);
+            Guard("pedals", Instruments.Pedals.Tick);
+            Guard("odometer", Instruments.Odometer.Tick);
+            Guard("gauges", Instruments.Gauges.Tick);
+            Guard("switches", Instruments.Controls.Tick);
+            Guard("cockpit", Instruments.Cockpit.Tick);
+            Guard("driving events", Instruments.Watch.Tick);
             Guard("sweep", Seating.Occupants.Sweep);
-#if DEBUG
             Debugging.ConsoleRegistration.EnsureRegistered();
             Debugging.DebugConsolePatch.FlushToConsole();
-#endif
         }
 
         /// <summary>One failing subsystem logs its error and the others still run this frame.</summary>

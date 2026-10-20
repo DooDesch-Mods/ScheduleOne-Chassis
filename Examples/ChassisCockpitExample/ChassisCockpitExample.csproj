@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    ChassisCockpitExample - a mod's own interior for the Shitbox through the Chassis API: a dash built from
+    primitives, a speedometer needle, odometer digits and a beacon switch with a mod action. IL2CPP only.
+    Not released; build Chassis first, this project references its output.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>ChassisCockpitExample</RootNamespace>
+    <AssemblyName>ChassisCockpitExample</AssemblyName>
+    <Version>1.0.0</Version>
+    <NoWarn>$(NoWarn);MSB3277;MSB3245</NoWarn>
+    <WorkspaceLibPath Condition="'$(WorkspaceLibPath)' == ''">$(MSBuildThisFileDirectory)../../../Workspace/lib</WorkspaceLibPath>
+    <GameManagedPath>$(WorkspaceLibPath)/il2cpp/game</GameManagedPath>
+    <MelonLoaderPath>$(WorkspaceLibPath)/il2cpp/melonloader</MelonLoaderPath>
+    <ChassisDll>$(MSBuildThisFileDirectory)../../bin/$(Configuration)/net6.0/Chassis.dll</ChassisDll>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Chassis"><HintPath>$(ChassisDll)</HintPath><Private>false</Private></Reference>
+    <Reference Include="MelonLoader"><HintPath>$(MelonLoaderPath)/MelonLoader.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2CppInterop.Runtime"><HintPath>$(MelonLoaderPath)/Il2CppInterop.Runtime.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2Cppmscorlib"><HintPath>$(GameManagedPath)/Il2Cppmscorlib.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Assembly-CSharp"><HintPath>$(GameManagedPath)/Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2CppFishNet.Runtime"><HintPath>$(GameManagedPath)/Il2CppFishNet.Runtime.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(GameManagedPath)/UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(GameManagedPath)/UnityEngine.PhysicsModule.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+</Project>

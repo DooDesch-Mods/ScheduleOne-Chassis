@@ -34,14 +34,16 @@ namespace Chassis.Interior
             t.Add(i); t.Add(i + 2); t.Add(i + 1);
         }
 
-        /// <summary>A flat disc in the XY plane at <paramref name="z"/> around (x, y), facing -Z.</summary>
-        internal KitMesh Disc(float x, float y, float z, float radius, int sides = 12)
+        /// <summary>A flat disc in the XY plane at <paramref name="z"/> around (x, y), facing -Z, or +Z with <paramref name="facesForward"/>.</summary>
+        internal KitMesh Disc(float x, float y, float z, float radius, int sides = 12, bool facesForward = false)
         {
             var c = new Vector3(x, y, z);
             for (int j = 0; j < sides; j++)
             {
                 float b0 = j * Mathf.PI * 2f / sides, b1 = (j + 1) * Mathf.PI * 2f / sides;
-                Tri(c, c + new Vector3(Mathf.Cos(b0), Mathf.Sin(b0), 0f) * radius, c + new Vector3(Mathf.Cos(b1), Mathf.Sin(b1), 0f) * radius);
+                Vector3 p0 = c + new Vector3(Mathf.Cos(b0), Mathf.Sin(b0), 0f) * radius, p1 = c + new Vector3(Mathf.Cos(b1), Mathf.Sin(b1), 0f) * radius;
+                if (facesForward) Tri(c, p1, p0);
+                else Tri(c, p0, p1);
             }
             return this;
         }
@@ -118,15 +120,15 @@ namespace Chassis.Interior
         // ---- kit pieces --------------------------------------------------------------------------------------------
 
         /// <summary>
-        /// A seat whose origin is the middle of the cushion top, facing +Z: cushion, a pedestal down to the floor, a
-        /// backrest leaning back and one headrest per 0.5 m of width.
+        /// A seat whose origin is the middle of the cushion top, facing +Z: cushion (0.12 m unless given), a pedestal
+        /// down to the floor, a backrest leaning back and one headrest per 0.5 m of width.
         /// </summary>
-        internal static Mesh Seat(Vector3 size, float floorDrop, string name)
+        internal static Mesh Seat(Vector3 size, float floorDrop, string name, float cushion = 0.12f)
         {
             float w = size.x, back = size.y, d = size.z;
             var m = new KitMesh();
-            m.Box(new Vector3(0f, -0.06f, 0f), new Vector3(w, 0.12f, d));
-            if (floorDrop > 0.14f) m.Box(new Vector3(0f, -0.12f - (floorDrop - 0.12f) * 0.5f, 0.02f), new Vector3(w * 0.8f, floorDrop - 0.12f, d * 0.75f));
+            m.Box(new Vector3(0f, -cushion * 0.5f, 0f), new Vector3(w, cushion, d));
+            if (floorDrop > cushion + 0.02f) m.Box(new Vector3(0f, -cushion - (floorDrop - cushion) * 0.5f, 0.02f), new Vector3(w * 0.8f, floorDrop - cushion, d * 0.75f));
             Vector3 hinge = new Vector3(0f, 0f, -d * 0.5f);
             Quaternion lean = Quaternion.Euler(-14f, 0f, 0f);
             m.Box(new Vector3(0f, back * 0.5f, -d * 0.5f + 0.06f), new Vector3(w, back, 0.12f), lean, hinge);
@@ -180,6 +182,58 @@ namespace Chassis.Interior
             m.Accent();
             float r = Mathf.Min(h * 0.36f, w * 0.18f);
             foreach (float x in new[] { -w * 0.22f, w * 0.22f }) m.Disc(x, -h * 0.55f, -0.012f, r);
+            // Dark ticks on the pale dials every 45 degrees from -135 to 135, the sweep of the needles.
+            m.Accent(false);
+            foreach (float x in new[] { -w * 0.22f, w * 0.22f })
+            {
+                var c = new Vector3(x, -h * 0.55f, -0.013f);
+                for (int a = -135; a <= 135; a += 45)
+                    m.Box(c + new Vector3(0f, r * 0.82f, 0f), new Vector3(0.0018f, r * 0.24f, 0.001f), Quaternion.Euler(0f, 0f, -a), c);
+            }
+            return m.Build(name);
+        }
+
+        /// <summary>A needle pointing up from its pivot at the origin, a small hub around the pivot, in front of a dial facing -Z.</summary>
+        internal static Mesh Needle(Vector3 size, string name)
+        {
+            float w = size.x, len = size.y, t = Mathf.Max(size.z, 0.001f);
+            var m = new KitMesh();
+            m.Box(new Vector3(0f, len * 0.4f, 0f), new Vector3(w, len * 1.2f, t));
+            m.Box(new Vector3(0f, 0f, -t), new Vector3(w * 2.2f, w * 2.2f, t));
+            return m.Build(name);
+        }
+
+        /// <summary>A rocker switch around the origin that tips about its x axis, with a pale mark on the upper half of its face.</summary>
+        internal static Mesh Rocker(Vector3 size, string name)
+        {
+            var m = new KitMesh();
+            m.Box(Vector3.zero, size);
+            m.Accent();
+            m.Box(new Vector3(0f, size.y * 0.25f, -size.z * 0.5f - 0.0005f), new Vector3(size.x * 0.5f, size.y * 0.12f, 0.001f));
+            return m.Build(name);
+        }
+
+        /// <summary>A round push button whose back is at the origin, reaching out along -Z, with a lighter cap.</summary>
+        internal static Mesh Button(Vector3 size, string name)
+        {
+            float r = size.x, d = Mathf.Max(size.z, 0.004f);
+            var m = new KitMesh();
+            m.Column(r, -d, 0f, 12);
+            // A closed back: the switch outline draws its rim with the back faces of a larger copy.
+            m.Disc(0f, 0f, 0f, r, 12, true);
+            m.Accent();
+            m.Disc(0f, 0f, -d, r, 12);
+            return m.Build(name);
+        }
+
+        /// <summary>A lever from the origin out along -X with a pale tip.</summary>
+        internal static Mesh Stalk(Vector3 size, string name)
+        {
+            float len = size.x, t = Mathf.Max(size.y, 0.006f);
+            var m = new KitMesh();
+            m.Box(new Vector3(-len * 0.5f, 0f, 0f), new Vector3(len, t, t));
+            m.Accent();
+            m.Box(new Vector3(-len - 0.01f, 0f, 0f), new Vector3(0.02f, t * 1.3f, t * 1.3f));
             return m.Build(name);
         }
 

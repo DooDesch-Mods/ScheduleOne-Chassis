@@ -17,6 +17,13 @@ global using Il2CppFishNet;                     // InstanceFinder
 
 global using GameAvatar = Il2CppScheduleOne.AvatarFramework.Avatar;
 global using NPC = Il2CppScheduleOne.NPCs.NPC;
+global using GameNpcHealth = Il2CppScheduleOne.NPCs.NPCHealth;
+global using GameNpcMovement = Il2CppScheduleOne.NPCs.NPCMovement;
+global using GameRangedWeapon = Il2CppScheduleOne.Equipping.Equippable_RangedWeapon;
+global using GameDeadBehaviour = Il2CppScheduleOne.NPCs.Behaviour.DeadBehaviour;
+global using GamePoliceOfficer = Il2CppScheduleOne.Police.PoliceOfficer;
+global using GamePatrolRoute = Il2CppScheduleOne.NPCs.Behaviour.VehiclePatrolRoute;
+global using GamePlayerInventory = Il2CppScheduleOne.PlayerScripts.PlayerInventory;
 global using AvatarEffects = Il2CppScheduleOne.AvatarFramework.AvatarEffects;
 global using FishNetObject = Il2CppFishNet.Object.NetworkObject;
 global using GameConsole = Il2CppScheduleOne.Console;
@@ -31,5 +38,11 @@ global using WeatherHandler = Il2CppScheduleOne.Core.Weather.EnvironmentHandler;
 global using IWeatherEntity = Il2CppScheduleOne.Core.Weather.IWeatherEntity;
 global using GameEnvironment = Il2CppScheduleOne.Weather.EnvironmentManager;
 global using GameLoadManager = Il2CppScheduleOne.Persistence.LoadManager;
+global using GameSaveManager = Il2CppScheduleOne.Persistence.SaveManager;
+global using GameText = Il2CppTMPro.TextMeshPro;
+global using GameFontAsset = Il2CppTMPro.TMP_FontAsset;
+global using GameTextAlign = Il2CppTMPro.TextAlignmentOptions;
+global using GameUiText = Il2CppTMPro.TextMeshProUGUI;
+global using GameHud = Il2CppScheduleOne.UI.HUD;
 global using GameMoneyManager = Il2CppScheduleOne.Money.MoneyManager;
 global using VehicleSalesman = Il2CppScheduleOne.Dialogue.DialogueHandler_VehicleSalesman;

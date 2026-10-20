@@ -26,7 +26,7 @@ namespace Chassis.Seating
         private static AvatarEffects _effects;
         private static bool _disableHeadBefore;
         private static readonly List<KeyValuePair<Renderer, UnityEngine.Rendering.ShadowCastingMode>> _hidden = new List<KeyValuePair<Renderer, UnityEngine.Rendering.ShadowCastingMode>>();
-        private static bool _announced;
+        private static bool _announced, _aimFailed;
 
         internal static void Tick()
         {
@@ -131,6 +131,12 @@ namespace Chassis.Seating
                         + ", render camera " + (view == cam ? "is" : "under") + " PlayerCamera, parent " + (cam.parent != null ? cam.parent.name : "none") + ")"
                         + (head != null ? ", head bone at " + Api.ProfileJson.F(frame.InverseTransformPoint(head.position)) + " in frame space, scale " + head.lossyScale.x.ToString("F3") : "") + ".");
                 }
+                try { Instruments.Cockpit.Aim(rig, lv, view); _aimFailed = false; }
+                catch (Exception e)
+                {
+                    if (!_aimFailed) Core.Log.Error("[View] finding the switch in view failed, logged once until it works again: " + e);
+                    _aimFailed = true;
+                }
             }
             catch (Exception e)
             {
@@ -146,9 +152,22 @@ namespace Chassis.Seating
             _pitch = Mathf.Clamp(pitch, MinPitch, MaxPitch);
         }
 
+        /// <summary>Turns the active first-person view towards a world point, within the yaw and pitch limits.</summary>
+        internal static string LookAt(Vector3 world)
+        {
+            if (!Active) return "first person is off";
+            var rig = Occupants.Of(Player.Local);
+            if (rig == null) return "not seated";
+            var frame = rig.Frame;
+            Vector3 d = Quaternion.Inverse(frame.rotation * Quaternion.Euler(0f, rig.Profile.Yaw, 0f)) * (world - frame.TransformPoint(rig.Profile.Eyes));
+            _yaw = Mathf.Clamp(Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg, -MaxYaw, MaxYaw);
+            _pitch = Mathf.Clamp(-Mathf.Atan2(d.y, new Vector2(d.x, d.z).magnitude) * Mathf.Rad2Deg, MinPitch, MaxPitch);
+            return "looking at " + world.ToString("F2") + ", yaw " + _yaw.ToString("F0") + " pitch " + _pitch.ToString("F0");
+        }
+
         internal static string Describe()
         {
-            string s = "view=" + (Active ? "first person" : "chase") + " yaw " + _yaw.ToString("F0") + " pitch " + _pitch.ToString("F0");
+            string s = "view="+ (Active ? "first person" : "chase") + " yaw " + _yaw.ToString("F0") + " pitch " + _pitch.ToString("F0");
             if (!PlayerSingleton<PlayerCamera>.InstanceExists) return s;
             var pc = PlayerSingleton<PlayerCamera>.Instance;
             Transform view = pc.Camera != null ? pc.Camera.transform : pc.transform;

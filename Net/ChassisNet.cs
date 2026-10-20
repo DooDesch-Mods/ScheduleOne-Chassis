@@ -70,7 +70,7 @@ namespace Chassis.Net
         /// Ops sent many times a second (push input, stroke state). Their sends are not logged one by one; the
         /// handlers log when the state they carry changes.
         /// </summary>
-        private static bool Quiet(string op) => op == "req.pushin" || op == "pushin";
+        private static bool Quiet(string op) => op == "req.pushin" || op == "pushin" || op == "req.pedal" || op == "pedal" || op == "odo";
 
         private static void Dispatch(Action<Msg> handler, Msg m, string what)
         {

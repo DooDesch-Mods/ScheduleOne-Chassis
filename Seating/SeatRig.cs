@@ -49,6 +49,10 @@ namespace Chassis.Seating
         private float _glideT;
         private bool _ikOn;
         private bool _shownLogged;
+        private bool _uncrouchLogged;
+
+        /// <summary>Dev console (`chassis crouch keep`): leaves a seated body crouched, as vanilla would.</summary>
+        internal static bool DebugKeepCrouch;
 
         internal bool Alive => (Player != null || Npc != null) && Vehicle != null && _avatar != null && _anchor != null;
 
@@ -186,6 +190,56 @@ namespace Chassis.Seating
             _bodyCollidersOff.Clear();
             Core.Log.Msg("[Seat] " + Name + "'s body: " + back + " collider(s) back on.");
         }
+
+        /// <summary>
+        /// Switches the seated NPC's body colliders on for the instant of a gunshot and off right after
+        /// (<see cref="SeatedTargets"/>). Returns how many there are; a player's rig has none.
+        /// The shot finds its target with <c>GetComponentInParent&lt;IDamageable&gt;</c>; under the seat anchor that is the
+        /// car, so for the shot the body hangs under the NPC again, in the same world pose.
+        /// </summary>
+        internal int ArmHitbox(bool on)
+        {
+            int n = 0;
+            foreach (var c in _bodyCollidersOff) if (c != null) { c.enabled = on; n++; }
+            if (n == 0 || _avatar == null || _anchor == null || _avatarParent0 == null) return n;
+            var root = _avatar.transform;
+            if (on && !_armedOut)
+            {
+                _armedPos = root.localPosition; _armedRot = root.localRotation; _armedScale = root.localScale;
+                root.SetParent(_avatarParent0, true);
+                _armedOut = true;
+            }
+            else if (!on && _armedOut)
+            {
+                root.SetParent(_anchor, false);
+                root.localPosition = _armedPos; root.localRotation = _armedRot; root.localScale = _armedScale;
+                _armedOut = false;
+            }
+            return n;
+        }
+
+        private bool _armedOut;
+        private Vector3 _armedPos, _armedScale;
+        private Quaternion _armedRot;
+
+        private bool _slumpLogged;
+
+        /// <summary>
+        /// A body kept in its seat after it went down (<see cref="ChassisApi.RegisterOccupantDown"/>): the hands leave the
+        /// wheel and the chest sinks forward. The feet keep their places.
+        /// </summary>
+        private void Slump(BipedIKSolvers s)
+        {
+            s.leftHand.IKPositionWeight = 0f; s.rightHand.IKPositionWeight = 0f;
+            s.leftHand.IKRotationWeight = 0f; s.rightHand.IKRotationWeight = 0f;
+            Vector3 chest = _seat.Root + Quaternion.Euler(0f, _seat.Yaw, 0f) * new Vector3(0f, SlumpHeight, SlumpForward);
+            _ik.BodyIK.SetSpinePosition(_frame.TransformPoint(chest));
+            s.spine.IKPositionWeight = SlumpWeight;
+            if (!_slumpLogged) { _slumpLogged = true; Core.Log.Msg("[Seat] " + Name + " is down in " + Code + ", slumped in the seat."); }
+        }
+
+        // Chest goal above and ahead of the seat root; DEBUG sets them live with `chassis target slump`.
+        internal static float SlumpHeight = 1.5f, SlumpForward = 0.3f, SlumpWeight = 0.8f;
 
         private Transform FindRim(string name)
         {
@@ -343,14 +397,23 @@ namespace Chassis.Seating
                 NpcBodyColliders(false);
                 if (!_shownLogged) { _shownLogged = true; Core.Log.Msg("[Seat] " + Name + " was hidden in the vehicle by vanilla, shown again."); }
             }
+            // A player who got in crouched stays crouched in vanilla (Player.ApplyMovementVisuals sets the animator from
+            // Player.Crouched every frame); the hidden body never showed it. A seated body sits upright.
+            if (!IsPusher && !DebugKeepCrouch && _avatar.Animation != null && _avatar.Animation.IsCrouched)
+            {
+                _avatar.Animation.SetCrouched(false);
+                if (!_uncrouchLogged) { _uncrouchLogged = true; Core.Log.Msg("[Seat] " + Name + " got in crouched, seated upright."); }
+            }
             if (_glideT < 1f) { _glideT = Mathf.Min(1f, _glideT + dt / GlideSeconds); }
             ApplyGlide();
             if (!_ikOn) return;
 
             var s = _ik.BodyIK.solvers;
             var hands = _seat.Hands;
-            if (hands != null)
+            if (Npc != null && !Npc.IsConscious) Slump(s);
+            else if (hands != null)
             {
+                _slumpLogged = false;
                 float lean;
                 if (hands.Mode == "rim")
                 {
@@ -377,6 +440,7 @@ namespace Chassis.Seating
                     _ik.BodyIK.SetSpinePosition(_frame.TransformPoint(Vector3.Lerp(hands.LeanStart, hands.LeanEnd, lean)));
                     s.spine.IKPositionWeight = w;
                 }
+                else s.spine.IKPositionWeight = 0f;
                 s.leftHand.IKPositionWeight = 1f; s.rightHand.IKPositionWeight = 1f;
                 s.leftHand.IKRotationWeight = hands.RotationWeight; s.rightHand.IKRotationWeight = hands.RotationWeight;
             }
@@ -536,8 +600,10 @@ namespace Chassis.Seating
                 {
                     var root = _avatar.transform;
                     // Only a body still hanging under the anchor goes back; one vanilla already moved stays where it is.
-                    if (root.parent == _anchor)
+                    // A body lent to its NPC for a gunshot (ArmHitbox) also counts as still hanging under the anchor.
+                    if (root.parent == _anchor || _armedOut)
                     {
+                        _armedOut = false;
                         if (_avatarParent0 != null) root.SetParent(_avatarParent0, false);
                         else Core.Log.Warning("[Seat] " + Name + "'s avatar had no parent before sitting; it stays under the vehicle until vanilla moves it.");
                         root.localPosition = _avatarPos0;

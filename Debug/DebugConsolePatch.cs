@@ -1,5 +1,4 @@
 using Chassis.Compat;
-#if DEBUG
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -9,8 +8,9 @@ using Chassis.Seating;
 namespace Chassis.Debugging
 {
     /// <summary>
-    /// DEBUG-only dev console commands under one word: <c>chassis &lt;subcommand&gt;</c>. Console, not hotkeys, so every
-    /// check can be scripted through the bridge.
+    /// Console commands under one word: <c>chassis &lt;subcommand&gt;</c>. <c>telemetry</c> and <c>zones</c> are there
+    /// in every build, for authors of interiors; everything else is a DEBUG dev command. Console, not hotkeys, so
+    /// every check can be scripted through the bridge.
     ///
     /// Both Console.SubmitCommand overloads are patched (string + List&lt;string&gt;): depending on the caller either
     /// one fires, and dispatch dedupes per frame and signature so a command never runs twice.
@@ -19,7 +19,11 @@ namespace Chassis.Debugging
     {
         internal const string Word = "chassis";
 
-        internal const string Usage = "chassis help, chassis chairs, chassis demo tp, chassis demo cam out 2.6 35 1.2, chassis demo cam fp, chassis demo off";
+#if DEBUG
+        internal const string Usage = "chassis help, chassis telemetry, chassis zones, chassis chairs, chassis demo tp, chassis demo off";
+#else
+        internal const string Usage = "chassis help, chassis telemetry, chassis zones, chassis zones off";
+#endif
 
         private static readonly List<string> _pending = new List<string>();
 
@@ -56,6 +60,16 @@ namespace Chassis.Debugging
                 switch (sub)
                 {
                     case "help":
+                        Say("telemetry [net id]           - instrument sources with validity, gauges and switches of your car or the nearest one");
+                        Say("zones [off]                  - hit zones of the dash switches (green) and the reach (yellow rings)");
+#if DEBUG
+                        Say("aim <switch>                 - turn the first-person view to a switch of your car");
+                        Say("click | scroll <n>           - click or turn the switch in view, as the mouse would");
+                        Say("outline                      - where the highlight copies of the switch in view sit");
+                        Say("ctl <switch> [value]         - use a switch of your car through the API");
+                        Say("coast [km/h] [s]             - hold your car at that speed along its facing (default 40 km/h, 5 s)");
+                        Say("creator                      - finish an open character creator with the default looks (test clients)");
+                        Say("notice                       - close the offense notice after an arrest");
                         Say("chairs                       - every wheelchair in the scene with its position");
                         Say("hints [format]               - vehicle key hints; a format with {0} relabels the arrow keys");
                         Say("demo [tp [n]]                - sit in the nearest wheelchair (tp: any distance, n: index from 'chairs')");
@@ -86,10 +100,107 @@ namespace Chassis.Debugging
                         Say("spawn | despawn              - wheelchair vehicle 2 m ahead (host) | remove all");
                         Say("tree [i]                     - hierarchy of wheelchair prop i");
                         Say("profile list|show|save|reload|set <field> <values> [code] [seat] - seat profiles (see 'chassis profile')");
+                        Say("target seat|patrol|near|gun|shoot|keep|list - shots into cars (see 'chassis target')");
                         Say("car [enter|honk|blink|lock|part|side|rain|assign|owners] - horn, indicators, lock, lids (see 'chassis car help')");
                         Say("interior on|off|rebuild      - base interior and tinted glass in the vanilla cars");
+                        Say("interior lift <m>            - lowest cushion top above the car's underside, fits the vanilla cars again");
                         Say("interior glass [r g b a] [smooth] [metal] [premul 0|1] [inside] - retint the glass live");
+#endif
                         break;
+
+                    case "telemetry":
+                        Telemetry(parts);
+                        break;
+
+                    case "zones":
+                        Say(Instruments.Cockpit.SetZones(!(parts.Length > 2 && parts[2].ToLowerInvariant() == "off")));
+                        break;
+
+#if DEBUG
+                    case "aim":
+                    {
+                        var lv = Target(null);
+                        if (lv == null || parts.Length < 3) { Say("aim: sit in a car and name a switch"); break; }
+                        Instruments.Controls.Bound hit = null;
+                        foreach (var b in Instruments.Controls.Of(lv))
+                            if (string.Equals(b.P.Name, parts[2], StringComparison.OrdinalIgnoreCase)) hit = b;
+                        if (hit == null) { Say("aim: no switch '" + parts[2] + "' bound on " + lv.vehicleCode); break; }
+                        Say("aim: " + Seating.FirstPersonView.LookAt(hit.T.TransformPoint(hit.BoxCenter)));
+                        break;
+                    }
+                    case "creator":
+                    {
+                        // A joining test client without saved looks starts in the character creator; finish it with the defaults.
+#if IL2CPP
+                        var cc = Singleton<Il2CppScheduleOne.CharacterCreator.CharacterCreator>.Instance;
+#else
+                        var cc = Singleton<ScheduleOne.CharacterCreator.CharacterCreator>.Instance;
+#endif
+                        if (cc == null || !cc.IsOpen) Say("creator: not open");
+                        else { cc.Done(); Say("creator: done with the default looks"); }
+                        break;
+                    }
+                    case "notice":
+                    {
+                        // The offense notice after an arrest holds the player until its Close button; tests close it here.
+#if IL2CPP
+                        var ns = Singleton<Il2CppScheduleOne.UI.ArrestNoticeScreen>.Instance;
+#else
+                        var ns = Singleton<ScheduleOne.UI.ArrestNoticeScreen>.Instance;
+#endif
+                        if (ns == null) Say("notice: no offense notice screen");
+                        else { ns.Exit(); Say("notice: closed"); }
+                        break;
+                    }
+                    case "coast":
+                    {
+                        // coast <km/h> [s]: holds the car at that speed along its facing, for the speedometer and the odometer.
+                        var lv = Target(null);
+                        if (lv == null) { Say("coast: no vehicle"); break; }
+                        float kmh = F(parts, 2, 40f), sec = F(parts, 3, 5f);
+                        MelonLoader.MelonCoroutines.Start(Coast(lv, kmh / 3.6f, sec));
+                        Say("coast: " + Vehicles.Registry.Name(lv) + " held at " + kmh.ToString("0", CultureInfo.InvariantCulture) + " km/h for " + sec.ToString("0.#", CultureInfo.InvariantCulture) + " s");
+                        break;
+                    }
+                    case "click":
+                    {
+                        var sw = System.Diagnostics.Stopwatch.StartNew();
+                        string done = Instruments.Cockpit.ClickHovered();
+                        Say("click: " + done + " in " + sw.Elapsed.TotalMilliseconds.ToString("0.00", CultureInfo.InvariantCulture) + " ms");
+                        break;
+                    }
+                    case "outline":
+                    {
+                        // The outline copies of the switch in view: where they sit against the switch and its parent.
+                        var hb = Instruments.Cockpit.Hovered;
+                        if (hb == null) { Say("outline: no switch in view"); break; }
+                        Say("outline: '" + hb.P.Name + "' parent " + (hb.T.parent != null ? hb.T.parent.name : "none") + ", " + hb.Outline.Count + " copy(ies), switch scale " + hb.T.lossyScale.ToString("F3"));
+                        for (int i = 0; i < hb.Outline.Count; i++)
+                        {
+                            var go = hb.Outline[i];
+                            if (go == null) continue;
+                            var mf = go.GetComponent<MeshFilter>();
+                            Bounds mb = mf != null && mf.sharedMesh != null ? mf.sharedMesh.bounds : default;
+                            Transform up = hb.T.parent != null ? hb.T.parent : hb.T;
+                            Vector3 mn = up.InverseTransformPoint(go.transform.TransformPoint(mb.min)), mx = up.InverseTransformPoint(go.transform.TransformPoint(mb.max));
+                            Vector3 smn = up.InverseTransformPoint(hb.T.TransformPoint(mb.min)), smx = up.InverseTransformPoint(hb.T.TransformPoint(mb.max));
+                            Say("outline " + i + ": active " + go.activeInHierarchy + " local " + go.transform.localPosition.ToString("F4") + " scale " + go.transform.localScale.ToString("F3")
+                                + ", copy " + mn.ToString("F4") + ".." + mx.ToString("F4") + ", switch " + smn.ToString("F4") + ".." + smx.ToString("F4") + " in the parent's space");
+                        }
+                        break;
+                    }
+                    case "scroll":
+                        Say("scroll: " + Instruments.Cockpit.ScrollHovered(parts.Length > 2 && int.TryParse(parts[2], out int notches) ? notches : 1));
+                        break;
+                    case "ctl":
+                    {
+                        var lv = Target(null);
+                        if (lv == null || parts.Length < 3) { Say("ctl: sit in a car and name a switch"); break; }
+                        float? val = parts.Length > 3 ? F(parts, 3, 0f) : (float?)null;
+                        Api.ChassisApi.UseControl(lv, parts[2], val);
+                        Say("ctl: used '" + parts[2] + "'" + (val.HasValue ? " with " + val.Value.ToString(CultureInfo.InvariantCulture) : "") + ", value now " + Api.ChassisApi.ControlValue(lv, parts[2]).ToString("0.##", CultureInfo.InvariantCulture));
+                        break;
+                    }
 
                     case "status":
                         Say(Seating.Occupants.Describe());
@@ -174,6 +285,23 @@ namespace Chassis.Debugging
                             if (lv == null) { Say("exit: current vehicle has no LandVehicle"); break; }
                             lv.ExitVehicle();
                             Say("exit: left net " + Net.Ids.Of(lv));
+                        }
+                        break;
+                    case "crouch":
+                        {
+                            // crouch [on|off]: the crouch key, without the headroom check of PlayerMovement.TryToggleCrouch.
+                            // crouch keep|fix: a seated body stays crouched as in vanilla, or sits upright.
+                            if (parts.Length > 2 && (parts[2] == "keep" || parts[2] == "fix"))
+                            {
+                                Seating.SeatRig.DebugKeepCrouch = parts[2] == "keep";
+                                Say("crouch: seated bodies " + (Seating.SeatRig.DebugKeepCrouch ? "stay crouched" : "sit upright"));
+                                break;
+                            }
+                            var pm = PlayerSingleton<PlayerMovement>.Instance;
+                            if (pm == null) { Say("crouch: no PlayerMovement"); break; }
+                            bool on = parts.Length > 2 ? parts[2] != "off" : !pm.IsCrouched;
+                            pm.SetCrouched(on);
+                            Say("crouch: player crouched " + pm.IsCrouched + ", avatar crouched " + (Player.Local != null && Player.Local.Avatar != null && Player.Local.Avatar.Animation != null && Player.Local.Avatar.Animation.IsCrouched));
                         }
                         break;
                     case "cam":
@@ -274,11 +402,20 @@ namespace Chassis.Debugging
                         VehicleCommands.Run(parts);
                         break;
 
+                    case "target":
+                        TargetCommands.Run(parts);
+                        break;
+
                     case "interior":
                     {
                         string op = parts.Length > 2 ? parts[2].ToLowerInvariant() : "";
                         if (op == "on") { Interior.BaseInterior.Enabled = true; Say("interior on - vanilla cars get the base interior within a second"); }
                         else if (op == "off") { Interior.BaseInterior.Enabled = false; Say("interior off, " + Interior.BaseInterior.RemoveAll() + " removed"); }
+                        else if (op == "lift" && parts.Length > 3)
+                        {
+                            Interior.BaseInterior.CushionAboveUnderside = float.Parse(parts[3], System.Globalization.CultureInfo.InvariantCulture);
+                            Say("interior lift: cushions at least " + Interior.BaseInterior.CushionAboveUnderside + " m above the underside, " + Interior.BaseInterior.Refit() + " code(s) fitted again");
+                        }
                         else if (op == "rebuild") { int n = Interior.BaseInterior.RemoveAll(); Interior.BaseInterior.Reset(); Say("interior: " + n + " removed, rebuilding from the current profiles"); }
                         else if (op == "glass")
                         {
@@ -310,6 +447,15 @@ namespace Chassis.Debugging
 
                     case "despawn":
                     {
+                        if (parts.Length > 2 && parts[2].ToLower() == "car")
+                        {
+                            // The nearest car within 30 m, so test runs do not pile cars up at one spot.
+                            var car = Target(null);
+                            if (car == null) { Say("despawn car: no car within 30 m"); break; }
+                            Say("despawning " + Vehicles.Registry.Name(car));
+                            Compat.Interop.Despawn(car.gameObject);
+                            break;
+                        }
                         int n = 0;
                         foreach (var lv in UnityEngine.Object.FindObjectsOfType<LandVehicle>())
                             if (Rideables.WheelchairType.Is(lv)) { Rideables.WheelchairSpawn.Despawn(lv, "console"); n++; }
@@ -317,6 +463,10 @@ namespace Chassis.Debugging
                         break;
                     }
 
+                    case "lights":
+                        // Lamp meshes of a car (VehicleLights) and every renderer with its materials, in the car's root space.
+                        Lights(Target(parts.Length > 2 ? parts[2] : null));
+                        break;
                     case "tree":
                     {
                         // Hierarchy of a wheelchair prop (index from 'chairs') with local poses, components and collider bounds.
@@ -327,6 +477,7 @@ namespace Chassis.Debugging
                         break;
                     }
 
+#endif
                     default:
                         Say("unknown subcommand '" + sub + "', try 'chassis help'");
                         break;
@@ -338,6 +489,114 @@ namespace Chassis.Debugging
                 Say("failed: " + e.Message);
             }
             return true;
+        }
+
+        /// <summary>The car the local player sits in; else the one with that net id; else the nearest within 30 m.</summary>
+        internal static LandVehicle Target(string id)
+        {
+            if (!string.IsNullOrEmpty(id))
+            {
+                if (!int.TryParse(id, NumberStyles.Integer, CultureInfo.InvariantCulture, out int n)) { Say("not a net id: '" + id + "'"); return null; }
+                return Net.Ids.Find<LandVehicle>(n);
+            }
+            var lp = Player.Local;
+            if (lp == null) return null;
+            if (lp.CurrentVehicle != null)
+            {
+                var cur = lp.CurrentVehicle.GetComponent<LandVehicle>();
+                if (cur != null) return cur;
+            }
+            LandVehicle best = null; float bd = 30f;
+            foreach (var v in UnityEngine.Object.FindObjectsOfType<LandVehicle>())
+            {
+                float d = Vector3.Distance(v.transform.position, lp.transform.position);
+                if (d < bd) { bd = d; best = v; }
+            }
+            return best;
+        }
+
+        private static void Telemetry(string[] p)
+        {
+            var v = Target(p.Length > 2 ? p[2] : null);
+            if (v == null) { Say("telemetry: no vehicle (sit in one, stand within 30 m, or give a net id)"); return; }
+            Say("telemetry of " + Vehicles.Registry.Name(v) + ", units " + (Instruments.Sources.Mph ? "mph" : "km/h")
+                + (Api.ChassisApi.Get(v.vehicleCode) == null ? ", no Chassis profile" : ""));
+            foreach (var d in Instruments.Sources.All)
+            {
+                var r = Instruments.Sources.Read(v, d.Name);
+                Say("  " + d.Name.PadRight(16) + (r.Valid ? r.Value.ToString("0.###", CultureInfo.InvariantCulture) : "invalid").PadRight(9) + d.Unit + (d.Custom ? " (mod)" : ""));
+            }
+            foreach (var line in Instruments.Gauges.Describe(v)) Say(line);
+            foreach (var line in Instruments.Controls.Describe(v)) Say(line);
+        }
+
+#if DEBUG
+        private static void Lights(LandVehicle v)
+        {
+            if (v == null) { Say("lights: no vehicle (sit in one, stand within 30 m, or give a net id)"); return; }
+            Transform root = v.transform;
+            Say("lights of " + Vehicles.Registry.Name(v));
+            var vl = v.GetComponent<VehicleLights>();
+            if (vl == null) Say("  no VehicleLights");
+            else
+            {
+                LightGroup("head", vl.headLightMeshes, root);
+                LightGroup("brake", vl.brakeLightMeshes, root);
+                LightGroup("reverse", vl.reverseLightMeshes, root);
+            }
+            foreach (var line in Vehicles.VanillaLamps.Describe(v)) Say(line);
+            foreach (var r in v.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                var mats = r.sharedMaterials;
+                var names = new List<string>();
+                foreach (var m in mats)
+                {
+                    if (m == null) { names.Add("null"); continue; }
+                    Texture t = m.HasProperty("_BaseMap") ? m.GetTexture("_BaseMap") : null;
+                    names.Add(m.name + (t != null ? "[" + t.name + " " + t.width + "x" + t.height + "]" : ""));
+                }
+                Say("  r " + r.name + " on=" + r.enabled + " " + RootBounds(r, root) + " mats " + string.Join(", ", names));
+            }
+        }
+
+        private static void LightGroup(string what, MeshRenderer[] rs, Transform root)
+        {
+            if (rs == null) { Say("  " + what + ": none"); return; }
+            foreach (var r in rs)
+                if (r != null) Say("  " + what + " " + r.name + " " + RootBounds(r, root) + " mat " + (r.sharedMaterial != null ? r.sharedMaterial.name : "null"));
+        }
+
+        /// <summary>The mesh bounds of a renderer, as min .. max in the root's space.</summary>
+        private static string RootBounds(Renderer r, Transform root)
+        {
+            var mf = r.GetComponent<MeshFilter>();
+            if (mf == null || mf.sharedMesh == null) return "(no mesh)";
+            Bounds b = mf.sharedMesh.bounds;
+            Matrix4x4 m = root.worldToLocalMatrix * r.transform.localToWorldMatrix;
+            Vector3 min = Vector3.one * float.MaxValue, max = Vector3.one * float.MinValue;
+            for (int i = 0; i < 8; i++)
+            {
+                Vector3 c = b.center + Vector3.Scale(b.extents, new Vector3((i & 1) == 0 ? -1 : 1, (i & 2) == 0 ? -1 : 1, (i & 4) == 0 ? -1 : 1));
+                Vector3 p = m.MultiplyPoint3x4(c);
+                min = Vector3.Min(min, p); max = Vector3.Max(max, p);
+            }
+            return min.ToString("F2") + " .. " + max.ToString("F2");
+        }
+
+        private static System.Collections.IEnumerator Coast(LandVehicle lv, float metresPerSecond, float seconds)
+        {
+            float until = Time.time + seconds;
+            Vector3 start = lv.transform.position;
+            while (lv != null && Time.time < until)
+            {
+                var rb = lv.GetComponent<Rigidbody>();
+                if (rb == null) { Core.Log.Warning("[Console] coast stopped: the vehicle has no Rigidbody."); yield break; }
+                Vector3 v = lv.transform.forward * metresPerSecond;
+                rb.velocity = new Vector3(v.x, rb.velocity.y, v.z);
+                yield return null;
+            }
+            if (lv == null) { Core.Log.Warning("[Console] coast ended: the vehicle is gone."); yield break; }
+            Core.Log.Msg("[Console] coast ended after " + Vector3.Distance(start, lv.transform.position).ToString("F1", CultureInfo.InvariantCulture) + " m.");
         }
 
         private static void Demo(string[] p)
@@ -457,6 +716,7 @@ namespace Chassis.Debugging
             Say("not a number: '" + p[i] + "', kept " + fallback.ToString(CultureInfo.InvariantCulture));
             return fallback;
         }
+#endif
 
         internal static void Say(string line)
         {
@@ -497,4 +757,3 @@ namespace Chassis.Debugging
         }
     }
 }
-#endif

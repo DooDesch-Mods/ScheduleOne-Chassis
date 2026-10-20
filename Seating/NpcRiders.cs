@@ -119,6 +119,15 @@ namespace Chassis.Seating
             _next = 0f;
         }
 
+        /// <summary>Releases one NPC's rig at once, so a body that got out is not held in the seat until the next scan.</summary>
+        internal static void Drop(NPC npc, string why)
+        {
+            if (npc == null || !_rigs.TryGetValue(npc.GetInstanceID(), out var rig)) return;
+            _rigs.Remove(npc.GetInstanceID());
+            try { rig.Detach(why); }
+            catch (Exception e) { Core.Log.Error("[Seat] releasing " + rig.Name + " failed: " + e); }
+        }
+
         internal static string Describe() => "npc riders " + (Enabled ? "on" : "off") + ", " + _rigs.Count + " seated";
     }
 }

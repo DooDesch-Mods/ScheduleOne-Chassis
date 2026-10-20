@@ -30,7 +30,9 @@ namespace Chassis.Api
         {
             EnsureLoaded();
             if (string.IsNullOrEmpty(vehicleCode)) return null;
-            return _profiles.TryGetValue(vehicleCode, out var p) ? p : null;
+            if (!_profiles.TryGetValue(vehicleCode, out var p)) return null;
+            Configure(p);
+            return p;
         }
 
         /// <summary>Every vehicle code that has a profile.</summary>

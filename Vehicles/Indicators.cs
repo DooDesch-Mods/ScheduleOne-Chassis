@@ -16,6 +16,8 @@ namespace Chassis.Vehicles
     internal static class Indicators
     {
         internal const KeyCode LeftKey = KeyCode.LeftArrow, RightKey = KeyCode.RightArrow;
+        /// <summary>The side value of the hazard lights: both sides flash.</summary>
+        internal const int Hazard = 2;
         /// <summary>One flash on and off, in seconds: about 90 flashes a minute.</summary>
         private const float Period = 0.66f;
         /// <summary>Steering this many degrees the signal's way is a turn; back under the second value, the turn is done.</summary>
@@ -56,12 +58,17 @@ namespace Chassis.Vehicles
         internal static void Request(LandVehicle lv, int side, bool fromKey)
         {
             if (lv == null) { Core.Log.Warning("[Indicators] signal asked for a vehicle that is gone."); return; }
-            side = Math.Sign(side);
+            side = Clean(side);
             if (fromKey) { _keyVehicle = side != 0 ? lv : null; _keySide = side; _inTurn = false; }
             else if (_keyVehicle == lv) { _keyVehicle = null; _keySide = 0; }
             _sentAt = Time.time;
             ChassisNet.ToHost("req.blink", Ids.Of(lv).ToString(CultureInfo.InvariantCulture), side.ToString(CultureInfo.InvariantCulture));
         }
+
+        /// <summary>-1, 0, 1, or <see cref="Hazard"/>; anything else is its sign.</summary>
+        internal static int Clean(int side) => side == Hazard ? Hazard : Math.Sign(side);
+
+        private static string Word(int side) => side == Hazard ? "hazard" : side < 0 ? "left" : side > 0 ? "right" : "off";
 
         /// <summary>Everyone: the host passed on a vehicle's signal.</summary>
         internal static void OnBlink(int vehicle, int side)
@@ -70,7 +77,7 @@ namespace Chassis.Vehicles
             if (side == 0) _sides.Remove(vehicle); else _sides[vehicle] = side;
             if (old == side) return;
             var lv = Registry.ById(vehicle);
-            Core.Log.Msg("[Indicators] " + (lv != null ? Registry.Name(lv) : "net " + vehicle) + " signals " + (side < 0 ? "left" : side > 0 ? "right" : "off") + ".");
+            Core.Log.Msg("[Indicators] " + (lv != null ? Registry.Name(lv) : "net " + vehicle) + " signals " + Word(side) + ".");
             if (lv != null) ChassisApi.RaiseIndicator(lv, side);
         }
 
@@ -86,7 +93,36 @@ namespace Chassis.Vehicles
             Keys();
             AutoCancel();
             Flash();
+            Relay();
         }
+
+        /// <summary>The relay ticks on each half of a flash, in the car the local player sits in.</summary>
+        private static void Relay()
+        {
+            bool phase = Phase;
+            if (phase == _relayPhase) return;
+            _relayPhase = phase;
+            var lp = Player.Local;
+            var lv = lp != null && lp.CurrentVehicle != null ? lp.CurrentVehicle.GetComponent<LandVehicle>() : null;
+            if (lv == null || SideOf(lv) == 0) return;
+            Camera cam = Camera.main;
+            if (cam == null) { if (!_noCamera) Core.Log.Warning("[Indicators] no main camera - the relay does not tick."); _noCamera = true; return; }
+            _noCamera = false;
+            try
+            {
+                Sounds.InCabin(lv, cam.transform.position + lv.transform.forward * 0.5f - lv.transform.up * 0.2f, phase ? Sounds.Tick : Sounds.Tock, 0.45f);
+                if (_relayFailed || !_relayLogged) Core.Log.Msg("[Indicators] relay tick played in " + Registry.Name(lv) + "; later ticks are not logged.");
+                _relayFailed = false;
+                _relayLogged = true;
+            }
+            catch (Exception e)
+            {
+                if (!_relayFailed) Core.Log.Error("[Indicators] the relay tick could not play, logged once until one plays: " + e);
+                _relayFailed = true;
+            }
+        }
+
+        private static bool _relayPhase, _relayFailed, _relayLogged, _noCamera;
 
         private static void Keys()
         {
@@ -133,9 +169,16 @@ namespace Chassis.Vehicles
                 bool lit = side != 0 && phase;
                 if (lit == lamps.Lit && side == lamps.Shown) continue;
                 lamps.Lit = lit; lamps.Shown = side;
-                Paint(lamps.Left, lit && side < 0);
-                Paint(lamps.Right, lit && side > 0);
+                Paint(lamps.Left, lit && (side < 0 || side == Hazard));
+                Paint(lamps.Right, lit && (side == 1 || side == Hazard));
             }
+            // Vehicles without lamps in their profile (every vanilla car) get lamps drawn by Chassis.
+            foreach (var kv in _sides)
+            {
+                var lv = Registry.ById(kv.Key);
+                if (lv != null && ChassisApi.For(lv)?.Lamps == null) VanillaLamps.Ensure(lv);
+            }
+            VanillaLamps.Paint(phase);
         }
 
         private static void Paint(List<Lamp> lamps, bool on)
@@ -215,7 +258,7 @@ namespace Chassis.Vehicles
         {
             if (_sides.Count == 0) return "indicators: all off";
             var parts = new List<string>();
-            foreach (var kv in _sides) parts.Add("net " + kv.Key + (kv.Value < 0 ? " left" : " right"));
+            foreach (var kv in _sides) parts.Add("net " + kv.Key + " " + Word(kv.Value));
             return "indicators: " + string.Join(", ", parts) + (_keyVehicle != null ? " (key signal" + (_inTurn ? ", in the turn)" : ")") : "");
         }
 
@@ -223,6 +266,7 @@ namespace Chassis.Vehicles
         {
             _sides.Clear();
             _lamps.Clear();
+            VanillaLamps.Reset();
             _keyVehicle = null;
             _keySide = 0;
             _inTurn = false;

@@ -29,6 +29,16 @@ namespace Chassis.Interior
         /// <summary>Vanilla bodies whose cabin is closed by a lid at the belt line.</summary>
         private static readonly HashSet<string> LiddedCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "cheetah", "shitbox", "shitbox_police" };
 
+        /// <summary>
+        /// Lowest cushion top of a fitted seat above the lowest point of the body. Below zero on purpose: the hips rest
+        /// about 0.11 m above the cushion, so their underside still stays in the car, and the head 1.07 m above it stays
+        /// under the roof of the low cabins. The debug console tunes it live.
+        /// </summary>
+        internal static float CushionAboveUnderside = -0.08f;
+
+        /// <summary>Lowest ankle above the lowest point of the body, so the feet stay in the car; the knees bend up instead.</summary>
+        private const float FeetAboveUnderside = 0.10f;
+
         /// <summary>Hips above the cushion top for the fitted seats.</summary>
         private const float HipHeight = 0.08f;
 
@@ -68,6 +78,64 @@ namespace Chassis.Interior
         private static readonly Dictionary<string, Material> _materials = new Dictionary<string, Material>();
         private static readonly HashSet<string> _fitFailed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private static readonly List<int> _gone = new List<int>();
+        private static readonly Dictionary<string, Func<LandVehicle, GameObject>> _factories = new Dictionary<string, Func<LandVehicle, GameObject>>(StringComparer.OrdinalIgnoreCase);
+        private static readonly HashSet<ChassisProfile> _fitted = new HashSet<ChassisProfile>();
+        private static readonly HashSet<string> _fittedCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // ---- interiors from mods -----------------------------------------------------------------------------------
+
+        internal static void SetFactory(string code, Func<LandVehicle, GameObject> build) => _factories[code] = build;
+
+        internal static bool RemoveFactory(string code) => !string.IsNullOrEmpty(code) && _factories.Remove(code);
+
+        /// <summary>A profile Chassis fitted to a vanilla car, whose gauges and switches name the base kit.</summary>
+        internal static bool IsFitted(ChassisProfile p) => p != null && _fitted.Contains(p);
+
+        /// <summary>Fits every vanilla code again from one of its cars and rebuilds their interiors. Returns the codes fitted.</summary>
+        internal static int Refit()
+        {
+            int n = 0;
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var lv in Registry.All)
+            {
+                if (lv == null) continue;
+                string code = ChassisApi.CodeOf(lv);
+                if (!VanillaCodes.Contains(code) || !seen.Add(code)) continue;
+                var old = ChassisApi.Get(code);
+                if (old != null && !_fittedCodes.Contains(code)) { Core.Log.Msg("[Interior] refit: '" + code + "' has a profile of its own - kept."); continue; }
+                if (old != null) _fitted.Remove(old);
+                _fitFailed.Remove(code);
+                FitVanilla(lv);
+                Rebuild(code);
+                n++;
+            }
+            return n;
+        }
+
+        /// <summary>Takes the interior out of every vehicle of this code; the next tick builds it again.</summary>
+        internal static void Rebuild(string code)
+        {
+            _gone.Clear();
+            foreach (var kv in _built)
+                if (kv.Value.V != null && string.Equals(ChassisApi.CodeOf(kv.Value.V), code, StringComparison.OrdinalIgnoreCase)) _gone.Add(kv.Key);
+            foreach (int k in _gone)
+            {
+                Remove(_built[k]);
+                _built.Remove(k);
+            }
+            _next = 0f;
+            if (_gone.Count > 0) Core.Log.Msg("[Interior] rebuilding " + _gone.Count + " interior(s) of '" + code + "'.");
+        }
+
+        /// <summary>
+        /// The vehicle's cockpit is in place for gauges and switches to bind: it has no base interior, or the interior is
+        /// built. Before that, their paths would not be found yet.
+        /// </summary>
+        internal static bool Ready(LandVehicle lv, ChassisProfile profile)
+        {
+            if (profile?.Interior == null || !Enabled) return true;
+            return _built.TryGetValue(lv.GetInstanceID(), out var b) && b.Root != null;
+        }
 
         // ---- per second, from the registry -------------------------------------------------------------------------
 
@@ -156,6 +224,11 @@ namespace Chassis.Interior
                 // and a tall hairstyle stay under the roof: they reach about 1.2 m above the cushion. First person looks
                 // from the natural eye height, under the roof and at least just above the belt line.
                 float cushion = Mathf.Min(belt + (roof - belt) * 0.45f - 0.70f, roof - 1.26f);
+                // In the low cabins that rule puts the cushion so low that seat, hips and legs show under the car. The
+                // cushion rises to just below the underside, and the feet below rise into the car further down.
+                float underside = Underside(lv, root, Lod0(lv.GetComponentInChildren<LODGroup>(true)));
+                float lowered = cushion;
+                if (!float.IsNaN(underside)) cushion = Mathf.Max(cushion, underside + CushionAboveUnderside);
                 float eyes = Mathf.Max(Mathf.Min(cushion + 0.86f, roof - 0.08f), belt + 0.19f);
                 // These bodies close the cabin with a lid at the belt line. It is cut out of the body mesh; where that
                 // fails, dashboard, wheel and eyes sit above it.
@@ -204,7 +277,9 @@ namespace Chassis.Interior
                     Color = new Color(0.22f, 0.22f, 0.23f),
                 });
                 float dashTop = belt + 0.02f + lift;
-                parts.Add(new KitPart { Kind = "gauges", Position = new Vector3(d.x, dashTop - 0.06f, dashBack), Size = new Vector3(0.3f, 0.1f, 0.05f), Color = new Color(0.16f, 0.16f, 0.17f) });
+                Vector3 gaugesAt = new Vector3(d.x, dashTop - 0.06f, dashBack);
+                parts.Add(new KitPart { Kind = "gauges", Position = gaugesAt, Size = new Vector3(0.3f, 0.1f, 0.05f), Color = new Color(0.16f, 0.16f, 0.17f) });
+                AddInstruments(profile, gaugesAt, wheelAt, new Vector3(band.center.x, dashTop, dashBack));
 
                 // Seats: the front row one each, a row behind it as one bench.
                 var done = new bool[seats.Length];
@@ -228,13 +303,21 @@ namespace Chassis.Interior
                     parts.Add(new KitPart { Kind = "bench", Position = new Vector3((minX + maxX) * 0.5f, cushion, local[i].z), Size = new Vector3(maxX - minX + 0.55f, 0.62f, 0.48f) });
                 }
 
-                profile.Steering = new SteeringProfile { Path = WheelName, Axis = Vector3.forward, Ratio = 8f, Max = 300f };
+                float feetRaised = 0f;
+                profile.Steering = new SteeringProfile { Path = WheelName, Axis = Vector3.forward, Ratio = 5f, Max = 170f };
                 for (int i = 0; i < seats.Length; i++)
                 {
                     if (seats[i] == null) continue;
                     Vector3 point = root.TransformPoint(new Vector3(local[i].x, cushion, local[i].z));
                     var seat = ChassisApi.FitSeat(lv, i, point, root, null, HipHeight);
                     seat.Eyes = new Vector3(seat.Eyes.x, eyes, seat.Eyes.z);
+                    if (seat.Feet != null && !float.IsNaN(underside) && seat.Feet.Position.y < underside + FeetAboveUnderside)
+                    {
+                        float up = underside + FeetAboveUnderside - seat.Feet.Position.y;
+                        seat.Feet.Position += Vector3.up * up;
+                        seat.Feet.Knee += Vector3.up * up;
+                        feetRaised = Mathf.Max(feetRaised, up);
+                    }
                     profile.Seats.Add(seat);
                 }
                 // Hands on the wheel need the wheel's transform; the kit builds it, so the driver's grip is set here.
@@ -245,9 +328,11 @@ namespace Chassis.Interior
                     ds.Hands.GripStart = wheelAt + Vector3.right * 0.17f;
                 }
 
+                _fitted.Add(profile);
                 bool used = ChassisApi.Register(profile);
+                if (used) _fittedCodes.Add(code);
                 Core.Log.Msg("[Interior] fitted " + code + ": window band " + ProfileJson.F(band.min) + " .. " + ProfileJson.F(band.max) + ", cushion "
-                    + cushion.ToString("F2") + ", driver z " + seatZ.ToString("F2") + (shift < 0f ? " (moved back " + (-shift).ToString("F2") + ")" : "") + (opened ? ", cabin lid cut out" : closed ? ", above the cabin lid" : "") + ", wheel z " + wheelAt.z.ToString("F2") + ", dash " + (dashFront - dashBack).ToString("F2") + " m deep, " + parts.Count + " kit part(s), " + profile.Seats.Count + " seat(s)" + (used ? "." : " - a JSON file wins."));
+                    + cushion.ToString("F2") + (cushion > lowered ? " (raised " + (cushion - lowered).ToString("F2") + " above the underside " + underside.ToString("F2") + ")" : "") + (feetRaised > 0f ? ", feet raised " + feetRaised.ToString("F2") : "") + ", driver z " + seatZ.ToString("F2") + (shift < 0f ? " (moved back " + (-shift).ToString("F2") + ")" : "") + (opened ? ", cabin lid cut out" : closed ? ", above the cabin lid" : "") + ", wheel z " + wheelAt.z.ToString("F2") + ", dash " + (dashFront - dashBack).ToString("F2") + " m deep, " + parts.Count + " kit part(s), " + profile.Seats.Count + " seat(s)" + (used ? "." : " - a JSON file wins."));
             }
             catch (Exception e)
             {
@@ -255,6 +340,48 @@ namespace Chassis.Interior
                 Core.Log.Error("[Interior] fitting " + code + " failed - it keeps the vanilla cabin: " + e);
             }
         }
+
+        /// <summary>The kit's instruments: two needles, three warning lamps, the light and hazard switches, the indicator stalk and the horn.</summary>
+        private static void AddInstruments(ChassisProfile profile, Vector3 gauges, Vector3 wheel, Vector3 stack)
+        {
+            var parts = profile.Interior.Parts;
+            // The dials of the gauges kit: 0.22 of its width either side, 0.55 of its height down, on its face.
+            const float DialX = 0.066f, DialY = -0.055f;
+            var needle = new Vector3(0.004f, 0.032f, 0.002f);
+            var orange = new Color(0.95f, 0.32f, 0.08f);
+            parts.Add(new KitPart { Kind = "needle", Name = SpeedNeedle, Position = gauges + new Vector3(-DialX, DialY, -0.017f), Size = needle, Color = orange });
+            parts.Add(new KitPart { Kind = "needle", Name = RpmNeedle, Position = gauges + new Vector3(DialX, DialY, -0.017f), Size = needle, Color = orange });
+            var dark = new Color(0.1f, 0.1f, 0.1f);
+            var lamp = new Vector3(0.011f, 0.007f, 0.004f);
+            parts.Add(new KitPart { Kind = "lamp", Name = "Chassis_LampLeft", Position = gauges + new Vector3(-0.013f, -0.03f, -0.014f), Size = lamp, Color = dark });
+            parts.Add(new KitPart { Kind = "lamp", Name = "Chassis_LampRight", Position = gauges + new Vector3(0.013f, -0.03f, -0.014f), Size = lamp, Color = dark });
+            parts.Add(new KitPart { Kind = "lamp", Name = "Chassis_LampLights", Position = gauges + new Vector3(0f, -0.08f, -0.014f), Size = lamp, Color = dark });
+
+            // Light switch left of the wheel, hazard switch on the centre stack (backlit, so it shows in a dark cabin),
+            // horn in the hub. The stalk leaves the column down and to the left, between the left forearm and the lower
+            // spoke, and its pale tip reaches past the rim.
+            parts.Add(new KitPart { Kind = "rocker", Name = LightSwitch, Position = new Vector3(wheel.x - 0.25f, gauges.y - 0.05f, gauges.z - 0.008f), Size = new Vector3(0.022f, 0.034f, 0.014f), Color = new Color(0.13f, 0.13f, 0.14f) });
+            parts.Add(new KitPart { Kind = "rocker", Name = HazardSwitch, Position = new Vector3(stack.x, stack.y - 0.12f, stack.z - 0.09f), Size = new Vector3(0.042f, 0.03f, 0.014f), Color = new Color(0.9f, 0.1f, 0.06f) });
+            var column = Quaternion.Euler(22f, 0f, 0f);
+            parts.Add(new KitPart { Kind = "stalk", Name = IndicatorStalk, Position = wheel + column * new Vector3(-0.02f, -0.01f, 0.05f), Rotation = new Vector3(22f, 0f, 55f), Size = new Vector3(0.2f, 0.012f, 0f), Color = new Color(0.1f, 0.1f, 0.11f) });
+            parts.Add(new KitPart { Kind = "button", Name = HornButton, Parent = WheelName, Position = wheel + column * new Vector3(0f, 0f, -0.008f), Rotation = new Vector3(22f, 0f, 0f), Size = new Vector3(0.036f, 0f, 0.01f), Color = new Color(0.12f, 0.12f, 0.13f) });
+
+            bool mph = Chassis.Instruments.Sources.Mph;
+            profile.Gauges.Add(new GaugeProfile { Name = "speed", Kind = "needle", Path = SpeedNeedle, Source = "speed", Min = 0f, Max = mph ? 80f : 130f });
+            profile.Gauges.Add(new GaugeProfile { Name = "rpm", Kind = "needle", Path = RpmNeedle, Source = "rpm", Min = 0f, Max = 7000f });
+            var green = new Color(0.25f, 1f, 0.3f);
+            profile.Gauges.Add(new GaugeProfile { Name = "indicator_left", Kind = "lamp", Path = "Chassis_LampLeft", Source = "indicator_left", Color = green });
+            profile.Gauges.Add(new GaugeProfile { Name = "indicator_right", Kind = "lamp", Path = "Chassis_LampRight", Source = "indicator_right", Color = green });
+            profile.Gauges.Add(new GaugeProfile { Name = "lights", Kind = "lamp", Path = "Chassis_LampLights", Source = "lights", Color = new Color(0.3f, 0.65f, 1f) });
+
+            profile.Controls.Add(new ControlProfile { Name = "lights", Label = "Lights", Kind = "toggle", Path = LightSwitch, Action = "lights", Source = "lights", Axis = Vector3.right, Angle = 24f });
+            profile.Controls.Add(new ControlProfile { Name = "hazard", Label = "Hazard lights", Kind = "toggle", Path = HazardSwitch, Action = "hazard", Source = "hazard", Axis = Vector3.right, Angle = 20f });
+            profile.Controls.Add(new ControlProfile { Name = "indicator", Label = "Indicator", Kind = "knob", Path = IndicatorStalk, Action = "indicator", Source = "indicator", Axis = Vector3.back, Angle = 24f, Min = -1f, Max = 1f, Step = 1f, Default = 0f });
+            profile.Controls.Add(new ControlProfile { Name = "horn", Label = "Horn", Kind = "button", Path = HornButton, Action = "horn", Axis = Vector3.forward, Press = 0.006f });
+        }
+
+        internal const string SpeedNeedle = "Chassis_SpeedNeedle", RpmNeedle = "Chassis_RpmNeedle";
+        internal const string LightSwitch = "Chassis_LightSwitch", HazardSwitch = "Chassis_HazardSwitch", IndicatorStalk = "Chassis_IndicatorStalk", HornButton = "Chassis_HornButton";
 
         // ---- building ----------------------------------------------------------------------------------------------
 
@@ -271,15 +398,56 @@ namespace Chassis.Interior
                 var kitRenderers = new List<Renderer>();
 
                 var old = frame.Find(RootName);
-                if (old != null) UnityEngine.Object.Destroy(old.gameObject);
+                if (old != null)
+                {
+                    // Out of the frame at once: Destroy waits for the end of the frame, and gauges bind by name meanwhile.
+                    old.SetParent(null, false);
+                    UnityEngine.Object.Destroy(old.gameObject);
+                }
                 b.Root = new GameObject(RootName);
                 b.Root.transform.SetParent(frame, false);
 
-                int n = 0;
-                foreach (var part in ip.Parts)
+                string source;
+                float underside = float.NaN, raised = 0f;
+                if (_factories.TryGetValue(profile.Code, out var factory))
                 {
-                    var r = Piece(b.Root.transform, part, profile.Code + "_" + n++);
-                    if (r != null) kitRenderers.Add(r);
+                    source = "mod interior";
+                    GameObject made = null;
+                    try { made = factory(lv); }
+                    catch (Exception e) { Core.Log.Error("[Interior] the interior factory for '" + profile.Code + "' failed on " + Registry.Name(lv) + ": " + e); }
+                    if (made != null)
+                    {
+                        made.transform.SetParent(b.Root.transform, false);
+                        foreach (var r in made.GetComponentsInChildren<Renderer>(true)) if (r != null) kitRenderers.Add(r);
+                    }
+                    else Core.Log.Warning("[Interior] the interior factory for '" + profile.Code + "' gave nothing for " + Registry.Name(lv) + " - the cabin stays empty.");
+                }
+                else
+                {
+                    source = "kit";
+                    int n = 0;
+                    var placed = new List<KeyValuePair<KitPart, Transform>>();
+                    underside = Underside(lv, frame, Lod0(lod));
+                    foreach (var part in ip.Parts)
+                    {
+                        string k = (part.Kind ?? "").ToLowerInvariant();
+                        if (!float.IsNaN(underside) && (k == "seat" || k == "bench")) raised = Mathf.Max(raised, underside + SeatAboveUnderside - part.Position.y);
+                    }
+                    foreach (var part in ip.Parts)
+                    {
+                        var r = Piece(b.Root.transform, part, profile.Code + "_" + n++, underside);
+                        if (r == null) continue;
+                        kitRenderers.Add(r);
+                        placed.Add(new KeyValuePair<KitPart, Transform>(part, r.transform));
+                    }
+                    // A part can hang below another one, e.g. the horn button below the wheel, and moves with it.
+                    foreach (var kv in placed)
+                    {
+                        if (string.IsNullOrEmpty(kv.Key.Parent)) continue;
+                        var parent = b.Root.transform.Find(kv.Key.Parent);
+                        if (parent == null) { Core.Log.Warning("[Interior] kit part '" + kv.Key.Name + "' hangs below '" + kv.Key.Parent + "', which is not in the kit - it stays where it is."); continue; }
+                        kv.Value.SetParent(parent, true);
+                    }
                 }
 
                 int opened = 0;
@@ -288,24 +456,79 @@ namespace Chassis.Interior
                 int glazed = ip.Glass != null ? Glaze(lv, ip.Glass, b) : 0;
                 int lined = ip.Lining ? Line(lv, ip, b, kitRenderers, lod) : 0;
                 AddToLod(lod, kitRenderers, Registry.Name(lv));
-                // The steering wheel only exists from now on; the parts rig looks it up again.
+                // The steering wheel, needles and switches only exist from now on; their rigs look them up again.
                 Vehicles.Parts.Forget(lv);
-                Core.Log.Msg("[Interior] " + Registry.Name(lv) + ": " + kitRenderers.Count + " kit renderer(s), " + glazed + " window slot(s) tinted, " + lined + " shell(s) lined" + (ip.OpenLid ? ", " + opened + " opened" : "") + ".");
+                Instruments.Gauges.Forget(lv);
+                Instruments.Controls.Forget(lv);
+                Core.Log.Msg("[Interior] " + Registry.Name(lv) + ": " + kitRenderers.Count + " " + source + " renderer(s), " + glazed + " window slot(s) tinted, " + lined + " shell(s) lined" + (ip.OpenLid ? ", " + opened + " opened" : "") + (float.IsNaN(underside) ? "" : ", underside y " + underside.ToString("F2")) + (raised > 0f ? ", seats raised " + raised.ToString("F2") + " m into the body" : "") + ".");
             }
             catch (Exception e) { Core.Log.Error("[Interior] building the interior of " + Registry.Name(lv) + " failed: " + e); }
         }
 
-        private static Renderer Piece(Transform parent, KitPart part, string name)
+        /// <summary>
+        /// Lowest point of the car body in the frame: the most detailed body meshes, without the wheels and the kit.
+        /// NaN when the car has no such mesh.
+        /// </summary>
+        private static float Underside(LandVehicle lv, Transform frame, HashSet<int> lod0)
+        {
+            float low = float.NaN;
+            try
+            {
+                var wheels = new List<Transform>();
+                if (lv.wheels != null) foreach (var w in lv.wheels) if (w != null) wheels.Add(w.transform);
+                foreach (var r in lv.GetComponentsInChildren<MeshRenderer>(true))
+                {
+                    if (r == null || r.gameObject.name.StartsWith("Chassis_") || InKit(r.transform)) continue;
+                    if (lod0 != null && !lod0.Contains(r.GetInstanceID())) continue;
+                    bool onWheel = false;
+                    foreach (var w in wheels) if (r.transform.IsChildOf(w)) { onWheel = true; break; }
+                    if (onWheel) continue;
+                    var mf = r.GetComponent<MeshFilter>();
+                    var mesh = mf != null ? mf.sharedMesh : null;
+                    if (mesh == null) continue;
+                    foreach (Vector3 c in Corners(mesh.bounds))
+                    {
+                        float y = frame.InverseTransformPoint(r.transform.TransformPoint(c)).y;
+                        if (float.IsNaN(low) || y < low) low = y;
+                    }
+                }
+            }
+            catch (Exception e) { Core.Log.Warning("[Interior] measuring the underside of " + Registry.Name(lv) + " failed - the seats keep their full pedestals: " + e.Message); }
+            return low;
+        }
+
+        /// <summary>True for anything under an interior root, including one that is still waiting to be destroyed.</summary>
+        private static bool InKit(Transform t)
+        {
+            for (; t != null; t = t.parent) if (t.name == RootName) return true;
+            return false;
+        }
+
+        /// <summary>Lowest height of a kit seat's cushion top above the lowest point of the body: a 4 cm cushion plus 1 cm.</summary>
+        private const float SeatAboveUnderside = 0.05f;
+
+        private static Renderer Piece(Transform parent, KitPart part, string name, float underside)
         {
             Mesh mesh;
             string kind = (part.Kind ?? "").ToLowerInvariant();
-            string key = kind + "|" + part.Size + "|" + part.Position.y;
+            Vector3 at = part.Position;
             switch (kind)
             {
                 case "seat":
                 case "bench":
-                    mesh = KitMesh.Seat(part.Size, 0.32f, "Chassis_" + kind);
+                {
+                    // In the low cabins the cushion sits just above the body's underside: it gets thinner, and the
+                    // pedestal reaches at most 0.32 m down and ends above the underside, so nothing shows under the car.
+                    float thick = 0.12f, drop = 0.32f;
+                    if (!float.IsNaN(underside))
+                    {
+                        at.y = Mathf.Max(at.y, underside + SeatAboveUnderside);
+                        thick = Mathf.Clamp(at.y - underside - 0.01f, SeatAboveUnderside - 0.01f, 0.12f);
+                        drop = Mathf.Clamp(at.y - underside - 0.08f, 0f, 0.32f);
+                    }
+                    mesh = KitMesh.Seat(part.Size, drop, "Chassis_" + kind, thick);
                     break;
+                }
                 case "dash":
                     mesh = KitMesh.Dash(part.Size, "Chassis_dash");
                     break;
@@ -315,18 +538,35 @@ namespace Chassis.Interior
                 case "gauges":
                     mesh = KitMesh.Gauges(part.Size, "Chassis_gauges");
                     break;
+                case "needle":
+                    mesh = KitMesh.Needle(part.Size, "Chassis_needle");
+                    break;
+                case "rocker":
+                    mesh = KitMesh.Rocker(part.Size, "Chassis_rocker");
+                    break;
+                case "button":
+                    mesh = KitMesh.Button(part.Size, "Chassis_button");
+                    break;
+                case "stalk":
+                    mesh = KitMesh.Stalk(part.Size, "Chassis_stalk");
+                    break;
+                case "lamp":
+                    mesh = new KitMesh().Box(Vector3.zero, part.Size).Build("Chassis_lamp");
+                    break;
                 default:
                     Core.Log.Warning("[Interior] unknown kit part '" + part.Kind + "' - skipped.");
                     return null;
             }
-            var go = new GameObject(kind == "wheel" ? WheelName : "Chassis_" + kind + "_" + name);
+            string objectName = !string.IsNullOrEmpty(part.Name) ? part.Name : kind == "wheel" ? WheelName : "Chassis_" + kind + "_" + name;
+            var go = new GameObject(objectName);
             go.transform.SetParent(parent, false);
-            go.transform.localPosition = part.Position;
+            go.transform.localPosition = at;
             go.transform.localRotation = Quaternion.Euler(part.Rotation);
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             var r = go.AddComponent<MeshRenderer>();
-            if (mesh.subMeshCount > 1) r.sharedMaterials = new[] { Flat(part.Color), Flat(Accent(kind, part.Color)) };
-            else r.sharedMaterial = Flat(part.Color);
+            var body = objectName == HazardSwitch ? Backlit(part.Color) : Flat(part.Color);
+            if (mesh.subMeshCount > 1) r.sharedMaterials = new[] { body, Flat(Accent(kind, part.Color)) };
+            else r.sharedMaterial = body;
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             return r;
         }
@@ -464,22 +704,30 @@ namespace Chassis.Interior
         internal static int RemoveAll()
         {
             int n = 0;
-            foreach (var b in _built.Values)
-            {
-                try
-                {
-                    for (int i = 0; i < b.Glazed.Count; i++) if (b.Glazed[i] != null) b.Glazed[i].sharedMaterials = b.Original[i];
-                    for (int i = 0; i < b.Opened.Count; i++) if (b.Opened[i] != null) b.Opened[i].sharedMesh = b.Closed[i];
-                    foreach (var go in b.Linings) if (go != null) UnityEngine.Object.Destroy(go);
-                    if (b.Root != null) UnityEngine.Object.Destroy(b.Root);
-                    Vehicles.Parts.Forget(b.V);
-                    n++;
-                }
-                catch (Exception e) { Core.Log.Error("[Interior] removing the interior of " + Registry.Name(b.V) + " failed: " + e.Message); }
-            }
+            foreach (var b in _built.Values) if (Remove(b)) n++;
             _built.Clear();
             Core.Log.Msg("[Interior] removed " + n + " interior(s).");
             return n;
+        }
+
+        private static bool Remove(Built b)
+        {
+            try
+            {
+                for (int i = 0; i < b.Glazed.Count; i++) if (b.Glazed[i] != null) b.Glazed[i].sharedMaterials = b.Original[i];
+                for (int i = 0; i < b.Opened.Count; i++) if (b.Opened[i] != null) b.Opened[i].sharedMesh = b.Closed[i];
+                foreach (var go in b.Linings) if (go != null) UnityEngine.Object.Destroy(go);
+                Instruments.Gauges.Forget(b.V);
+                Instruments.Controls.Forget(b.V);
+                if (b.Root != null)
+                {
+                    b.Root.transform.SetParent(null, false);
+                    UnityEngine.Object.Destroy(b.Root);
+                }
+                Vehicles.Parts.Forget(b.V);
+                return true;
+            }
+            catch (Exception e) { Core.Log.Error("[Interior] removing the interior of " + Registry.Name(b.V) + " failed: " + e.Message); return false; }
         }
 
         internal static void Reset()
@@ -518,6 +766,20 @@ namespace Chassis.Interior
 
         private static Material Flat(Color c) => Lit("kit_" + c, c);
 
+        /// <summary>A kit colour that glows faintly, like a switch lit from behind.</summary>
+        private static Material Backlit(Color c)
+        {
+            string key = "backlit_" + c;
+            if (_materials.TryGetValue(key, out var mat) && mat != null) return mat;
+            mat = new Material(Lit("kit_" + c, c)) { name = "Chassis_" + key };
+            mat.hideFlags |= HideFlags.DontUnloadUnusedAsset;
+            mat.EnableKeyword("_EMISSION");
+            mat.SetColor("_EmissionColor", c * 0.6f);
+            mat.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+            _materials[key] = mat;
+            return mat;
+        }
+
         /// <summary>The second colour of a kit piece: dark vents on the dashboard, pale dials, a lighter horn pad.</summary>
         private static Color Accent(string kind, Color c)
         {
@@ -525,6 +787,9 @@ namespace Chassis.Interior
             {
                 case "gauges": return new Color(0.78f, 0.8f, 0.74f);
                 case "wheel": return new Color(c.r * 1.9f, c.g * 1.9f, c.b * 1.9f);
+                case "rocker": return new Color(0.85f, 0.85f, 0.8f);
+                case "button": return new Color(c.r * 1.6f, c.g * 1.6f, c.b * 1.6f);
+                case "stalk": return new Color(0.5f, 0.5f, 0.52f);
                 default: return new Color(c.r * 0.35f, c.g * 0.35f, c.b * 0.35f);
             }
         }

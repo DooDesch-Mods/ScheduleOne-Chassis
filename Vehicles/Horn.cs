@@ -42,7 +42,7 @@ namespace Chassis.Vehicles
         {
             var lv = Registry.ById(vehicle);
             if (lv == null) { Core.Log.Warning("[Horn] honk for net " + vehicle + ", which is not here - dropped."); return; }
-            var p = Ids.Find<Player>(player);
+            var p = Ids.PlayerById(player);
             if (p == null) { Core.Log.Warning("[Horn] honk from player net " + player + ", who is not here - dropped."); return; }
             if (!Inside(lv, p) && !Fleet.IsOwner(lv, p.PlayerCode))
             {

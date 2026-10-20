@@ -7,6 +7,7 @@
   <!-- CI checks out the shared Workspace repo as a SUBFOLDER of this project; compile only this mod's own source. -->
   <ItemGroup>
     <Compile Remove="Workspace/**/*.cs" />
+    <Compile Remove="Examples/**" />
   </ItemGroup>
 
   <!-- Generates DooDesch.ModVersion.Current from the version property. MUST come after the Workspace Remove. -->
@@ -89,6 +90,7 @@
     <Reference Include="Unity.InputSystem"><HintPath>$(GameManagedPath)/Unity.InputSystem.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Unity.TextMeshPro"><HintPath>$(GameManagedPath)/Unity.TextMeshPro.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.UI"><HintPath>$(GameManagedPath)/UnityEngine.UI.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UIModule"><HintPath>$(GameManagedPath)/UnityEngine.UIModule.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>
 
   <!-- IL2CPP interop exposes every game member; on Mono the same private members need a publicized reference. -->
@@ -109,6 +111,7 @@
     <Reference Include="Unity.InputSystem"><HintPath>$(GameManagedPath)/Unity.InputSystem.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Unity.TextMeshPro"><HintPath>$(GameManagedPath)/Unity.TextMeshPro.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.UI"><HintPath>$(GameManagedPath)/UnityEngine.UI.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UIModule"><HintPath>$(GameManagedPath)/UnityEngine.UIModule.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="Build" Condition="'$(OS)' == 'Windows_NT' And '$(Backend)' == 'il2cpp'">
