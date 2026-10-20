@@ -17,6 +17,13 @@ global using Il2CppFishNet;                     // InstanceFinder
 
 global using GameAvatar = Il2CppScheduleOne.AvatarFramework.Avatar;
 global using NPC = Il2CppScheduleOne.NPCs.NPC;
+global using GameNpcHealth = Il2CppScheduleOne.NPCs.NPCHealth;
+global using GameNpcMovement = Il2CppScheduleOne.NPCs.NPCMovement;
+global using GameRangedWeapon = Il2CppScheduleOne.Equipping.Equippable_RangedWeapon;
+global using GameDeadBehaviour = Il2CppScheduleOne.NPCs.Behaviour.DeadBehaviour;
+global using GamePoliceOfficer = Il2CppScheduleOne.Police.PoliceOfficer;
+global using GamePatrolRoute = Il2CppScheduleOne.NPCs.Behaviour.VehiclePatrolRoute;
+global using GamePlayerInventory = Il2CppScheduleOne.PlayerScripts.PlayerInventory;
 global using AvatarEffects = Il2CppScheduleOne.AvatarFramework.AvatarEffects;
 global using FishNetObject = Il2CppFishNet.Object.NetworkObject;
 global using GameConsole = Il2CppScheduleOne.Console;

@@ -66,6 +66,7 @@ namespace Chassis
             Vehicles.AutoLights.Reset();
             Interior.BaseInterior.Reset();
             Seating.NpcRiders.Reset();
+            Seating.SeatedTargets.Reset();
             Instruments.Store.Reset();
             Instruments.Odometer.Reset();
             Instruments.Pedals.Reset();
@@ -96,6 +97,7 @@ namespace Chassis
             Guard("vehicles", Vehicles.Registry.Tick);
             Guard("interior", Interior.BaseInterior.Tick);
             Guard("npc riders", Seating.NpcRiders.Tick);
+            Guard("seated targets", Seating.SeatedTargets.Tick);
             Guard("owners", Vehicles.Fleet.Tick);
             Guard("horn", Vehicles.Horn.Tick);
             Guard("indicators", Vehicles.Indicators.Tick);

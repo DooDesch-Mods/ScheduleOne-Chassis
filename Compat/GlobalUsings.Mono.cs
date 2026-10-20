@@ -17,6 +17,13 @@ global using FishNet;                     // InstanceFinder
 
 global using GameAvatar = ScheduleOne.AvatarFramework.Avatar;
 global using NPC = ScheduleOne.NPCs.NPC;
+global using GameNpcHealth = ScheduleOne.NPCs.NPCHealth;
+global using GameNpcMovement = ScheduleOne.NPCs.NPCMovement;
+global using GameRangedWeapon = ScheduleOne.Equipping.Equippable_RangedWeapon;
+global using GameDeadBehaviour = ScheduleOne.NPCs.Behaviour.DeadBehaviour;
+global using GamePoliceOfficer = ScheduleOne.Police.PoliceOfficer;
+global using GamePatrolRoute = ScheduleOne.NPCs.Behaviour.VehiclePatrolRoute;
+global using GamePlayerInventory = ScheduleOne.PlayerScripts.PlayerInventory;
 global using AvatarEffects = ScheduleOne.AvatarFramework.AvatarEffects;
 global using FishNetObject = FishNet.Object.NetworkObject;
 global using GameConsole = ScheduleOne.Console;
