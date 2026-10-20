@@ -44,6 +44,19 @@ namespace Chassis.Rideables
                 catch (Exception e) { Core.Log.Error("[Wheelchair] building the look failed: " + e); }
                 try { Push.AddHandles(__instance); }
                 catch (Exception e) { Core.Log.Error("[Wheelchair] adding the push handles failed: " + e); }
+                // Start registers every vehicle for weather updates (wet tyre grip). The environment walks a snapshot of
+                // that list over half a second, so a wheelchair despawned in that window throws a NullReferenceException
+                // there. The wheelchair keeps its own grip and leaves the list right away.
+                try
+                {
+#if IL2CPP
+                    WeatherHandler.UnregisterWeatherEntity(__instance.Cast<IWeatherEntity>());
+#else
+                    WeatherHandler.UnregisterWeatherEntity(__instance);
+#endif
+                    Core.Log.Msg("[Wheelchair] net " + Net.Ids.Of(__instance) + " left the weather updates.");
+                }
+                catch (Exception e) { Core.Log.Error("[Wheelchair] leaving the weather updates failed: " + e); }
             }
         }
     }

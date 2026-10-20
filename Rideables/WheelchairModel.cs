@@ -30,6 +30,10 @@ namespace Chassis.Rideables
             model.transform.localScale = Vector3.one;
             foreach (var c in model.GetComponentsInChildren<Collider>(true)) UnityEngine.Object.Destroy(c);
             foreach (var b in model.GetComponentsInChildren<MonoBehaviour>(true)) UnityEngine.Object.Destroy(b);
+            // The template can be the prop the swap just hid, whose renderers are off; the copy is the visible look.
+            int shown = 0;
+            foreach (var r in model.GetComponentsInChildren<Renderer>(true)) if (!r.enabled) { r.enabled = true; shown++; }
+            if (shown > 0) Core.Log.Msg("[Wheelchair] template " + template.parent.name + " was hidden, " + shown + " renderer(s) switched on in the copy.");
 
             int moved = 0;
             moved += Hang(lv, frame, model.transform, "Wheel", WheelchairType.RimRight);
