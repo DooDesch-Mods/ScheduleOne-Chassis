@@ -24,7 +24,7 @@ namespace Chassis.Api
 
         /// <summary>
         /// Adds a line to the key hints at the bottom left while the local player sits in or pushes a vehicle, below
-        /// the keys Chassis offers itself (First Person, Horn, Indicators, Push). <paramref name="show"/> runs every
+        /// First Person and Horn and above Indicators. <paramref name="show"/> runs every
         /// frame and picks the vehicles and seats the key works in; null shows it in every vehicle. The same id again
         /// replaces the entry. Letters follow the keyboard layout, so <c>KeyCode.Y</c> shows the key labelled Y.
         /// </summary>

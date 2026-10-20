@@ -40,6 +40,8 @@ namespace Chassis.Vehicles
             internal Func<KeyCode[]> Keys;
             /// <summary>Names of the game's own input actions (Controls asset), for keys the player can rebind.</summary>
             internal string[] Buttons;
+            /// <summary>Listed after the mod entries, so a mod's own keys sit next to the ones the driver uses most.</summary>
+            internal bool Last;
         }
 
         private static readonly List<Entry> _builtIn = new List<Entry>
@@ -48,7 +50,7 @@ namespace Chassis.Vehicles
                 Show = c => !c.Pushing && Occupants.Of(Player.Local) != null },
             new Entry { Id = "chassis.horn", Label = "Horn", Keys = () => new[] { Horn.Key }, Show = c => c.Driver },
             new Entry { Id = "chassis.indicators", Label = "Indicators", Keys = () => new[] { Indicators.LeftKey, Indicators.RightKey },
-                Show = c => c.Driver && c.Profile?.Lamps != null },
+                Show = c => c.Driver && c.Profile?.Lamps != null, Last = true },
             new Entry { Id = "chassis.push", Label = "Push", Show = c => c.Pushing, Buttons = new[] { "Motion" } },
             new Entry { Id = "chassis.letgo", Label = "Let Go", Show = c => c.Pushing, Buttons = new[] { "Interact" } },
         };
@@ -146,8 +148,9 @@ namespace Chassis.Vehicles
             _context.Driver = !pushing && lv.LocalPlayerIsDriver;
             _context.Seat = pushing ? -1 : SeatOf(lv, lp);
 
-            foreach (var e in _builtIn) Consider(e);
+            foreach (var e in _builtIn) if (!e.Last) Consider(e);
             foreach (var e in _mods) Consider(e);
+            foreach (var e in _builtIn) if (e.Last) Consider(e);
             return true;
         }
 
