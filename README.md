@@ -8,7 +8,7 @@
 > wheel that turns. Chassis adds a first person view, a horn, indicators, locks and owners, and a
 > base interior for the vanilla cars. Other mods build their vehicles on it.
 
-![Version](https://img.shields.io/badge/version-1.1.0-blue)
+![Version](https://img.shields.io/badge/version-1.2.0-blue)
 ![Game](https://img.shields.io/badge/game-Schedule%20I-purple)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 ![Status](https://img.shields.io/badge/status-working-brightgreen)
@@ -37,6 +37,10 @@
 - **Working dashboard:** The speedometer and the rev counter move, and lamps show the indicators
   and the headlights. In first person, look at a switch and left-click it: light switch, hazard
   lights, indicator stalk (also with the mouse wheel) and the horn in the wheel centre.
+- **Indicators outside:** The vanilla cars flash their own amber indicator lamps. A rear without
+  one flashes part of the brake light in red.
+- **Shots into cars:** Guns hit NPCs that sit in a car. A driver who goes down falls out next to
+  the car, and the car stops.
 - **Wheelchairs:** The wheelchairs placed around town can be ridden. Look at the seat and press
   Sit, then roll with the driving keys. A second player can take the handles and push. When it is
   empty again, it stays as a wheelchair where it stopped.
@@ -62,6 +66,7 @@
 |---|---|
 | ![Driver in the seat](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/01-seated-driver.jpg) | ![First person view](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/02-first-person.jpg) |
 | ![Base interior](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/03-interior.jpg) | ![NPC driver](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/04-npc-driver.jpg) |
+| ![Working dashboard](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/09-dash.jpg) | ![Indicators outside](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/10-indicators.jpg) |
 | ![Wheelchair](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/07-wheelchair.jpg) | ![Key hints](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/08-key-hints.jpg) |
 
 ## Requirements
@@ -115,6 +120,9 @@ Every type and member: [API reference](https://docs.doodesch.de/mods/chassis/api
 - **Key hints:** `AddKeyHint` puts your own key into the key hints, `RemoveKeyHint` takes it
   out. The `show` callback gets a `KeyHintContext` (`Vehicle`, `Profile`, `Seat`, `Driver`,
   `Pushing`).
+- **NPCs that go down in a seat:** `RegisterOccupantDown` decides whether a shot NPC stays slumped
+  in its seat instead of falling out (host only). The handler gets an `OccupantDown` (`Vehicle`,
+  `Npc`, `Seat`, `Dead`); `RemoveOccupantDown` takes it out.
 
 ### Interiors, gauges and switches
 

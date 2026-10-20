@@ -8,7 +8,7 @@
 > wheel that turns. Chassis adds a first person view, a horn, indicators, locks and owners, and a
 > base interior for the vanilla cars. Other mods build their vehicles on it.
 
-![Version](https://img.shields.io/badge/version-1.1.0-blue)
+![Version](https://img.shields.io/badge/version-1.2.0-blue)
 ![Game](https://img.shields.io/badge/game-Schedule%20I-purple)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 
@@ -33,6 +33,9 @@
   so you can see who sits inside.
 - The speedometer and the rev counter move. In first person, look at a switch and left-click it:
   light switch, hazard lights, indicator stalk and the horn in the wheel centre.
+- The vanilla cars flash their own amber indicator lamps outside. A rear without one flashes part
+  of the brake light in red.
+- Guns hit NPCs that sit in a car. A driver who goes down falls out, and the car stops.
 - The wheelchairs placed around town can be ridden: look at the seat, press Sit and roll with the
   driving keys. A second player can take the handles and push.
 - In co-op, seats, horn, indicators, locks and owners sync through the host.
@@ -51,6 +54,10 @@
 ## Screenshots
 
 ![Driver in the seat](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/01-seated-driver.jpg)
+
+![Working dashboard](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/09-dash.jpg)
+
+![Indicators outside](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/10-indicators.jpg)
 
 ![First person view](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/02-first-person.jpg)
 
@@ -76,7 +83,7 @@ Chassis has a public C# API in `Chassis.Api` (`ChassisApi`). With it you give a 
 profiles, a steering wheel, lids, lamps and a horn sound, sound the horn, set indicators, and
 read or set owner and lock, and add your own keys to the key hints. Mods can also build their
 own interior with working gauges and clickable switches, and read speed, rpm, lamps and the
-odometer as telemetry. Profiles are JSON files in `UserData/Chassis/<vehicle code>.json`,
+odometer as telemetry, and keep an NPC that was shot slumped in its seat. Profiles are JSON files in `UserData/Chassis/<vehicle code>.json`,
 and a file there wins over a profile from code. Every type and member:
 [API reference](https://docs.doodesch.de/mods/chassis/api/). Source:
 [GitHub](https://github.com/DooDesch-Mods/ScheduleOne-Chassis).
