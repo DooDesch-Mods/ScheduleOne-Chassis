@@ -34,14 +34,16 @@ namespace Chassis.Interior
             t.Add(i); t.Add(i + 2); t.Add(i + 1);
         }
 
-        /// <summary>A flat disc in the XY plane at <paramref name="z"/> around (x, y), facing -Z.</summary>
-        internal KitMesh Disc(float x, float y, float z, float radius, int sides = 12)
+        /// <summary>A flat disc in the XY plane at <paramref name="z"/> around (x, y), facing -Z, or +Z with <paramref name="facesForward"/>.</summary>
+        internal KitMesh Disc(float x, float y, float z, float radius, int sides = 12, bool facesForward = false)
         {
             var c = new Vector3(x, y, z);
             for (int j = 0; j < sides; j++)
             {
                 float b0 = j * Mathf.PI * 2f / sides, b1 = (j + 1) * Mathf.PI * 2f / sides;
-                Tri(c, c + new Vector3(Mathf.Cos(b0), Mathf.Sin(b0), 0f) * radius, c + new Vector3(Mathf.Cos(b1), Mathf.Sin(b1), 0f) * radius);
+                Vector3 p0 = c + new Vector3(Mathf.Cos(b0), Mathf.Sin(b0), 0f) * radius, p1 = c + new Vector3(Mathf.Cos(b1), Mathf.Sin(b1), 0f) * radius;
+                if (facesForward) Tri(c, p1, p0);
+                else Tri(c, p0, p1);
             }
             return this;
         }
@@ -217,6 +219,8 @@ namespace Chassis.Interior
             float r = size.x, d = Mathf.Max(size.z, 0.004f);
             var m = new KitMesh();
             m.Column(r, -d, 0f, 12);
+            // A closed back: the switch outline draws its rim with the back faces of a larger copy.
+            m.Disc(0f, 0f, 0f, r, 12, true);
             m.Accent();
             m.Disc(0f, 0f, -d, r, 12);
             return m.Build(name);

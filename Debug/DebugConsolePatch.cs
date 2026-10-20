@@ -65,6 +65,7 @@ namespace Chassis.Debugging
 #if DEBUG
                         Say("aim <switch>                 - turn the first-person view to a switch of your car");
                         Say("click | scroll <n>           - click or turn the switch in view, as the mouse would");
+                        Say("outline                      - where the highlight copies of the switch in view sit");
                         Say("ctl <switch> [value]         - use a switch of your car through the API");
                         Say("coast [km/h] [s]             - hold your car at that speed along its facing (default 40 km/h, 5 s)");
                         Say("creator                      - finish an open character creator with the default looks (test clients)");
@@ -161,8 +162,32 @@ namespace Chassis.Debugging
                         break;
                     }
                     case "click":
-                        Say("click: " + Instruments.Cockpit.ClickHovered());
+                    {
+                        var sw = System.Diagnostics.Stopwatch.StartNew();
+                        string done = Instruments.Cockpit.ClickHovered();
+                        Say("click: " + done + " in " + sw.Elapsed.TotalMilliseconds.ToString("0.00", CultureInfo.InvariantCulture) + " ms");
                         break;
+                    }
+                    case "outline":
+                    {
+                        // The outline copies of the switch in view: where they sit against the switch and its parent.
+                        var hb = Instruments.Cockpit.Hovered;
+                        if (hb == null) { Say("outline: no switch in view"); break; }
+                        Say("outline: '" + hb.P.Name + "' parent " + (hb.T.parent != null ? hb.T.parent.name : "none") + ", " + hb.Outline.Count + " copy(ies), switch scale " + hb.T.lossyScale.ToString("F3"));
+                        for (int i = 0; i < hb.Outline.Count; i++)
+                        {
+                            var go = hb.Outline[i];
+                            if (go == null) continue;
+                            var mf = go.GetComponent<MeshFilter>();
+                            Bounds mb = mf != null && mf.sharedMesh != null ? mf.sharedMesh.bounds : default;
+                            Transform up = hb.T.parent != null ? hb.T.parent : hb.T;
+                            Vector3 mn = up.InverseTransformPoint(go.transform.TransformPoint(mb.min)), mx = up.InverseTransformPoint(go.transform.TransformPoint(mb.max));
+                            Vector3 smn = up.InverseTransformPoint(hb.T.TransformPoint(mb.min)), smx = up.InverseTransformPoint(hb.T.TransformPoint(mb.max));
+                            Say("outline " + i + ": active " + go.activeInHierarchy + " local " + go.transform.localPosition.ToString("F4") + " scale " + go.transform.localScale.ToString("F3")
+                                + ", copy " + mn.ToString("F4") + ".." + mx.ToString("F4") + ", switch " + smn.ToString("F4") + ".." + smx.ToString("F4") + " in the parent's space");
+                        }
+                        break;
+                    }
                     case "scroll":
                         Say("scroll: " + Instruments.Cockpit.ScrollHovered(parts.Length > 2 && int.TryParse(parts[2], out int notches) ? notches : 1));
                         break;

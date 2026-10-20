@@ -26,7 +26,7 @@ namespace Chassis.Seating
         private static AvatarEffects _effects;
         private static bool _disableHeadBefore;
         private static readonly List<KeyValuePair<Renderer, UnityEngine.Rendering.ShadowCastingMode>> _hidden = new List<KeyValuePair<Renderer, UnityEngine.Rendering.ShadowCastingMode>>();
-        private static bool _announced;
+        private static bool _announced, _aimFailed;
 
         internal static void Tick()
         {
@@ -130,6 +130,12 @@ namespace Chassis.Seating
                         + ", looking " + view.rotation.eulerAngles.ToString("F0") + " (frame " + frame.rotation.eulerAngles.ToString("F0")
                         + ", render camera " + (view == cam ? "is" : "under") + " PlayerCamera, parent " + (cam.parent != null ? cam.parent.name : "none") + ")"
                         + (head != null ? ", head bone at " + Api.ProfileJson.F(frame.InverseTransformPoint(head.position)) + " in frame space, scale " + head.lossyScale.x.ToString("F3") : "") + ".");
+                }
+                try { Instruments.Cockpit.Aim(rig, lv, view); _aimFailed = false; }
+                catch (Exception e)
+                {
+                    if (!_aimFailed) Core.Log.Error("[View] finding the switch in view failed, logged once until it works again: " + e);
+                    _aimFailed = true;
                 }
             }
             catch (Exception e)

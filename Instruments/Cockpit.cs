@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Chassis.Api;
 using Chassis.Interior;
 using Chassis.Seating;
 using Chassis.Vehicles;
@@ -9,15 +10,19 @@ namespace Chassis.Instruments
 {
     /// <summary>
     /// Using the switches in first person: the view picks the nearest switch within <see cref="Controls.Reach"/> of the
-    /// eyes, the switch gets an outline and a dot appears in the middle of the screen; the left mouse button clicks it
+    /// eyes and the switch gets an outline. A dot in the middle of the screen shows where the view points whenever it
+    /// does not leave the car through the windscreen. The left mouse button clicks the switch in view
     /// and the mouse wheel turns a knob. Nothing happens in the chase view, and E stays the vanilla exit key.
     /// </summary>
     internal static class Cockpit
     {
         private static readonly Color OutlineColor = new Color(1f, 0.93f, 0.55f);
         private const float OutlineWidth = 0.003f;
+        /// <summary>How far the outline's back stays in front of the switch's back, in metres.</summary>
+        private const float BackGap = 0.001f;
 
         private static Controls.Bound _hover;
+        private static int _aimFrame = -10;
         private static GameObject _canvas, _dot;
         private static Material _outline, _zoneMat, _reachMat;
         private static bool _gateLogged;
@@ -28,16 +33,14 @@ namespace Chassis.Instruments
 
         internal static Controls.Bound Hovered => _hover;
 
-        internal static void Tick()
+        /// <summary>
+        /// The view as it is drawn this frame, from the first-person camera postfix. In Update the camera still has
+        /// last frame's pose while the car has moved on, so a moving car needs the aim higher than the dot shows.
+        /// </summary>
+        internal static void Aim(SeatRig rig, LandVehicle lv, Transform view)
         {
-            var rig = FirstPersonView.Active ? Occupants.Of(Player.Local) : null;
-            var lv = rig != null && rig.Vehicle != null ? rig.Vehicle.GetComponent<LandVehicle>() : null;
-            if (lv == null) { Hover(null); Reach(null); return; }
-
-            Camera cam = PlayerSingleton<PlayerCamera>.InstanceExists ? PlayerSingleton<PlayerCamera>.Instance.Camera : null;
-            if (cam == null) { Hover(null); return; }
-            Vector3 origin = cam.transform.position, dir = cam.transform.forward;
-
+            _aimFrame = Time.frameCount;
+            Vector3 origin = view.position, dir = view.forward;
             Controls.Bound best = null;
             float bestT = Controls.Reach;
             foreach (var b in Controls.Of(lv))
@@ -47,9 +50,19 @@ namespace Chassis.Instruments
                 bestT = t;
                 best = b;
             }
-            Hover(best);
+            Hover(best, best != null || !ThroughWindscreen(rig, lv, origin, dir));
+            if (best != null) Fit(best, dir);
             if (ShowZones) { Zones(lv); Reach(rig); }
+        }
 
+        internal static void Tick()
+        {
+            var rig = FirstPersonView.Active ? Occupants.Of(Player.Local) : null;
+            var lv = rig != null && rig.Vehicle != null ? rig.Vehicle.GetComponent<LandVehicle>() : null;
+            // The postfix did not run last frame: no first-person camera, nothing in view.
+            if (lv == null || Time.frameCount - _aimFrame > 1) { Hover(null, false); Reach(null); return; }
+
+            var best = _hover;
             if (best == null) return;
             if (GameInput.IsTyping || Cursor.lockState != CursorLockMode.Locked)
             {
@@ -81,8 +94,9 @@ namespace Chassis.Instruments
 
         // ---- outline and dot ---------------------------------------------------------------------------------------
 
-        private static void Hover(Controls.Bound b)
+        private static void Hover(Controls.Bound b, bool dot)
         {
+            Dot(dot);
             if (b == _hover) return;
             if (_hover != null) foreach (var go in _hover.Outline) if (go != null) go.SetActive(false);
             _hover = b;
@@ -91,7 +105,42 @@ namespace Chassis.Instruments
                 if (!b.OutlineMade) MakeOutline(b);
                 foreach (var go in b.Outline) if (go != null) go.SetActive(true);
             }
-            Dot(b != null);
+        }
+
+        /// <summary>
+        /// The view leaves the car through the windscreen: forward, above the dash and within its width. Anywhere else
+        /// the dot shows where the view points, so a switch is easier to find. Without a kit dash a view more than
+        /// <see cref="DashFallbackPitch"/> degrees down counts as inside.
+        /// </summary>
+        private static bool ThroughWindscreen(SeatRig rig, LandVehicle lv, Vector3 origin, Vector3 dir)
+        {
+            if (rig.Frame == null) return true;
+            Vector3 o = rig.Frame.InverseTransformPoint(origin), d = rig.Frame.InverseTransformDirection(dir);
+            if (d.z < 0.2f) return false;
+            var dash = Dash(lv);
+            if (dash == null) return Mathf.Asin(Mathf.Clamp(-d.y, -1f, 1f)) * Mathf.Rad2Deg < DashFallbackPitch;
+            // The kit dash: Position is the middle of its top front edge, Size its width, height and depth.
+            float t = (dash.Position.z - o.z) / d.z;
+            if (t <= 0f) return false;
+            Vector3 at = o + d * t;
+            return at.y > dash.Position.y && Mathf.Abs(at.x - dash.Position.x) < dash.Size.x * 0.5f + 0.05f;
+        }
+
+        private const float DashFallbackPitch = 12f;
+        private static ChassisProfile _dashOf;
+        private static KitPart _dash;
+
+        private static KitPart Dash(LandVehicle lv)
+        {
+            var profile = ChassisApi.For(lv);
+            if (profile == _dashOf) return _dash;
+            _dashOf = profile;
+            _dash = null;
+            if (profile?.Interior?.Parts != null)
+                foreach (var p in profile.Interior.Parts)
+                    if (p != null && string.Equals(p.Kind, "dash", StringComparison.OrdinalIgnoreCase)) { _dash = p; break; }
+            Core.Log.Msg("[Cockpit] " + (profile != null ? profile.Code : "no profile") + ": " + (_dash != null ? "the dot hides above the kit dash at " + ProfileJson.F(_dash.Position) : "no kit dash, the dot hides when the view is less than " + DashFallbackPitch + " degrees down") + ".");
+            return _dash;
         }
 
         /// <summary>
@@ -114,6 +163,7 @@ namespace Chassis.Instruments
                     go.transform.SetParent(mf.transform, false);
                     go.transform.localScale = s;
                     go.transform.localPosition = mb.center - Vector3.Scale(mb.center, s);
+                    b.OutlineBounds.Add(mb);
                     go.AddComponent<MeshFilter>().sharedMesh = mf.sharedMesh;
                     var r = go.AddComponent<MeshRenderer>();
                     var mats = new Material[Mathf.Max(1, mf.sharedMesh.subMeshCount)];
@@ -126,6 +176,45 @@ namespace Chassis.Instruments
                 if (b.Outline.Count == 0) Core.Log.Msg("[Cockpit] switch '" + b.P.Name + "' has no mesh to outline - only the dot shows it.");
             }
             catch (Exception e) { Core.Log.Error("[Cockpit] the outline of switch '" + b.P.Name + "' could not be made, only the dot shows it: " + e); }
+        }
+
+        /// <summary>
+        /// Fits the outline copies of the switch in view to the view. The rim is the back of the larger copy; a switch
+        /// that sits flush on a larger surface, like the horn on the hub, would hide that back inside the surface. Along
+        /// the mesh axis closest to the view the copy ends <see cref="BackGap"/> in front of the switch's own back, so
+        /// its back lies in front of whatever the switch is mounted on, also at the back edge a view from the side sees.
+        /// </summary>
+        private static void Fit(Controls.Bound b, Vector3 dir)
+        {
+            for (int i = 0; i < b.Outline.Count && i < b.OutlineBounds.Count; i++)
+            {
+                var go = b.Outline[i];
+                if (go == null || go.transform.parent == null) continue;
+                Transform mesh = go.transform.parent;
+                Bounds mb = b.OutlineBounds[i];
+                Vector3 lossy = mesh.lossyScale, ld = mesh.InverseTransformDirection(dir);
+                int k = Mathf.Abs(ld.x) >= Mathf.Abs(ld.y) && Mathf.Abs(ld.x) >= Mathf.Abs(ld.z) ? 0 : Mathf.Abs(ld.y) >= Mathf.Abs(ld.z) ? 1 : 2;
+                Vector3 s = Vector3.one, pos = Vector3.zero;
+                for (int a = 0; a < 3; a++)
+                {
+                    float size = mb.size[a], c = mb.center[a];
+                    if (a != k || size < 1e-6f)
+                    {
+                        s[a] = Grow(size, lossy[a]);
+                        pos[a] = c - s[a] * c;
+                        continue;
+                    }
+                    // From the rim width in front of the camera-facing side to just in front of the back.
+                    float scale = Mathf.Max(Mathf.Abs(lossy[a]), 1e-4f);
+                    float toward = ld[a] >= 0f ? -1f : 1f;
+                    float front = c + toward * (size * 0.5f + OutlineWidth / scale);
+                    float back = c - toward * Mathf.Max(0f, size * 0.5f - BackGap / scale);
+                    s[a] = Mathf.Abs(front - back) / size;
+                    pos[a] = (front + back) * 0.5f - s[a] * c;
+                }
+                go.transform.localScale = s;
+                go.transform.localPosition = pos;
+            }
         }
 
         private static float Grow(float size, float scale)
@@ -296,6 +385,9 @@ namespace Chassis.Instruments
         internal static void Reset()
         {
             _hover = null;
+            _aimFrame = -10;
+            _dashOf = null;
+            _dash = null;
             if (_dot != null) _dot.SetActive(false);
             if (_reach != null) UnityEngine.Object.Destroy(_reach);
             _reach = null;

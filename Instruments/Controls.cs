@@ -46,6 +46,8 @@ namespace Chassis.Instruments
             internal float Angle, Pressed;
             internal float PressUntil;
             internal readonly List<GameObject> Outline = new List<GameObject>();
+            /// <summary>The mesh bounds each outline copies, in the space of the mesh it hangs below.</summary>
+            internal readonly List<Bounds> OutlineBounds = new List<Bounds>();
             internal bool OutlineMade;
             internal GameObject Zone;
         }
@@ -275,7 +277,7 @@ namespace Chassis.Instruments
             Player p = null;
             if (player >= 0)
             {
-                p = Ids.Find<Player>(player);
+                p = Ids.PlayerById(player);
                 if (p == null) { Core.Log.Warning("[Controls] switch '" + name + "' from player net " + player + ", who is not here - dropped."); return; }
                 if (!SitsIn(lv, p)) { Core.Log.Msg("[Controls] " + p.PlayerName + " does not sit in " + Registry.Name(lv) + " - switch '" + name + "' not used."); return; }
             }
@@ -358,7 +360,7 @@ namespace Chassis.Instruments
             {
                 foreach (var b in Of(lv)) if (b.P == c) b.PressUntil = Time.time + PressSeconds;
             }
-            var by = player >= 0 ? Ids.Find<Player>(player) : null;
+            var by = player >= 0 ? Ids.PlayerById(player) : null;
             Core.Log.Msg("[Controls] " + Registry.Name(lv) + ": switch '" + c.Name + "' (" + kind + (string.IsNullOrEmpty(c.Action) ? "" : ", " + c.Action) + ") = "
                 + value.ToString("0.##", CultureInfo.InvariantCulture) + " by " + (by != null ? by.PlayerName : player >= 0 ? "player net " + player : "a mod") + ".");
             var use = new ControlUse { Vehicle = lv, Control = c, Action = c.Action ?? string.Empty, Value = value, By = by, IsHost = ChassisNet.IsHost };
