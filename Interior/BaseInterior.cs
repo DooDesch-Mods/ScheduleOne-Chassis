@@ -29,6 +29,16 @@ namespace Chassis.Interior
         /// <summary>Vanilla bodies whose cabin is closed by a lid at the belt line.</summary>
         private static readonly HashSet<string> LiddedCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "cheetah", "shitbox", "shitbox_police" };
 
+        /// <summary>
+        /// Lowest cushion top of a fitted seat above the lowest point of the body. Below zero on purpose: the hips rest
+        /// about 0.11 m above the cushion, so their underside still stays in the car, and the head 1.07 m above it stays
+        /// under the roof of the low cabins. The debug console tunes it live.
+        /// </summary>
+        internal static float CushionAboveUnderside = -0.08f;
+
+        /// <summary>Lowest ankle above the lowest point of the body, so the feet stay in the car; the knees bend up instead.</summary>
+        private const float FeetAboveUnderside = 0.10f;
+
         /// <summary>Hips above the cushion top for the fitted seats.</summary>
         private const float HipHeight = 0.08f;
 
@@ -70,6 +80,7 @@ namespace Chassis.Interior
         private static readonly List<int> _gone = new List<int>();
         private static readonly Dictionary<string, Func<LandVehicle, GameObject>> _factories = new Dictionary<string, Func<LandVehicle, GameObject>>(StringComparer.OrdinalIgnoreCase);
         private static readonly HashSet<ChassisProfile> _fitted = new HashSet<ChassisProfile>();
+        private static readonly HashSet<string> _fittedCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // ---- interiors from mods -----------------------------------------------------------------------------------
 
@@ -79,6 +90,27 @@ namespace Chassis.Interior
 
         /// <summary>A profile Chassis fitted to a vanilla car, whose gauges and switches name the base kit.</summary>
         internal static bool IsFitted(ChassisProfile p) => p != null && _fitted.Contains(p);
+
+        /// <summary>Fits every vanilla code again from one of its cars and rebuilds their interiors. Returns the codes fitted.</summary>
+        internal static int Refit()
+        {
+            int n = 0;
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var lv in Registry.All)
+            {
+                if (lv == null) continue;
+                string code = ChassisApi.CodeOf(lv);
+                if (!VanillaCodes.Contains(code) || !seen.Add(code)) continue;
+                var old = ChassisApi.Get(code);
+                if (old != null && !_fittedCodes.Contains(code)) { Core.Log.Msg("[Interior] refit: '" + code + "' has a profile of its own - kept."); continue; }
+                if (old != null) _fitted.Remove(old);
+                _fitFailed.Remove(code);
+                FitVanilla(lv);
+                Rebuild(code);
+                n++;
+            }
+            return n;
+        }
 
         /// <summary>Takes the interior out of every vehicle of this code; the next tick builds it again.</summary>
         internal static void Rebuild(string code)
@@ -192,6 +224,11 @@ namespace Chassis.Interior
                 // and a tall hairstyle stay under the roof: they reach about 1.2 m above the cushion. First person looks
                 // from the natural eye height, under the roof and at least just above the belt line.
                 float cushion = Mathf.Min(belt + (roof - belt) * 0.45f - 0.70f, roof - 1.26f);
+                // In the low cabins that rule puts the cushion so low that seat, hips and legs show under the car. The
+                // cushion rises to just below the underside, and the feet below rise into the car further down.
+                float underside = Underside(lv, root, Lod0(lv.GetComponentInChildren<LODGroup>(true)));
+                float lowered = cushion;
+                if (!float.IsNaN(underside)) cushion = Mathf.Max(cushion, underside + CushionAboveUnderside);
                 float eyes = Mathf.Max(Mathf.Min(cushion + 0.86f, roof - 0.08f), belt + 0.19f);
                 // These bodies close the cabin with a lid at the belt line. It is cut out of the body mesh; where that
                 // fails, dashboard, wheel and eyes sit above it.
@@ -266,6 +303,7 @@ namespace Chassis.Interior
                     parts.Add(new KitPart { Kind = "bench", Position = new Vector3((minX + maxX) * 0.5f, cushion, local[i].z), Size = new Vector3(maxX - minX + 0.55f, 0.62f, 0.48f) });
                 }
 
+                float feetRaised = 0f;
                 profile.Steering = new SteeringProfile { Path = WheelName, Axis = Vector3.forward, Ratio = 8f, Max = 300f };
                 for (int i = 0; i < seats.Length; i++)
                 {
@@ -273,6 +311,13 @@ namespace Chassis.Interior
                     Vector3 point = root.TransformPoint(new Vector3(local[i].x, cushion, local[i].z));
                     var seat = ChassisApi.FitSeat(lv, i, point, root, null, HipHeight);
                     seat.Eyes = new Vector3(seat.Eyes.x, eyes, seat.Eyes.z);
+                    if (seat.Feet != null && !float.IsNaN(underside) && seat.Feet.Position.y < underside + FeetAboveUnderside)
+                    {
+                        float up = underside + FeetAboveUnderside - seat.Feet.Position.y;
+                        seat.Feet.Position += Vector3.up * up;
+                        seat.Feet.Knee += Vector3.up * up;
+                        feetRaised = Mathf.Max(feetRaised, up);
+                    }
                     profile.Seats.Add(seat);
                 }
                 // Hands on the wheel need the wheel's transform; the kit builds it, so the driver's grip is set here.
@@ -285,8 +330,9 @@ namespace Chassis.Interior
 
                 _fitted.Add(profile);
                 bool used = ChassisApi.Register(profile);
+                if (used) _fittedCodes.Add(code);
                 Core.Log.Msg("[Interior] fitted " + code + ": window band " + ProfileJson.F(band.min) + " .. " + ProfileJson.F(band.max) + ", cushion "
-                    + cushion.ToString("F2") + ", driver z " + seatZ.ToString("F2") + (shift < 0f ? " (moved back " + (-shift).ToString("F2") + ")" : "") + (opened ? ", cabin lid cut out" : closed ? ", above the cabin lid" : "") + ", wheel z " + wheelAt.z.ToString("F2") + ", dash " + (dashFront - dashBack).ToString("F2") + " m deep, " + parts.Count + " kit part(s), " + profile.Seats.Count + " seat(s)" + (used ? "." : " - a JSON file wins."));
+                    + cushion.ToString("F2") + (cushion > lowered ? " (raised " + (cushion - lowered).ToString("F2") + " above the underside " + underside.ToString("F2") + ")" : "") + (feetRaised > 0f ? ", feet raised " + feetRaised.ToString("F2") : "") + ", driver z " + seatZ.ToString("F2") + (shift < 0f ? " (moved back " + (-shift).ToString("F2") + ")" : "") + (opened ? ", cabin lid cut out" : closed ? ", above the cabin lid" : "") + ", wheel z " + wheelAt.z.ToString("F2") + ", dash " + (dashFront - dashBack).ToString("F2") + " m deep, " + parts.Count + " kit part(s), " + profile.Seats.Count + " seat(s)" + (used ? "." : " - a JSON file wins."));
             }
             catch (Exception e)
             {
@@ -456,8 +502,8 @@ namespace Chassis.Interior
             return false;
         }
 
-        /// <summary>Height of a kit seat's cushion top above the lowest point of the body: the 0.12 m cushion plus 2 cm.</summary>
-        private const float SeatAboveUnderside = 0.14f;
+        /// <summary>Lowest height of a kit seat's cushion top above the lowest point of the body: a 4 cm cushion plus 1 cm.</summary>
+        private const float SeatAboveUnderside = 0.05f;
 
         private static Renderer Piece(Transform parent, KitPart part, string name, float underside)
         {
@@ -468,12 +514,19 @@ namespace Chassis.Interior
             {
                 case "seat":
                 case "bench":
-                    // The low cabins put the cushion below the car body to keep the avatars' heads under the roof. The
-                    // seat itself stays inside the body, its pedestal reaches at most 0.32 m down and ends above the underside.
-                    if (!float.IsNaN(underside)) at.y = Mathf.Max(at.y, underside + SeatAboveUnderside);
-                    float drop = float.IsNaN(underside) ? 0.32f : Mathf.Clamp(at.y - underside - 0.08f, 0f, 0.32f);
-                    mesh = KitMesh.Seat(part.Size, drop, "Chassis_" + kind);
+                {
+                    // In the low cabins the cushion sits just above the body's underside: it gets thinner, and the
+                    // pedestal reaches at most 0.32 m down and ends above the underside, so nothing shows under the car.
+                    float thick = 0.12f, drop = 0.32f;
+                    if (!float.IsNaN(underside))
+                    {
+                        at.y = Mathf.Max(at.y, underside + SeatAboveUnderside);
+                        thick = Mathf.Clamp(at.y - underside - 0.01f, SeatAboveUnderside - 0.01f, 0.12f);
+                        drop = Mathf.Clamp(at.y - underside - 0.08f, 0f, 0.32f);
+                    }
+                    mesh = KitMesh.Seat(part.Size, drop, "Chassis_" + kind, thick);
                     break;
+                }
                 case "dash":
                     mesh = KitMesh.Dash(part.Size, "Chassis_dash");
                     break;

@@ -118,15 +118,15 @@ namespace Chassis.Interior
         // ---- kit pieces --------------------------------------------------------------------------------------------
 
         /// <summary>
-        /// A seat whose origin is the middle of the cushion top, facing +Z: cushion, a pedestal down to the floor, a
-        /// backrest leaning back and one headrest per 0.5 m of width.
+        /// A seat whose origin is the middle of the cushion top, facing +Z: cushion (0.12 m unless given), a pedestal
+        /// down to the floor, a backrest leaning back and one headrest per 0.5 m of width.
         /// </summary>
-        internal static Mesh Seat(Vector3 size, float floorDrop, string name)
+        internal static Mesh Seat(Vector3 size, float floorDrop, string name, float cushion = 0.12f)
         {
             float w = size.x, back = size.y, d = size.z;
             var m = new KitMesh();
-            m.Box(new Vector3(0f, -0.06f, 0f), new Vector3(w, 0.12f, d));
-            if (floorDrop > 0.14f) m.Box(new Vector3(0f, -0.12f - (floorDrop - 0.12f) * 0.5f, 0.02f), new Vector3(w * 0.8f, floorDrop - 0.12f, d * 0.75f));
+            m.Box(new Vector3(0f, -cushion * 0.5f, 0f), new Vector3(w, cushion, d));
+            if (floorDrop > cushion + 0.02f) m.Box(new Vector3(0f, -cushion - (floorDrop - cushion) * 0.5f, 0.02f), new Vector3(w * 0.8f, floorDrop - cushion, d * 0.75f));
             Vector3 hinge = new Vector3(0f, 0f, -d * 0.5f);
             Quaternion lean = Quaternion.Euler(-14f, 0f, 0f);
             m.Box(new Vector3(0f, back * 0.5f, -d * 0.5f + 0.06f), new Vector3(w, back, 0.12f), lean, hinge);
