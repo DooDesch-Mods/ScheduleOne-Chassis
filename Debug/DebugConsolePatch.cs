@@ -286,6 +286,23 @@ namespace Chassis.Debugging
                             Say("exit: left net " + Net.Ids.Of(lv));
                         }
                         break;
+                    case "crouch":
+                        {
+                            // crouch [on|off]: the crouch key, without the headroom check of PlayerMovement.TryToggleCrouch.
+                            // crouch keep|fix: a seated body stays crouched as in vanilla, or sits upright.
+                            if (parts.Length > 2 && (parts[2] == "keep" || parts[2] == "fix"))
+                            {
+                                Seating.SeatRig.DebugKeepCrouch = parts[2] == "keep";
+                                Say("crouch: seated bodies " + (Seating.SeatRig.DebugKeepCrouch ? "stay crouched" : "sit upright"));
+                                break;
+                            }
+                            var pm = PlayerSingleton<PlayerMovement>.Instance;
+                            if (pm == null) { Say("crouch: no PlayerMovement"); break; }
+                            bool on = parts.Length > 2 ? parts[2] != "off" : !pm.IsCrouched;
+                            pm.SetCrouched(on);
+                            Say("crouch: player crouched " + pm.IsCrouched + ", avatar crouched " + (Player.Local != null && Player.Local.Avatar != null && Player.Local.Avatar.Animation != null && Player.Local.Avatar.Animation.IsCrouched));
+                        }
+                        break;
                     case "cam":
                         Say(LookCam.Set(parts));
                         break;

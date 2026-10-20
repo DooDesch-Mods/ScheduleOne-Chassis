@@ -49,6 +49,10 @@ namespace Chassis.Seating
         private float _glideT;
         private bool _ikOn;
         private bool _shownLogged;
+        private bool _uncrouchLogged;
+
+        /// <summary>Dev console (`chassis crouch keep`): leaves a seated body crouched, as vanilla would.</summary>
+        internal static bool DebugKeepCrouch;
 
         internal bool Alive => (Player != null || Npc != null) && Vehicle != null && _avatar != null && _anchor != null;
 
@@ -342,6 +346,13 @@ namespace Chassis.Seating
                 HoldPose();
                 NpcBodyColliders(false);
                 if (!_shownLogged) { _shownLogged = true; Core.Log.Msg("[Seat] " + Name + " was hidden in the vehicle by vanilla, shown again."); }
+            }
+            // A player who got in crouched stays crouched in vanilla (Player.ApplyMovementVisuals sets the animator from
+            // Player.Crouched every frame); the hidden body never showed it. A seated body sits upright.
+            if (!IsPusher && !DebugKeepCrouch && _avatar.Animation != null && _avatar.Animation.IsCrouched)
+            {
+                _avatar.Animation.SetCrouched(false);
+                if (!_uncrouchLogged) { _uncrouchLogged = true; Core.Log.Msg("[Seat] " + Name + " got in crouched, seated upright."); }
             }
             if (_glideT < 1f) { _glideT = Mathf.Min(1f, _glideT + dt / GlideSeconds); }
             ApplyGlide();
