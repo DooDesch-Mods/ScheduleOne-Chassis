@@ -12,7 +12,7 @@
 ![Game](https://img.shields.io/badge/game-Schedule%20I-purple)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 
-[![MLVScan Chassis.dll](https://mlvscan.com/attestations/att_P7uYEpspgKXRpnMmfqdTuCsJ/badge.svg)](https://mlvscan.com/attestations/att_P7uYEpspgKXRpnMmfqdTuCsJ)
+[![MLVScan Chassis.dll](https://mlvscan.com/attestations/att_5A4u5R1voioYmBj0IXZCVH5T/badge.svg)](https://mlvscan.com/attestations/att_5A4u5R1voioYmBj0IXZCVH5T)
 
 ![Chassis](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/header.jpg)
 
