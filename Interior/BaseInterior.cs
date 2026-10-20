@@ -357,11 +357,13 @@ namespace Chassis.Interior
             parts.Add(new KitPart { Kind = "lamp", Name = "Chassis_LampRight", Position = gauges + new Vector3(0.013f, -0.03f, -0.014f), Size = lamp, Color = dark });
             parts.Add(new KitPart { Kind = "lamp", Name = "Chassis_LampLights", Position = gauges + new Vector3(0f, -0.08f, -0.014f), Size = lamp, Color = dark });
 
-            // Light switch left of the wheel, hazard switch on the centre stack, stalk on the column, horn in the hub.
+            // Light switch left of the wheel, hazard switch on the centre stack (backlit, so it shows in a dark cabin),
+            // horn in the hub. The stalk leaves the column down and to the left, between the left forearm and the lower
+            // spoke, and its pale tip reaches past the rim.
             parts.Add(new KitPart { Kind = "rocker", Name = LightSwitch, Position = new Vector3(wheel.x - 0.25f, gauges.y - 0.05f, gauges.z - 0.008f), Size = new Vector3(0.022f, 0.034f, 0.014f), Color = new Color(0.13f, 0.13f, 0.14f) });
-            parts.Add(new KitPart { Kind = "rocker", Name = HazardSwitch, Position = new Vector3(stack.x, stack.y - 0.12f, stack.z - 0.09f), Size = new Vector3(0.03f, 0.022f, 0.012f), Color = new Color(0.62f, 0.08f, 0.06f) });
+            parts.Add(new KitPart { Kind = "rocker", Name = HazardSwitch, Position = new Vector3(stack.x, stack.y - 0.12f, stack.z - 0.09f), Size = new Vector3(0.042f, 0.03f, 0.014f), Color = new Color(0.9f, 0.1f, 0.06f) });
             var column = Quaternion.Euler(22f, 0f, 0f);
-            parts.Add(new KitPart { Kind = "stalk", Name = IndicatorStalk, Position = wheel + column * new Vector3(-0.03f, 0f, 0.075f), Rotation = new Vector3(22f, 0f, 0f), Size = new Vector3(0.11f, 0.012f, 0f), Color = new Color(0.1f, 0.1f, 0.11f) });
+            parts.Add(new KitPart { Kind = "stalk", Name = IndicatorStalk, Position = wheel + column * new Vector3(-0.02f, -0.01f, 0.05f), Rotation = new Vector3(22f, 0f, 55f), Size = new Vector3(0.2f, 0.012f, 0f), Color = new Color(0.1f, 0.1f, 0.11f) });
             parts.Add(new KitPart { Kind = "button", Name = HornButton, Parent = WheelName, Position = wheel + column * new Vector3(0f, 0f, -0.008f), Rotation = new Vector3(22f, 0f, 0f), Size = new Vector3(0.036f, 0f, 0.01f), Color = new Color(0.12f, 0.12f, 0.13f) });
 
             bool mph = Chassis.Instruments.Sources.Mph;
@@ -562,8 +564,9 @@ namespace Chassis.Interior
             go.transform.localRotation = Quaternion.Euler(part.Rotation);
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             var r = go.AddComponent<MeshRenderer>();
-            if (mesh.subMeshCount > 1) r.sharedMaterials = new[] { Flat(part.Color), Flat(Accent(kind, part.Color)) };
-            else r.sharedMaterial = Flat(part.Color);
+            var body = objectName == HazardSwitch ? Backlit(part.Color) : Flat(part.Color);
+            if (mesh.subMeshCount > 1) r.sharedMaterials = new[] { body, Flat(Accent(kind, part.Color)) };
+            else r.sharedMaterial = body;
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             return r;
         }
@@ -762,6 +765,20 @@ namespace Chassis.Interior
         }
 
         private static Material Flat(Color c) => Lit("kit_" + c, c);
+
+        /// <summary>A kit colour that glows faintly, like a switch lit from behind.</summary>
+        private static Material Backlit(Color c)
+        {
+            string key = "backlit_" + c;
+            if (_materials.TryGetValue(key, out var mat) && mat != null) return mat;
+            mat = new Material(Lit("kit_" + c, c)) { name = "Chassis_" + key };
+            mat.hideFlags |= HideFlags.DontUnloadUnusedAsset;
+            mat.EnableKeyword("_EMISSION");
+            mat.SetColor("_EmissionColor", c * 0.6f);
+            mat.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+            _materials[key] = mat;
+            return mat;
+        }
 
         /// <summary>The second colour of a kit piece: dark vents on the dashboard, pale dials, a lighter horn pad.</summary>
         private static Color Accent(string kind, Color c)
