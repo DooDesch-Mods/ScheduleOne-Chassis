@@ -360,6 +360,7 @@ namespace Chassis.Interior
                 b.Root.transform.SetParent(frame, false);
 
                 string source;
+                float underside = float.NaN, raised = 0f;
                 if (_factories.TryGetValue(profile.Code, out var factory))
                 {
                     source = "mod interior";
@@ -378,9 +379,15 @@ namespace Chassis.Interior
                     source = "kit";
                     int n = 0;
                     var placed = new List<KeyValuePair<KitPart, Transform>>();
+                    underside = Underside(lv, frame, Lod0(lod));
                     foreach (var part in ip.Parts)
                     {
-                        var r = Piece(b.Root.transform, part, profile.Code + "_" + n++);
+                        string k = (part.Kind ?? "").ToLowerInvariant();
+                        if (!float.IsNaN(underside) && (k == "seat" || k == "bench")) raised = Mathf.Max(raised, underside + SeatAboveUnderside - part.Position.y);
+                    }
+                    foreach (var part in ip.Parts)
+                    {
+                        var r = Piece(b.Root.transform, part, profile.Code + "_" + n++, underside);
                         if (r == null) continue;
                         kitRenderers.Add(r);
                         placed.Add(new KeyValuePair<KitPart, Transform>(part, r.transform));
@@ -405,21 +412,67 @@ namespace Chassis.Interior
                 Vehicles.Parts.Forget(lv);
                 Instruments.Gauges.Forget(lv);
                 Instruments.Controls.Forget(lv);
-                Core.Log.Msg("[Interior] " + Registry.Name(lv) + ": " + kitRenderers.Count + " " + source + " renderer(s), " + glazed + " window slot(s) tinted, " + lined + " shell(s) lined" + (ip.OpenLid ? ", " + opened + " opened" : "") + ".");
+                Core.Log.Msg("[Interior] " + Registry.Name(lv) + ": " + kitRenderers.Count + " " + source + " renderer(s), " + glazed + " window slot(s) tinted, " + lined + " shell(s) lined" + (ip.OpenLid ? ", " + opened + " opened" : "") + (float.IsNaN(underside) ? "" : ", underside y " + underside.ToString("F2")) + (raised > 0f ? ", seats raised " + raised.ToString("F2") + " m into the body" : "") + ".");
             }
             catch (Exception e) { Core.Log.Error("[Interior] building the interior of " + Registry.Name(lv) + " failed: " + e); }
         }
 
-        private static Renderer Piece(Transform parent, KitPart part, string name)
+        /// <summary>
+        /// Lowest point of the car body in the frame: the most detailed body meshes, without the wheels and the kit.
+        /// NaN when the car has no such mesh.
+        /// </summary>
+        private static float Underside(LandVehicle lv, Transform frame, HashSet<int> lod0)
+        {
+            float low = float.NaN;
+            try
+            {
+                var wheels = new List<Transform>();
+                if (lv.wheels != null) foreach (var w in lv.wheels) if (w != null) wheels.Add(w.transform);
+                foreach (var r in lv.GetComponentsInChildren<MeshRenderer>(true))
+                {
+                    if (r == null || r.gameObject.name.StartsWith("Chassis_") || InKit(r.transform)) continue;
+                    if (lod0 != null && !lod0.Contains(r.GetInstanceID())) continue;
+                    bool onWheel = false;
+                    foreach (var w in wheels) if (r.transform.IsChildOf(w)) { onWheel = true; break; }
+                    if (onWheel) continue;
+                    var mf = r.GetComponent<MeshFilter>();
+                    var mesh = mf != null ? mf.sharedMesh : null;
+                    if (mesh == null) continue;
+                    foreach (Vector3 c in Corners(mesh.bounds))
+                    {
+                        float y = frame.InverseTransformPoint(r.transform.TransformPoint(c)).y;
+                        if (float.IsNaN(low) || y < low) low = y;
+                    }
+                }
+            }
+            catch (Exception e) { Core.Log.Warning("[Interior] measuring the underside of " + Registry.Name(lv) + " failed - the seats keep their full pedestals: " + e.Message); }
+            return low;
+        }
+
+        /// <summary>True for anything under an interior root, including one that is still waiting to be destroyed.</summary>
+        private static bool InKit(Transform t)
+        {
+            for (; t != null; t = t.parent) if (t.name == RootName) return true;
+            return false;
+        }
+
+        /// <summary>Height of a kit seat's cushion top above the lowest point of the body: the 0.12 m cushion plus 2 cm.</summary>
+        private const float SeatAboveUnderside = 0.14f;
+
+        private static Renderer Piece(Transform parent, KitPart part, string name, float underside)
         {
             Mesh mesh;
             string kind = (part.Kind ?? "").ToLowerInvariant();
-            string key = kind + "|" + part.Size + "|" + part.Position.y;
+            Vector3 at = part.Position;
             switch (kind)
             {
                 case "seat":
                 case "bench":
-                    mesh = KitMesh.Seat(part.Size, 0.32f, "Chassis_" + kind);
+                    // The low cabins put the cushion below the car body to keep the avatars' heads under the roof. The
+                    // seat itself stays inside the body, its pedestal reaches at most 0.32 m down and ends above the underside.
+                    if (!float.IsNaN(underside)) at.y = Mathf.Max(at.y, underside + SeatAboveUnderside);
+                    float drop = float.IsNaN(underside) ? 0.32f : Mathf.Clamp(at.y - underside - 0.08f, 0f, 0.32f);
+                    mesh = KitMesh.Seat(part.Size, drop, "Chassis_" + kind);
                     break;
                 case "dash":
                     mesh = KitMesh.Dash(part.Size, "Chassis_dash");
@@ -452,7 +505,7 @@ namespace Chassis.Interior
             string objectName = !string.IsNullOrEmpty(part.Name) ? part.Name : kind == "wheel" ? WheelName : "Chassis_" + kind + "_" + name;
             var go = new GameObject(objectName);
             go.transform.SetParent(parent, false);
-            go.transform.localPosition = part.Position;
+            go.transform.localPosition = at;
             go.transform.localRotation = Quaternion.Euler(part.Rotation);
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             var r = go.AddComponent<MeshRenderer>();
