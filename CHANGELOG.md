@@ -4,6 +4,15 @@ All notable changes to Chassis are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.0.1] - 2026-10-20
+
+### Changed
+- Chassis has its own icon in Thunderstore and r2modman.
+
+### For mod authors
+- Every type and member is listed in the [API reference](https://docs.doodesch.de/mods/chassis/api/), linked from
+  the README.
+
 ## [1.0.0] - 2026-10-20
 
 ### Added
