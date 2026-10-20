@@ -4,6 +4,21 @@ All notable changes to Chassis are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.1.0] - 2026-10-20
+
+### Added
+- The key hints at the bottom left show the vehicle's keys: V First Person, G Horn, and the arrow keys for
+  Indicators on vehicles with indicator lamps.
+- Behind a wheelchair the key hints show Push and Let Go, with your own key bindings.
+
+### Fixed
+- NPCs in low cars like Sam's and Michael's Coupe drive off again instead of sitting still at the curb.
+
+### For mod authors
+- `ChassisApi.AddKeyHint` puts your own key into the key hints, a fixed key or one from your preferences.
+  `RemoveKeyHint` takes it out.
+- The `show` callback gets a `KeyHintContext` with `Vehicle`, `Profile`, `Seat`, `Driver` and `Pushing`.
+
 ## [1.0.1] - 2026-10-20
 
 ### Changed
