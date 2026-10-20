@@ -14,7 +14,7 @@ namespace Chassis.Debugging
         internal static void Help()
         {
             Say("car                          - the vehicle: code, profile, owner, signal, parts");
-            Say("car enter [code]             - get into the nearest vehicle, or the nearest of this code (lock checked)");
+            Say("car enter [code] [seat]      - get into the nearest vehicle, or the nearest of this code (lock checked); seat 1+ as passenger");
             Say("car put <code> <x> <y> <z> [yaw] - spawn a car at this pose (host), stand beside it");
             Say("car remove                   - despawn the vehicle you sit in, or the nearest one (host)");
             Say("car honk [flash]             - horn (key G)");
@@ -67,10 +67,19 @@ namespace Chassis.Debugging
                     break;
                 }
                 case "enter":
+                {
                     if (!Fleet.CanEnter(lv, out string why)) { Say("car enter: refused, " + why); break; }
-                    lv.EnterVehicle();
-                    Say("car enter: " + Registry.Name(lv));
+                    // A seat index: the seats before it count as taken for this one call, as vanilla takes the first free seat.
+                    int seat = p.Length > 4 && int.TryParse(p[4], out int s) ? s : 0;
+                    var seats = lv.Seats;
+                    if (seat < 0 || seat >= seats.Length) { Say("car enter: " + Registry.Name(lv) + " has seats 0-" + (seats.Length - 1)); break; }
+                    var filled = new System.Collections.Generic.List<VehicleSeat>();
+                    for (int i = 0; i < seat; i++) if (seats[i].Occupant == null) { seats[i].Occupant = Player.Local; filled.Add(seats[i]); }
+                    try { lv.EnterVehicle(); }
+                    finally { foreach (var f in filled) f.Occupant = null; }
+                    Say("car enter: " + Registry.Name(lv) + " seat " + seat + (lv.LocalPlayerIsDriver ? " (driver)" : " (passenger)"));
                     break;
+                }
                 case "remove":
                     if (!InstanceFinder.IsServer) { Say("car remove: only the host despawns vehicles"); break; }
                     if (Player.Local != null && Player.Local.CurrentVehicle != null) lv.ExitVehicle();

@@ -41,6 +41,8 @@ namespace Chassis.Rideables
 
         internal static bool HasPusher(int vehicle) => _pushers.ContainsKey(vehicle);
         internal static bool LocalPushing => _localVehicle >= 0;
+        /// <summary>Net id of the vehicle the local player pushes, -1 when none.</summary>
+        internal static int LocalVehicleId => _localVehicle;
 
         internal static void Reset()
         {
