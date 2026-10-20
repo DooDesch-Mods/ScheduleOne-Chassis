@@ -26,6 +26,7 @@ namespace Chassis.Debugging
             Say("car rain on|off|auto         - force rain for the wipers");
             Say("car assign <code>|off        - give the vehicle another profile");
             Say("car owners                   - every owner record this peer knows");
+            Say("car owner <player code>      - give the vehicle to another player (host)");
         }
 
         internal static void Run(string[] p)
@@ -120,6 +121,10 @@ namespace Chassis.Debugging
                 case "side":
                     ChassisApi.SetStorageEnd(lv, arg == "front");
                     Say("car side: asked " + arg);
+                    break;
+                case "owner":
+                    if (arg.Length == 0) { Say("car owner <player code>"); break; }
+                    Say(ChassisApi.SetOwner(lv, arg) ? "car owner: " + Registry.Name(lv) + " now belongs to " + arg : "car owner: refused, see the log");
                     break;
                 case "assign":
                     if (arg == "off" || arg.Length == 0) ChassisApi.Unassign(lv);
