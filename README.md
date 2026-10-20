@@ -11,6 +11,8 @@
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 ![Status](https://img.shields.io/badge/status-working-brightgreen)
 
+[![MLVScan Chassis.dll](https://mlvscan.com/attestations/att_Oaw2PH3Iatm2oFer1SosKO3k/badge.svg)](https://mlvscan.com/attestations/att_Oaw2PH3Iatm2oFer1SosKO3k)
+
 ![Chassis](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/header.jpg)
 
 ## Features
