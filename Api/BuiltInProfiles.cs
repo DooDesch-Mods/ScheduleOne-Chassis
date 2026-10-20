@@ -41,7 +41,7 @@ namespace Chassis.Api
                     Feet = new FootProfile
                     {
                         Position = new Vector3(0.165f, 0.17f, 0.46f),
-                        Rotation = new Vector3(92f, 0f, 0f),
+                        Rotation = new Vector3(-92f, 180f, 0f),
                         RotationWeight = 1f,
                         Knee = new Vector3(0.14f, 0.75f, 0.9f),
                     },

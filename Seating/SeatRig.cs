@@ -536,5 +536,28 @@ namespace Chassis.Seating
                 + " spin " + _strokeR.SpinDelta.ToString("F1") + " drive " + DriveInput.ToString("F2") + " wheel " + _wheelFollow.ToString("F0")
                 + " root " + (_avatar != null ? ProfileJson.F(_frame.InverseTransformPoint(_avatar.transform.position)) : "-");
         }
+
+#if DEBUG
+        /// <summary>
+        /// Each ankle's side axis and toe direction in seat space. A foot with the sole down has its side axis to the
+        /// body's left (x near -1); x near +1 means the foot is rolled over with the sole up.
+        /// </summary>
+        internal string DescribeFeet()
+        {
+            if (_ik == null || _ik.BodyIK == null) return Name + ": no body IK";
+            var s = _ik.BodyIK.solvers;
+            Quaternion seat = Quaternion.Inverse(_frame.rotation * Quaternion.Euler(0f, _seat != null ? _seat.Yaw : 0f, 0f));
+            string Side(IKSolverLimb limb, string tag)
+            {
+                var ankle = limb.bone3 != null ? limb.bone3.transform : null;
+                if (ankle == null) return tag + " no ankle";
+                string line = tag + " side " + (seat * ankle.right).ToString("F2");
+                if (ankle.childCount > 0) line += " toes " + (seat * (ankle.GetChild(0).position - ankle.position).normalized).ToString("F2");
+                return line;
+            }
+            return Name + " in " + Code + "#" + SeatIndex + " feet " + (_seat?.Feet != null ? "rot " + _seat.Feet.Rotation.ToString("F0") + " w " + _seat.Feet.RotationWeight.ToString("F2") : "animator")
+                + " | " + Side(s.rightFoot, "R") + " | " + Side(s.leftFoot, "L");
+        }
+#endif
     }
 }

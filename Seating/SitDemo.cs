@@ -36,7 +36,7 @@ namespace Chassis.Seating
         internal static float FootRotationWeight = 1f;
         // Foot bone rotation against the chair, for the right foot (yaw and roll mirrored for the left). The bone's
         // long axis is its local Y, so a pitch near 90 turns the toes forward.
-        internal static Vector3 FootRotation = new Vector3(92f, 0f, 0f);
+        internal static Vector3 FootRotation = new Vector3(-92f, 180f, 0f);
         internal static Vector3 KneeGoal = new Vector3(0.14f, 0.75f, 0.9f);
         internal static Vector3 ElbowGoal = new Vector3(0.55f, 0.85f, -0.4f);
         internal static float ChairScale = 1f;

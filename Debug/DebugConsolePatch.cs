@@ -81,6 +81,7 @@ namespace Chassis.Debugging
                         Say("move <yaw> [m]             - turn the nearest wheelchair vehicle by yaw, then shift it m along its facing");
                         Say("drive|pushin <fwd> <steer> [s] - driver or pusher input for s seconds (default 3; steer works in any car)");
                         Say("cam <dist> <yaw> <height>|off - orbit camera around your vehicle or the nearest wheelchair");
+                        Say("feet                         - ankle axes of every seated body (side x near -1 = sole down)");
                         Say("spawn | despawn              - wheelchair vehicle 2 m ahead (host) | remove all");
                         Say("tree [i]                     - hierarchy of wheelchair prop i");
                         Say("profile list|show|save|reload|set <field> <values> [code] [seat] - seat profiles (see 'chassis profile')");
@@ -98,6 +99,14 @@ namespace Chassis.Debugging
                             var lp = Player.Local;
                             var cur = lp != null && lp.CurrentVehicle != null ? lp.CurrentVehicle.GetComponent<LandVehicle>() : null;
                             if (cur != null) Say("vehicle " + cur.vehicleCode + " net " + Net.Ids.Of(cur) + " speed " + cur.Speed_Kmh.ToString("F1") + " km/h throttle " + cur.currentThrottle.ToString("F2") + " steer " + cur.CurrentSteerAngle.ToString("F0"));
+                        }
+                        break;
+                    case "feet":
+                        {
+                            int n = 0;
+                            foreach (var rig in Seating.Occupants.All) { Say(rig.DescribeFeet()); n++; }
+                            foreach (var rig in Seating.NpcRiders.All) { Say(rig.DescribeFeet()); n++; }
+                            if (n == 0) Say("feet: nobody is seated");
                         }
                         break;
                     case "wheels":

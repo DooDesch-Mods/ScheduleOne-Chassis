@@ -126,7 +126,11 @@ namespace Chassis.Api
         /// <summary>Right foot target (left mirrored).</summary>
         public Vector3 Position;
 
-        /// <summary>Right foot bone rotation against the frame in degrees (yaw and roll mirrored for the left).</summary>
+        /// <summary>
+        /// Right foot bone rotation against the frame in degrees (yaw and roll mirrored for the left). The bone's Y axis
+        /// runs to the toes and its X axis points to the body's left, so (-90, 180, 0) is a flat foot with the toes
+        /// forward and the sole down. (90, 0, 0) points the toes forward too, but with the sole up.
+        /// </summary>
         public Vector3 Rotation;
 
         public float RotationWeight = 1f;
