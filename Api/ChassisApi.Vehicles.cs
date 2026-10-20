@@ -95,14 +95,14 @@ namespace Chassis.Api
 
         // ---- indicators --------------------------------------------------------------------------------------------
 
-        /// <summary>Raised on every peer with the vehicle and the new side when an indicator changes.</summary>
+        /// <summary>Raised on every peer with the vehicle and the new side when an indicator changes: -1 left, 1 right, 0 off, 2 hazard lights.</summary>
         public static event Action<LandVehicle, int> IndicatorChanged;
 
-        /// <summary>Switches the indicator of a vehicle for every peer: -1 left, 1 right, 0 off. The keys are the left and right arrows.</summary>
-        /// <param name="side">-1 left, 1 right, 0 off.</param>
+        /// <summary>Switches the indicator of a vehicle for every peer: -1 left, 1 right, 0 off, 2 hazard lights. The keys are the left and right arrows.</summary>
+        /// <param name="side">-1 left, 1 right, 0 off, 2 both sides (hazard lights).</param>
         public static void SetIndicator(LandVehicle vehicle, int side) => Indicators.Request(vehicle, side, false);
 
-        /// <summary>The side a vehicle signals: -1 left, 1 right, 0 off.</summary>
+        /// <summary>The side a vehicle signals: -1 left, 1 right, 0 off, 2 hazard lights.</summary>
         public static int Indicator(LandVehicle vehicle) => Indicators.SideOf(vehicle);
 
         /// <summary>Whether the indicator of a vehicle is in the lit half of its flash right now; for mods that draw their own lamps.</summary>

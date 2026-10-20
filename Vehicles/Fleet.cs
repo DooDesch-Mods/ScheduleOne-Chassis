@@ -29,7 +29,7 @@ namespace Chassis.Vehicles
             internal bool Same(Rec o) => o != null && o.Owner == Owner && o.Locked == Locked;
         }
 
-        private const string FileName = "Chassis.vehicles";
+        internal const string FileName = "Chassis.vehicles";
         private const float ScanSeconds = 1f;
         /// <summary>How long a purchase announcement and a new, unclaimed vehicle wait for each other.</summary>
         private const float ClaimSeconds = 10f;
@@ -251,7 +251,7 @@ namespace Chassis.Vehicles
 
         // ---- save file ---------------------------------------------------------------------------------------------
 
-        private static void EnsureLoaded()
+        internal static void EnsureLoaded()
         {
             string path = SavePath();
             if (path == null || path == _loadedFrom) return;
@@ -269,6 +269,15 @@ namespace Chassis.Vehicles
                 Core.Log.Msg("[Fleet] loaded " + ByGuid.Count + " owner record(s) from " + path + ".");
             }
             catch (Exception e) { Core.Log.Error("[Fleet] could not read " + path + ", owners start empty: " + e.Message); }
+        }
+
+        /// <summary>Host: writes the owner records again after the game saved.</summary>
+        internal static void SaveWithGame()
+        {
+            if (!ChassisNet.IsHost) return;
+            EnsureLoaded();
+            Save();
+            Core.Log.Msg("[Fleet] saved " + ByGuid.Count + " owner record(s) with the game.");
         }
 
         private static void Save()

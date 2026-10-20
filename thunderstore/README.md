@@ -31,6 +31,8 @@
   through the API. Vehicles from older saves belong to the host.
 - The vanilla cars get a base interior: seats, a dashboard, a steering wheel and tinted glass,
   so you can see who sits inside.
+- The speedometer and the rev counter move. In first person, look at a switch and left-click it:
+  light switch, hazard lights, indicator stalk and the horn in the wheel centre.
 - The wheelchairs placed around town can be ridden: look at the seat, press Sit and roll with the
   driving keys. A second player can take the handles and push.
 - In co-op, seats, horn, indicators, locks and owners sync through the host.
@@ -43,6 +45,8 @@
 | `G` | Horn |
 | `H` | Headlights (vanilla) |
 | `Left arrow` / `Right arrow` | Indicator left / right. Press again to switch off. |
+| `Left click` | In first person: use the switch you look at. |
+| `Mouse wheel` | In first person: turn the knob or stalk you look at. |
 
 ## Screenshots
 
@@ -64,11 +68,15 @@
 `BaseInterior` (default `true`) in category `Chassis` of `UserData/MelonPreferences.cfg`. It
 turns the base interior and the visible NPC drivers of the vanilla cars on or off.
 
+`SpeedUnit` (default `kmh`) sets `kmh` or `mph` for the speedometer and the odometer.
+
 ## For mod authors
 
 Chassis has a public C# API in `Chassis.Api` (`ChassisApi`). With it you give a vehicle seat
 profiles, a steering wheel, lids, lamps and a horn sound, sound the horn, set indicators, and
-read or set owner and lock, and add your own keys to the key hints. Profiles are JSON files in `UserData/Chassis/<vehicle code>.json`,
+read or set owner and lock, and add your own keys to the key hints. Mods can also build their
+own interior with working gauges and clickable switches, and read speed, rpm, lamps and the
+odometer as telemetry. Profiles are JSON files in `UserData/Chassis/<vehicle code>.json`,
 and a file there wins over a profile from code. Every type and member:
 [API reference](https://docs.doodesch.de/mods/chassis/api/). Source:
 [GitHub](https://github.com/DooDesch-Mods/ScheduleOne-Chassis).

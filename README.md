@@ -34,6 +34,9 @@
 - **Moving parts:** The steering wheel follows the front wheels.
 - **Base interior for the vanilla cars:** Seats, a dashboard, a steering wheel and tinted glass,
   so you can see who sits inside.
+- **Working dashboard:** The speedometer and the rev counter move, and lamps show the indicators
+  and the headlights. In first person, look at a switch and left-click it: light switch, hazard
+  lights, indicator stalk (also with the mouse wheel) and the horn in the wheel centre.
 - **Wheelchairs:** The wheelchairs placed around town can be ridden. Look at the seat and press
   Sit, then roll with the driving keys. A second player can take the handles and push. When it is
   empty again, it stays as a wheelchair where it stopped.
@@ -50,6 +53,8 @@
 | `G` | Horn |
 | `H` | Headlights (vanilla) |
 | `Left arrow` / `Right arrow` | Indicator left / right. Press again to switch off. |
+| `Left click` | In first person: use the switch you look at. A dot in the screen centre shows that you can. |
+| `Mouse wheel` | In first person: turn the knob or stalk you look at. |
 
 ## Screenshots
 
@@ -87,6 +92,7 @@ Settings live in `UserData/MelonPreferences.cfg` under `Chassis`.
 | Setting | Default | What it does |
 |---|---|---|
 | `BaseInterior` | `true` | Seats, dashboard, steering wheel and tinted glass for the vanilla cars, and visible NPC drivers. |
+| `SpeedUnit` | `kmh` | `kmh` or `mph`: the speedometer and the odometer. |
 
 ## For mod authors
 
@@ -109,6 +115,30 @@ Every type and member: [API reference](https://docs.doodesch.de/mods/chassis/api
 - **Key hints:** `AddKeyHint` puts your own key into the key hints, `RemoveKeyHint` takes it
   out. The `show` callback gets a `KeyHintContext` (`Vehicle`, `Profile`, `Seat`, `Driver`,
   `Pushing`).
+
+### Interiors, gauges and switches
+
+- **Your own interior:** `SetInterior(code, vehicle => yourPrefabInstance, profile => ...)`
+  replaces the base interior's seats, dashboard and wheel for one vehicle code. The lining and the
+  tinted glass stay unless the callback turns them off. The callback names your wheel, gauges and
+  switches in the profile.
+- **Gauges:** `ChassisProfile.Gauges` binds a transform by name or path to a source. Kinds:
+  `needle` (turns between `From` and `To`), `lamp` (glows above `Threshold`) and `digits` (text).
+- **Sources:** `GaugeSources` lists them: speed, rpm, throttle, handbrake, lamps, steering, clock,
+  odometer, trip, occupied, driver. `RegisterGaugeSource` adds your own. `Telemetry(vehicle)`
+  reads all of them at once, each with a `Valid` flag. Throttle and handbrake reach passengers
+  about 0.4 s late.
+- **Switches:** `ChassisProfile.Controls` makes a transform clickable in first person: `button`,
+  `toggle` or `knob`. Built-in actions are `lights`, `hazard`, `indicator`, `horn` and
+  `trip_reset`; `RegisterControlAction` adds your own. Clicks go through the host, and toggle and
+  knob states are saved with the vehicle.
+- **Events:** `ControlUsed`, `HeadlightsChanged`, `BrakeChanged`, `ReverseChanged`,
+  `DriverChanged`.
+- **Console:** `chassis telemetry` prints every source with its validity and every bound gauge
+  and switch of your car. `chassis zones` shows the hit zones of the switches. Both work in the
+  release build. A gauge or switch whose path is not found logs one warning per vehicle code.
+- **Example:** [`Examples/ChassisCockpitExample`](Examples/ChassisCockpitExample) gives the
+  Shitbox a cockpit of its own with a speedometer, odometer digits and a beacon switch.
 
 ## Building from source
 

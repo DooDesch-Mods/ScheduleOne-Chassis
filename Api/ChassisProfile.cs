@@ -70,6 +70,20 @@ namespace Chassis.Api
         /// <summary>The base interior Chassis builds into a vehicle without one, or null for none.</summary>
         public InteriorProfile Interior;
 
+        /// <summary>Needles, lamps and digit displays in the cockpit.</summary>
+        public List<GaugeProfile> Gauges = new List<GaugeProfile>();
+
+        /// <summary>Switches a seated player can use in first person.</summary>
+        public List<ControlProfile> Controls = new List<ControlProfile>();
+
+        /// <summary>The switch with this name (case ignored), or null.</summary>
+        public ControlProfile Control(string name)
+        {
+            for (int i = 0; i < Controls.Count; i++)
+                if (Controls[i] != null && string.Equals(Controls[i].Name, name, System.StringComparison.OrdinalIgnoreCase)) return Controls[i];
+            return null;
+        }
+
         /// <summary>The seat entry for this <c>LandVehicle.Seats</c> index, or null when the seat shows no body.</summary>
         public SeatProfile Seat(int index)
         {
@@ -327,16 +341,36 @@ namespace Chassis.Api
     /// <summary>One simple shape of the base interior.</summary>
     public sealed class KitPart
     {
-        /// <summary>"seat" (cushion and backrest), "bench" (a seat across several places), "dash", "gauges" (the hood over the dials) or "wheel".</summary>
+        /// <summary>
+        /// "seat" (cushion and backrest), "bench" (a seat across several places), "dash", "gauges" (the hood over the
+        /// dials), "wheel", and the instrument pieces "needle", "rocker" (a switch that tips), "button" (a round push
+        /// button facing back), "stalk" (a lever pointing left) and "lamp" (a small block a lamp gauge lights).
+        /// </summary>
         public string Kind = "seat";
 
-        /// <summary>Seat and bench: middle of the cushion top. Dash: middle of the top edge at the windscreen. Gauges: middle of the back bottom edge. Wheel: centre of the rim.</summary>
+        /// <summary>Name of the part's object, so gauges, switches and other parts can find it; empty names it by kind.</summary>
+        /// <value>A transform name such as "Chassis_SpeedNeedle". The wheel is "Chassis_Wheel" unless named otherwise.</value>
+        public string Name = string.Empty;
+
+        /// <summary>Name of another kit part this one hangs below and moves with, or empty for none.</summary>
+        /// <value>"Chassis_Wheel" puts a horn button on the steering wheel. <see cref="Position"/> stays in the frame either way.</value>
+        public string Parent = string.Empty;
+
+        /// <summary>
+        /// Seat and bench: middle of the cushion top. Dash: middle of the top edge at the windscreen. Gauges: middle of the
+        /// back bottom edge. Wheel: centre of the rim. Needle: its pivot. Rocker, lamp: its centre. Button: the middle of
+        /// its back. Stalk: where it meets the column.
+        /// </summary>
         public Vector3 Position;
 
         /// <summary>Euler angles in the frame. A wheel's column runs along its local forward axis.</summary>
         public Vector3 Rotation;
 
-        /// <summary>Seat and bench: width, backrest height, cushion depth. Dash and gauges: width, height, depth. Wheel: rim radius, -, column length.</summary>
+        /// <summary>
+        /// Seat and bench: width, backrest height, cushion depth. Dash and gauges: width, height, depth. Wheel: rim
+        /// radius, -, column length. Needle: width, length, thickness. Rocker and lamp: width, height, depth. Button:
+        /// radius, -, depth. Stalk: length, thickness, -.
+        /// </summary>
         public Vector3 Size = new Vector3(0.5f, 0.6f, 0.5f);
 
         /// <summary>Colour of the shape.</summary>

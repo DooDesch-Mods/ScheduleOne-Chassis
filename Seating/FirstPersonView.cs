@@ -146,9 +146,22 @@ namespace Chassis.Seating
             _pitch = Mathf.Clamp(pitch, MinPitch, MaxPitch);
         }
 
+        /// <summary>Turns the active first-person view towards a world point, within the yaw and pitch limits.</summary>
+        internal static string LookAt(Vector3 world)
+        {
+            if (!Active) return "first person is off";
+            var rig = Occupants.Of(Player.Local);
+            if (rig == null) return "not seated";
+            var frame = rig.Frame;
+            Vector3 d = Quaternion.Inverse(frame.rotation * Quaternion.Euler(0f, rig.Profile.Yaw, 0f)) * (world - frame.TransformPoint(rig.Profile.Eyes));
+            _yaw = Mathf.Clamp(Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg, -MaxYaw, MaxYaw);
+            _pitch = Mathf.Clamp(-Mathf.Atan2(d.y, new Vector2(d.x, d.z).magnitude) * Mathf.Rad2Deg, MinPitch, MaxPitch);
+            return "looking at " + world.ToString("F2") + ", yaw " + _yaw.ToString("F0") + " pitch " + _pitch.ToString("F0");
+        }
+
         internal static string Describe()
         {
-            string s = "view=" + (Active ? "first person" : "chase") + " yaw " + _yaw.ToString("F0") + " pitch " + _pitch.ToString("F0");
+            string s = "view="+ (Active ? "first person" : "chase") + " yaw " + _yaw.ToString("F0") + " pitch " + _pitch.ToString("F0");
             if (!PlayerSingleton<PlayerCamera>.InstanceExists) return s;
             var pc = PlayerSingleton<PlayerCamera>.Instance;
             Transform view = pc.Camera != null ? pc.Camera.transform : pc.transform;
