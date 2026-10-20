@@ -204,6 +204,9 @@ namespace Chassis.Instruments
         /// </summary>
         private static void Fit(Controls.Bound b, Vector3 dir)
         {
+            // A pressed button sinks into its surface; the outline stays where the button rests, so the rim does not
+            // vanish into the hub for the moment of the click.
+            Vector3 sunk = b.T != null && b.T.parent != null ? b.T.parent.TransformVector(b.T.localPosition - b.RestPos) : Vector3.zero;
             for (int i = 0; i < b.Outline.Count && i < b.OutlineBounds.Count; i++)
             {
                 var go = b.Outline[i];
@@ -231,7 +234,7 @@ namespace Chassis.Instruments
                     pos[a] = (front + back) * 0.5f - s[a] * c;
                 }
                 go.transform.localScale = s;
-                go.transform.localPosition = pos;
+                go.transform.localPosition = pos - mesh.InverseTransformVector(sunk);
             }
         }
 
