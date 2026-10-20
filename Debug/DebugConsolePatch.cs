@@ -425,6 +425,15 @@ namespace Chassis.Debugging
 
                     case "despawn":
                     {
+                        if (parts.Length > 2 && parts[2].ToLower() == "car")
+                        {
+                            // The nearest car within 30 m, so test runs do not pile cars up at one spot.
+                            var car = Target(null);
+                            if (car == null) { Say("despawn car: no car within 30 m"); break; }
+                            Say("despawning " + Vehicles.Registry.Name(car));
+                            Compat.Interop.Despawn(car.gameObject);
+                            break;
+                        }
                         int n = 0;
                         foreach (var lv in UnityEngine.Object.FindObjectsOfType<LandVehicle>())
                             if (Rideables.WheelchairType.Is(lv)) { Rideables.WheelchairSpawn.Despawn(lv, "console"); n++; }
@@ -432,6 +441,10 @@ namespace Chassis.Debugging
                         break;
                     }
 
+                    case "lights":
+                        // Lamp meshes of a car (VehicleLights) and every renderer with its materials, in the car's root space.
+                        Lights(Target(parts.Length > 2 ? parts[2] : null));
+                        break;
                     case "tree":
                     {
                         // Hierarchy of a wheelchair prop (index from 'chairs') with local poses, components and collider bounds.
@@ -496,6 +509,58 @@ namespace Chassis.Debugging
         }
 
 #if DEBUG
+        private static void Lights(LandVehicle v)
+        {
+            if (v == null) { Say("lights: no vehicle (sit in one, stand within 30 m, or give a net id)"); return; }
+            Transform root = v.transform;
+            Say("lights of " + Vehicles.Registry.Name(v));
+            var vl = v.GetComponent<VehicleLights>();
+            if (vl == null) Say("  no VehicleLights");
+            else
+            {
+                LightGroup("head", vl.headLightMeshes, root);
+                LightGroup("brake", vl.brakeLightMeshes, root);
+                LightGroup("reverse", vl.reverseLightMeshes, root);
+            }
+            foreach (var line in Vehicles.VanillaLamps.Describe(v)) Say(line);
+            foreach (var r in v.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                var mats = r.sharedMaterials;
+                var names = new List<string>();
+                foreach (var m in mats)
+                {
+                    if (m == null) { names.Add("null"); continue; }
+                    Texture t = m.HasProperty("_BaseMap") ? m.GetTexture("_BaseMap") : null;
+                    names.Add(m.name + (t != null ? "[" + t.name + " " + t.width + "x" + t.height + "]" : ""));
+                }
+                Say("  r " + r.name + " on=" + r.enabled + " " + RootBounds(r, root) + " mats " + string.Join(", ", names));
+            }
+        }
+
+        private static void LightGroup(string what, MeshRenderer[] rs, Transform root)
+        {
+            if (rs == null) { Say("  " + what + ": none"); return; }
+            foreach (var r in rs)
+                if (r != null) Say("  " + what + " " + r.name + " " + RootBounds(r, root) + " mat " + (r.sharedMaterial != null ? r.sharedMaterial.name : "null"));
+        }
+
+        /// <summary>The mesh bounds of a renderer, as min .. max in the root's space.</summary>
+        private static string RootBounds(Renderer r, Transform root)
+        {
+            var mf = r.GetComponent<MeshFilter>();
+            if (mf == null || mf.sharedMesh == null) return "(no mesh)";
+            Bounds b = mf.sharedMesh.bounds;
+            Matrix4x4 m = root.worldToLocalMatrix * r.transform.localToWorldMatrix;
+            Vector3 min = Vector3.one * float.MaxValue, max = Vector3.one * float.MinValue;
+            for (int i = 0; i < 8; i++)
+            {
+                Vector3 c = b.center + Vector3.Scale(b.extents, new Vector3((i & 1) == 0 ? -1 : 1, (i & 2) == 0 ? -1 : 1, (i & 4) == 0 ? -1 : 1));
+                Vector3 p = m.MultiplyPoint3x4(c);
+                min = Vector3.Min(min, p); max = Vector3.Max(max, p);
+            }
+            return min.ToString("F2") + " .. " + max.ToString("F2");
+        }
+
         private static System.Collections.IEnumerator Coast(LandVehicle lv, float metresPerSecond, float seconds)
         {
             float until = Time.time + seconds;

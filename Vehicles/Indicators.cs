@@ -172,6 +172,13 @@ namespace Chassis.Vehicles
                 Paint(lamps.Left, lit && (side < 0 || side == Hazard));
                 Paint(lamps.Right, lit && (side == 1 || side == Hazard));
             }
+            // Vehicles without lamps in their profile (every vanilla car) get lamps drawn by Chassis.
+            foreach (var kv in _sides)
+            {
+                var lv = Registry.ById(kv.Key);
+                if (lv != null && ChassisApi.For(lv)?.Lamps == null) VanillaLamps.Ensure(lv);
+            }
+            VanillaLamps.Paint(phase);
         }
 
         private static void Paint(List<Lamp> lamps, bool on)
@@ -259,6 +266,7 @@ namespace Chassis.Vehicles
         {
             _sides.Clear();
             _lamps.Clear();
+            VanillaLamps.Reset();
             _keyVehicle = null;
             _keySide = 0;
             _inTurn = false;
