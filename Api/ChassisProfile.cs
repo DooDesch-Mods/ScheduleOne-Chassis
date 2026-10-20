@@ -12,12 +12,38 @@ namespace Chassis.Api
     /// The same object backs the JSON file (UserData/Chassis/&lt;code&gt;.json) and the C# API, so a value set from code,
     /// from the file or from the debug console is the same value.
     /// </summary>
+    /// <remarks>
+    /// Points are <c>Vector3</c> values in metres in the frame's own axes: x to the vehicle's right, y up, z forward.
+    /// Angles are in degrees. Weights run from 0 (the animation decides) to 1 (the profile decides). In the JSON
+    /// file a vector is <c>[x, y, z]</c> and a colour is <c>[r, g, b, a]</c> with each channel from 0 to 1.
+    /// </remarks>
+    /// <example>
+    /// A profile for a vehicle a mod builds on a vanilla one, with the driver fitted to the vanilla seat:
+    /// <code>
+    /// var frame = vehicle.transform.Find("MyModel");
+    /// var profile = new ChassisProfile { Code = "mymod_cart", Frame = "MyModel" };
+    /// profile.Seats.Add(ChassisApi.FitSeat(vehicle, 0, frame, frame.Find("SteeringWheel")));
+    /// ChassisApi.Register(profile);
+    /// ChassisApi.Assign(vehicle, "mymod_cart");
+    /// </code>
+    /// </example>
     public sealed class ChassisProfile
     {
         /// <summary>Vehicle code (<c>LandVehicle.VehicleCode</c>) this profile belongs to.</summary>
+        /// <value>
+        /// Lower case, matched without case. The vanilla cars are "shitbox", "shitbox_police", "veeper", "bruiser",
+        /// "bruiser_police", "dinkler", "hounddog", "cheetah" and "hotbox"; the wheelchair is "chassis_wheelchair".
+        /// A mod vehicle can use a code of its own and get it with <see cref="ChassisApi.Assign"/>.
+        /// <see cref="ChassisApi.Codes"/> lists every code that has a profile.
+        /// </value>
         public string Code = string.Empty;
 
         /// <summary>Path of the model frame below the vehicle root, or empty for the root itself.</summary>
+        /// <value>
+        /// Transform names joined with "/", as <c>Transform.Find</c> takes them, e.g. "Body/Model". When that path
+        /// does not exist, the first transform named like its last part is used. The wheelchair uses "ChassisModel";
+        /// the vanilla cars leave it empty.
+        /// </value>
         public string Frame = string.Empty;
 
         /// <summary>One entry per <c>LandVehicle.Seats</c> index that should show a seated body.</summary>
@@ -68,18 +94,23 @@ namespace Chassis.Api
     public sealed class SeatProfile
     {
         /// <summary>Index into <c>LandVehicle.Seats</c>.</summary>
+        /// <value>0 up to the number of vanilla seats minus 1. The driver's seat is the one with <c>isDriverSeat</c> set.</value>
         public int Index;
 
         /// <summary>Avatar root. The vanilla sit clip puts the hips 0.825 m above it.</summary>
+        /// <value>A point in the frame, in metres. With the hips 0.5 m above the frame origin, y is -0.325.</value>
         public Vector3 Root;
 
         /// <summary>Avatar yaw against the frame, in degrees.</summary>
+        /// <value>0 faces the frame's forward axis, 90 its right, 180 backwards.</value>
         public float Yaw;
 
         /// <summary>Camera position for the first-person view.</summary>
+        /// <value>A point in the frame, in metres; about 0.6 m above the hips looks from the avatar's eyes.</value>
         public Vector3 Eyes;
 
         /// <summary>Animator bool that holds the pose; vanilla has "Sitting".</summary>
+        /// <value>"Sitting" is the only seated pose the vanilla avatar has.</value>
         public string Pose = "Sitting";
 
         /// <summary>Hands, or null to leave the arms to the animation.</summary>
@@ -102,15 +133,22 @@ namespace Chassis.Api
         public float FollowMax = 90f;
 
         /// <summary>Rim mode: name of the left wheel transform in the model.</summary>
+        /// <value>A transform name below the frame, e.g. "RimPivot_L" on the wheelchair. Empty outside rim mode.</value>
         public string LeftWheel = string.Empty;
 
         /// <summary>Rim mode: name of the right wheel transform in the model.</summary>
+        /// <value>A transform name below the frame, e.g. "RimPivot_R" on the wheelchair. Empty outside rim mode.</value>
         public string RightWheel = string.Empty;
 
         /// <summary>Right hand where a push stroke starts. Rim mode: from the wheel centre; fixed mode: in the frame.</summary>
+        /// <value>
+        /// In metres. Rim mode: offset from the right wheel's centre, e.g. (0.04, 0.26, 0.15) on the wheelchair.
+        /// Fixed and wheel mode: a point in the frame; for the wheel, about 0.17 m right of its centre.
+        /// </value>
         public Vector3 GripStart;
 
         /// <summary>Rim mode: right hand where the stroke ends and the hand lets go.</summary>
+        /// <value>Offset from the right wheel's centre in metres, e.g. (0.04, 0.15, 0.27) on the wheelchair.</value>
         public Vector3 GripEnd;
 
         /// <summary>Seconds the hand takes from the end of a stroke back to its start.</summary>
@@ -120,6 +158,7 @@ namespace Chassis.Api
         public float RotationWeight;
 
         /// <summary>Elbow bend goal (right side).</summary>
+        /// <value>A point in the frame the elbow bends towards, in metres: right of and behind the hand points it outwards.</value>
         public Vector3 Elbow = new Vector3(0.55f, 0.85f, -0.4f);
 
         /// <summary>Point the spine reaches for at the start of a stroke.</summary>
@@ -139,6 +178,7 @@ namespace Chassis.Api
     public sealed class FootProfile
     {
         /// <summary>Right foot target (left mirrored).</summary>
+        /// <value>A point in the frame in metres, e.g. (0.165, 0.17, 0.46) puts the foot on the wheelchair's footrest.</value>
         public Vector3 Position;
 
         /// <summary>
@@ -175,9 +215,11 @@ namespace Chassis.Api
     public sealed class SteeringProfile
     {
         /// <summary>Pivot of the steering wheel below the frame; a single name is searched in the whole frame.</summary>
+        /// <value>A path like "Dashboard/SteeringWheel" or one name like "SteeringWheel". The base interior's wheel is "Chassis_Wheel".</value>
         public string Path = string.Empty;
 
         /// <summary>Column axis in the pivot's own space at rest.</summary>
+        /// <value>A direction: (0, 0, 1) when the pivot's forward axis runs along the column, (0, 1, 0) when its up axis does.</value>
         public Vector3 Axis = Vector3.forward;
 
         /// <summary>Steering wheel degrees per degree of road wheel.</summary>
@@ -200,9 +242,11 @@ namespace Chassis.Api
         public string Kind = "lid";
 
         /// <summary>Pivot below the frame at the hinge or axle; a single name is searched in the whole frame.</summary>
+        /// <value>A path like "Body/BootHinge" or one name like "BootHinge".</value>
         public string Path = string.Empty;
 
         /// <summary>Hinge or axle in the pivot's own space at rest.</summary>
+        /// <value>A direction: on a pivot turned like the car, (1, 0, 0) for a bonnet or boot hinged across it and (0, 0, 1) for a wiper axle facing forward.</value>
         public Vector3 Axis = Vector3.right;
 
         /// <summary>Lid: open angle. Wiper: sweep. In degrees.</summary>
@@ -225,12 +269,14 @@ namespace Chassis.Api
     public sealed class LampProfile
     {
         /// <summary>Names of the left indicator lamp objects. A name also matches "name.001" and every renderer below it.</summary>
+        /// <value>Transform names in the model, for example ["Indicator_FL", "Indicator_RL"] for a front and a rear lamp.</value>
         public List<string> Left = new List<string>();
 
         /// <summary>Names of the right indicator lamp objects, matched as <see cref="Left"/>.</summary>
         public List<string> Right = new List<string>();
 
         /// <summary>Glow colour while a lamp flashes.</summary>
+        /// <value>Channels from 0 to 1; the default (1, 0.42, 0) is amber. In JSON: [1, 0.42, 0, 1].</value>
         public Color Color = new Color(1f, 0.42f, 0f);
 
         /// <summary>The glow takes the lamp's own texture as its pattern; off, the whole lamp glows in <see cref="Color"/>.</summary>
@@ -241,12 +287,15 @@ namespace Chassis.Api
     public sealed class HornProfile
     {
         /// <summary>Sound name from <see cref="ChassisApi.RegisterSound"/>; empty is the built-in two-tone horn.</summary>
+        /// <value>The name a mod passed to <see cref="ChassisApi.RegisterSound"/>, e.g. "mymod_horn".</value>
         public string Clip = string.Empty;
 
         /// <summary>Sound name of the lock chirp; empty is the built-in chirp.</summary>
+        /// <value>The name a mod passed to <see cref="ChassisApi.RegisterSound"/>, e.g. "mymod_chirp".</value>
         public string Chirp = string.Empty;
 
         /// <summary>Where the sound comes from, in the vehicle root's space.</summary>
+        /// <value>A point in metres; the default (0, 0.6, 1.8) is at the front of a car.</value>
         public Vector3 Position = new Vector3(0f, 0.6f, 1.8f);
 
         /// <summary>Volume of horn and chirp, 0 to 1.</summary>
@@ -298,9 +347,11 @@ namespace Chassis.Api
     public sealed class GlassProfile
     {
         /// <summary>Window materials are the ones whose name starts with one of these.</summary>
+        /// <value>Material name prefixes; the vanilla cars use "window_opaque".</value>
         public List<string> Materials = new List<string> { "window_opaque" };
 
         /// <summary>Glass colour; alpha is how much of the cabin it hides.</summary>
+        /// <value>Channels from 0 to 1; alpha 0 is clear glass, 1 hides the cabin. In JSON: [0.2, 0.24, 0.28, 0.55].</value>
         public Color Tint = new Color(0.2f, 0.24f, 0.28f, 0.55f);
     }
 }

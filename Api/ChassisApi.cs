@@ -25,6 +25,7 @@ namespace Chassis.Api
         public static string Folder => Path.Combine(MelonLoader.Utils.MelonEnvironment.UserDataDirectory, "Chassis");
 
         /// <summary>The profile for a vehicle code, or null when Chassis leaves that vehicle to vanilla.</summary>
+        /// <param name="vehicleCode">A code like "shitbox"; see <see cref="ChassisProfile.Code"/> for the list.</param>
         public static ChassisProfile Get(string vehicleCode)
         {
             EnsureLoaded();
@@ -41,6 +42,7 @@ namespace Chassis.Api
         /// <summary>
         /// Adds or replaces a profile from code. A JSON file for the same code still wins; returns false when one does.
         /// </summary>
+        /// <param name="profile">The profile; its <see cref="ChassisProfile.Code"/> must be set.</param>
         public static bool Register(ChassisProfile profile)
         {
             if (profile == null || string.IsNullOrEmpty(profile.Code)) throw new ArgumentException("a profile needs a vehicle code");
@@ -57,6 +59,7 @@ namespace Chassis.Api
         }
 
         /// <summary>Writes the current profile of a vehicle code to its JSON file; from then on the file wins.</summary>
+        /// <returns>The full path of the written file, UserData/Chassis/&lt;code&gt;.json.</returns>
         public static string Save(string vehicleCode)
         {
             var p = Get(vehicleCode);
