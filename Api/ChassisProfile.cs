@@ -44,6 +44,7 @@ namespace Chassis.Api
         /// <summary>The base interior Chassis builds into a vehicle without one, or null for none.</summary>
         public InteriorProfile Interior;
 
+        /// <summary>The seat entry for this <c>LandVehicle.Seats</c> index, or null when the seat shows no body.</summary>
         public SeatProfile Seat(int index)
         {
             for (int i = 0; i < Seats.Count; i++)
@@ -51,6 +52,7 @@ namespace Chassis.Api
             return null;
         }
 
+        /// <summary>The part with this name (case ignored), or null.</summary>
         public PartProfile Part(string name)
         {
             for (int i = 0; i < Parts.Count; i++)
@@ -58,9 +60,11 @@ namespace Chassis.Api
             return null;
         }
 
+        /// <summary>A deep copy, made through the same JSON the profile file uses.</summary>
         public ChassisProfile Clone() => JsonConvert.DeserializeObject<ChassisProfile>(JsonConvert.SerializeObject(this, ProfileJson.Settings), ProfileJson.Settings);
     }
 
+    /// <summary>One seated body: where the avatar sits, where the first-person camera looks from, and how the hands and feet hold on.</summary>
     public sealed class SeatProfile
     {
         /// <summary>Index into <c>LandVehicle.Seats</c>.</summary>
@@ -85,6 +89,7 @@ namespace Chassis.Api
         public FootProfile Feet;
     }
 
+    /// <summary>Hand targets of a seated body: on push rims, on the steering wheel or at a fixed grip. Right side; the left is mirrored.</summary>
     public sealed class HandProfile
     {
         /// <summary>
@@ -96,8 +101,10 @@ namespace Chassis.Api
         /// <summary>Wheel mode: the hands follow the steering wheel this far either way, then stay.</summary>
         public float FollowMax = 90f;
 
-        /// <summary>Rim mode: names of the left and right wheel transforms in the model.</summary>
+        /// <summary>Rim mode: name of the left wheel transform in the model.</summary>
         public string LeftWheel = string.Empty;
+
+        /// <summary>Rim mode: name of the right wheel transform in the model.</summary>
         public string RightWheel = string.Empty;
 
         /// <summary>Right hand where a push stroke starts. Rim mode: from the wheel centre; fixed mode: in the frame.</summary>
@@ -109,18 +116,26 @@ namespace Chassis.Api
         /// <summary>Seconds the hand takes from the end of a stroke back to its start.</summary>
         public float Recovery = 0.35f;
 
+        /// <summary>How strongly the hands turn to the grip, 0 to 1; 0 leaves the wrists to the animation.</summary>
         public float RotationWeight;
 
         /// <summary>Elbow bend goal (right side).</summary>
         public Vector3 Elbow = new Vector3(0.55f, 0.85f, -0.4f);
 
-        /// <summary>Point the spine reaches for at the start and the end of a stroke, and how strongly.</summary>
+        /// <summary>Point the spine reaches for at the start of a stroke.</summary>
         public Vector3 LeanStart;
+
+        /// <summary>How strongly the spine reaches for <see cref="LeanStart"/>, 0 to 1.</summary>
         public float LeanStartWeight;
+
+        /// <summary>Point the spine reaches for at the end of a stroke.</summary>
         public Vector3 LeanEnd;
+
+        /// <summary>How strongly the spine reaches for <see cref="LeanEnd"/>, 0 to 1.</summary>
         public float LeanEndWeight;
     }
 
+    /// <summary>Foot targets of a seated body. Right side; the left is mirrored.</summary>
     public sealed class FootProfile
     {
         /// <summary>Right foot target (left mirrored).</summary>
@@ -133,12 +148,14 @@ namespace Chassis.Api
         /// </summary>
         public Vector3 Rotation;
 
+        /// <summary>How strongly the feet turn to <see cref="Rotation"/>, 0 to 1; 0 leaves the ankles to the animation.</summary>
         public float RotationWeight = 1f;
 
         /// <summary>Knee bend goal (right side).</summary>
         public Vector3 Knee = new Vector3(0.14f, 0.75f, 0.9f);
     }
 
+    /// <summary>Where a second player stands and holds on to push the vehicle. Right side; the left is mirrored.</summary>
     public sealed class PushProfile
     {
         /// <summary>Where the pusher's feet stand.</summary>
@@ -154,6 +171,7 @@ namespace Chassis.Api
         public float Reach = 1.2f;
     }
 
+    /// <summary>A steering wheel in the model that turns with the road wheels.</summary>
     public sealed class SteeringProfile
     {
         /// <summary>Pivot of the steering wheel below the frame; a single name is searched in the whole frame.</summary>
@@ -172,6 +190,7 @@ namespace Chassis.Api
         public float Sign;
     }
 
+    /// <summary>A lid or a wiper in the model that Chassis moves.</summary>
     public sealed class PartProfile
     {
         /// <summary>Name the API and the debug console use, e.g. "bonnet", "boot", "wiper_l".</summary>
@@ -202,10 +221,13 @@ namespace Chassis.Api
         public string Storage = string.Empty;
     }
 
+    /// <summary>Indicator lamps in the model.</summary>
     public sealed class LampProfile
     {
-        /// <summary>Names of the left and right indicator lamp objects. A name also matches "name.001" and every renderer below it.</summary>
+        /// <summary>Names of the left indicator lamp objects. A name also matches "name.001" and every renderer below it.</summary>
         public List<string> Left = new List<string>();
+
+        /// <summary>Names of the right indicator lamp objects, matched as <see cref="Left"/>.</summary>
         public List<string> Right = new List<string>();
 
         /// <summary>Glow colour while a lamp flashes.</summary>
@@ -215,6 +237,7 @@ namespace Chassis.Api
         public bool UseTexture;
     }
 
+    /// <summary>Horn and lock chirp sounds of a vehicle.</summary>
     public sealed class HornProfile
     {
         /// <summary>Sound name from <see cref="ChassisApi.RegisterSound"/>; empty is the built-in two-tone horn.</summary>
@@ -226,6 +249,7 @@ namespace Chassis.Api
         /// <summary>Where the sound comes from, in the vehicle root's space.</summary>
         public Vector3 Position = new Vector3(0f, 0.6f, 1.8f);
 
+        /// <summary>Volume of horn and chirp, 0 to 1.</summary>
         public float Volume = 0.8f;
     }
 
@@ -251,6 +275,7 @@ namespace Chassis.Api
         public GlassProfile Glass = new GlassProfile();
     }
 
+    /// <summary>One simple shape of the base interior.</summary>
     public sealed class KitPart
     {
         /// <summary>"seat" (cushion and backrest), "bench" (a seat across several places), "dash", "gauges" (the hood over the dials) or "wheel".</summary>
@@ -265,9 +290,11 @@ namespace Chassis.Api
         /// <summary>Seat and bench: width, backrest height, cushion depth. Dash and gauges: width, height, depth. Wheel: rim radius, -, column length.</summary>
         public Vector3 Size = new Vector3(0.5f, 0.6f, 0.5f);
 
+        /// <summary>Colour of the shape.</summary>
         public Color Color = new Color(0.2f, 0.2f, 0.22f);
     }
 
+    /// <summary>Which materials are windows and how they are tinted.</summary>
     public sealed class GlassProfile
     {
         /// <summary>Window materials are the ones whose name starts with one of these.</summary>

@@ -9,6 +9,7 @@ namespace Chassis.Api
     {
         /// <summary><c>Player.PlayerCode</c> of the owner.</summary>
         public string Owner = string.Empty;
+        /// <summary>Only the owner can get in while this is set.</summary>
         public bool Locked;
     }
 
@@ -34,6 +35,7 @@ namespace Chassis.Api
             Registry.Touch();
         }
 
+        /// <summary>Ends an <see cref="Assign"/>: the vehicle uses the profile of its own vehicle code again.</summary>
         public static void Unassign(LandVehicle vehicle)
         {
             if (vehicle == null) return;
@@ -140,8 +142,10 @@ namespace Chassis.Api
         /// <summary>Player code of the owner, or empty when the vehicle has no record (not player owned, or not synced yet).</summary>
         public static string OwnerOf(LandVehicle vehicle) => Fleet.For(vehicle)?.Owner ?? string.Empty;
 
+        /// <summary>True when the local player owns the vehicle.</summary>
         public static bool IsMine(LandVehicle vehicle) => Fleet.IsMine(vehicle);
 
+        /// <summary>True when the vehicle is locked; false when it has no owner record.</summary>
         public static bool IsLocked(LandVehicle vehicle) => Fleet.For(vehicle)?.Locked ?? false;
 
         /// <summary>
