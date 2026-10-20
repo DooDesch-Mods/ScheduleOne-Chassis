@@ -254,7 +254,12 @@ namespace Chassis.Rideables
 
             private static void Postfix(LandVehicle __instance)
             {
-                if (!__instance.LocalPlayerIsDriver || !WheelchairType.Is(__instance)) return;
+                if (!__instance.LocalPlayerIsDriver) return;
+#if DEBUG
+                // The console drive also gives throttle in a car, for recordings without key input.
+                if (!WheelchairType.Is(__instance) && Time.time < DebugUntil) { __instance.currentThrottle = DebugDrive.x; return; }
+#endif
+                if (!WheelchairType.Is(__instance)) return;
                 float own = Time.time < DebugUntil ? DebugDrive.x : __instance.currentThrottle;
                 __instance.currentThrottle = own;
                 Occupants.LocalDrive = own;
