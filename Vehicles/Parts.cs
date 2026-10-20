@@ -20,6 +20,8 @@ namespace Chassis.Vehicles
         private const float PoseRange = 80f;
         private const float RainPollSeconds = 1f;
         private const float RunningKmh = 2f;
+        /// <summary>Degrees per second the steering wheel turns at most; the road wheels snap faster than hands could follow.</summary>
+        private const float WheelSpeed = 200f;
 
         /// <summary>Debug: forces rain on (true) or off (false); null reads the weather.</summary>
         internal static bool? RainOverride;
@@ -33,6 +35,8 @@ namespace Chassis.Vehicles
             internal float Dir = 1f;
             internal float Open;      // lid: 0 closed .. 1 open
             internal float Phase;     // wiper: 0 .. 1 per stroke
+            internal float Turned;    // steering wheel: degrees shown, before Dir
+            internal bool TurnedSet;
             internal bool Logged;
         }
 
@@ -66,8 +70,18 @@ namespace Chassis.Vehicles
             var s = rig.Steering;
             pivot = s.T;
             axis = s.T.parent != null ? s.T.parent.rotation * (s.Rest * s.Axis) : s.Rest * s.Axis;
-            angle = SteerAngle(lv, rig.Profile.Steering) * s.Dir;
+            angle = (s.TurnedSet ? s.Turned : SteerAngle(lv, rig.Profile.Steering)) * s.Dir;
             return true;
+        }
+
+        /// <summary>Moves the shown steering wheel angle toward the road wheels' at <see cref="WheelSpeed"/>.</summary>
+        private static float Turn(Rig rig, LandVehicle lv, float dt)
+        {
+            var s = rig.Steering;
+            float target = SteerAngle(lv, rig.Profile.Steering);
+            s.Turned = s.TurnedSet ? Mathf.MoveTowards(s.Turned, target, WheelSpeed * dt) : target;
+            s.TurnedSet = true;
+            return s.Turned;
         }
 
         private static float SteerAngle(LandVehicle lv, SteeringProfile s) => Mathf.Clamp(lv.CurrentSteerAngle * s.Ratio, -s.Max, s.Max);
@@ -133,7 +147,7 @@ namespace Chassis.Vehicles
                 MoveLids(rig, dt);
                 if (cam != null && (lv.transform.position - eye).sqrMagnitude > PoseRange * PoseRange) continue;
                 if (rig.Steering != null && rig.Steering.T != null)
-                    Pose(rig.Steering, SteerAngle(lv, rig.Profile.Steering));
+                    Pose(rig.Steering, Turn(rig, lv, dt));
                 Wipe(rig, now, dt);
             }
         }

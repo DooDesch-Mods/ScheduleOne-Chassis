@@ -304,7 +304,7 @@ namespace Chassis.Interior
                 }
 
                 float feetRaised = 0f;
-                profile.Steering = new SteeringProfile { Path = WheelName, Axis = Vector3.forward, Ratio = 8f, Max = 300f };
+                profile.Steering = new SteeringProfile { Path = WheelName, Axis = Vector3.forward, Ratio = 5f, Max = 170f };
                 for (int i = 0; i < seats.Length; i++)
                 {
                     if (seats[i] == null) continue;
