@@ -58,6 +58,7 @@ namespace Chassis
             Vehicles.Registry.Reset();
             Vehicles.Fleet.Reset();
             Vehicles.Indicators.Reset();
+            Vehicles.KeyHints.Reset();
             Vehicles.Parts.Reset();
             Vehicles.AutoLights.Reset();
             Interior.BaseInterior.Reset();
@@ -91,6 +92,7 @@ namespace Chassis
             Guard("prop swap", Rideables.PropSwap.Tick);
             Guard("push", Rideables.Push.Tick);
             Guard("view", Seating.FirstPersonView.Tick);
+            Guard("key hints", Vehicles.KeyHints.Tick);
             Guard("sweep", Seating.Occupants.Sweep);
 #if DEBUG
             Debugging.ConsoleRegistration.EnsureRegistered();
