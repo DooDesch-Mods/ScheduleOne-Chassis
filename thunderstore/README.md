@@ -91,7 +91,7 @@ and a file there wins over a profile from code. Every type and member:
 
 ## License
 
-MIT. See the included LICENSE.md.
+DooDesch API License - build on the API, do not copy the code. See [LICENSE.md](https://github.com/DooDesch-Mods/ScheduleOne-Chassis/blob/main/LICENSE.md).
 
 This mod is written with help from generative AI tools (Anthropic Claude, OpenAI Codex).
 

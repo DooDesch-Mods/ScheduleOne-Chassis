@@ -195,6 +195,6 @@ The IL2CPP build is at `bin/Release/net6.0/Chassis.dll`. Debug builds add consol
 
 ## License
 
-Provided as-is under the [MIT License](LICENSE.md).
+DooDesch API License - build on the API, do not copy the code. See [LICENSE.md](LICENSE.md).
 
 This mod is written with help from generative AI tools (Anthropic Claude, OpenAI Codex).
