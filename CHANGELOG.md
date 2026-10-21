@@ -4,6 +4,13 @@ All notable changes to Chassis are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.4.0] - 2026-10-21
+
+### Added
+- Hold G to keep the horn sounding; it stops when you let go.
+- Steering is calmer at speed: the wheels turn less the faster you go and ease back to straight. `SpeedSteering`
+  turns it off.
+
 ## [1.3.0] - 2026-10-21
 
 ### Changed
