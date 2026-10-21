@@ -152,8 +152,10 @@ namespace Chassis.Tune
     }
 
     /// <summary>
-    /// Host: a repaint bought at Marco's (<c>SendOwnedColor</c>, a ServerRpc) clears the custom paint, so the bought
-    /// colour shows. The game's own load path uses <c>SetOwnedColor</c> and keeps it.
+    /// A repaint bought at Marco's (<c>SendOwnedColor</c>, called by the menu's buy button on the buyer's machine) clears
+    /// the custom paint, so the bought colour shows. The buyer asks like any tuning change: the host applies it, a client
+    /// sends it to the host. The game's own load path uses <c>SetOwnedColor</c> and keeps the custom paint. The hook sits
+    /// on <c>SendOwnedColor</c> because IL2CPP compiles its small <c>RpcLogic</c> body into the caller.
     /// </summary>
     internal static class RepaintPatch
     {
@@ -161,9 +163,8 @@ namespace Chassis.Tune
         {
             try
             {
-                MethodInfo target = typeof(LandVehicle).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-                    .FirstOrDefault(m => m.Name.StartsWith("RpcLogic___SendOwnedColor", StringComparison.Ordinal));
-                if (target == null) { Core.Log.Error("[Tuning] RpcLogic___SendOwnedColor not found - a repaint at Marco's keeps the custom paint on top."); return; }
+                MethodInfo target = typeof(LandVehicle).GetMethod("SendOwnedColor", BindingFlags.Public | BindingFlags.Instance);
+                if (target == null) { Core.Log.Error("[Tuning] LandVehicle.SendOwnedColor not found - a repaint at Marco's keeps the custom paint on top."); return; }
                 h.Patch(target, postfix: new HarmonyMethod(typeof(RepaintPatch).GetMethod(nameof(Postfix), BindingFlags.NonPublic | BindingFlags.Static)));
                 Core.Log.Msg("[Tuning] repaint hook on " + target.Name + ".");
             }
@@ -174,10 +175,13 @@ namespace Chassis.Tune
         {
             try
             {
-                if (!ChassisNet.IsHost) return;
                 bool any = false;
-                if (State.Get(__instance, "paint") != null) any |= State.HostSet(__instance, "paint", "", "repainted at the shop");
-                if (State.Get(__instance, "paint2") != null) any |= State.HostSet(__instance, "paint2", "", "repainted at the shop");
+                foreach (string key in new[] { "paint", "paint2" })
+                {
+                    if (State.Get(__instance, key) == null) continue;
+                    any = true;
+                    State.Request(__instance, key, "", "repainted at the shop");
+                }
                 if (!any) Core.Log.Msg("[Tuning] " + Registry.Name(__instance) + " repainted at the shop; it had no custom paint.");
             }
             catch (Exception e) { Core.Log.Error("[Tuning] clearing the custom paint after a repaint failed: " + e.Message); }

@@ -48,3 +48,4 @@ global using GameMoneyManager = Il2CppScheduleOne.Money.MoneyManager;
 global using VehicleSalesman = Il2CppScheduleOne.Dialogue.DialogueHandler_VehicleSalesman;
 global using GameVehicleSound = Il2CppScheduleOne.Vehicles.Sound.VehicleSound;
 global using GameVehicleModMenu = Il2CppScheduleOne.UI.VehicleModMenu;
+global using GameVehicleColor = Il2CppScheduleOne.Vehicles.Modification.EVehicleColor;

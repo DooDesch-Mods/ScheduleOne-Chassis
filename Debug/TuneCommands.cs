@@ -26,6 +26,7 @@ namespace Chassis.Debugging
             Say("tune clear                   - everything back to stock");
             Say("tune stats                   - stock and current driving values");
             Say("tune demo                    - register demo parts (wing, bumper, exhaust, rims) fitted to this car's code");
+            Say("tune marco open|<colour>|close - Marco's repaint menu for the car; a colour is picked and bought through the menu's own buttons");
         }
 
         internal static void Run(string[] p)
@@ -78,10 +79,33 @@ namespace Chassis.Debugging
                 case "demo":
                     Say("tune demo: " + Demo(lv));
                     break;
+                case "marco":
+                    Say("tune marco: " + Marco(lv, a1));
+                    break;
                 default:
                     Say("tune: unknown '" + op + "', try 'chassis tune help'");
                     break;
             }
+        }
+
+        // ---- Marco's repaint ------------------------------------------------------------------------------------------
+
+        /// <summary>
+        /// Drives the vanilla repaint menu: <c>open</c> shows it for the car, a colour name goes through the menu's
+        /// <c>ColorClicked</c> and <c>ConfirmButtonClicked</c> (the buy button), <c>close</c> closes it.
+        /// </summary>
+        private static string Marco(LandVehicle lv, string arg)
+        {
+            if (!Singleton<GameVehicleModMenu>.InstanceExists) return "the repaint menu does not exist in this scene";
+            var menu = Singleton<GameVehicleModMenu>.Instance;
+            string a = arg.ToLowerInvariant();
+            if (a == "open") { menu.Open(lv); return "opened for " + Registry.Name(lv) + ", owned colour " + lv.OwnedColor; }
+            if (a == "close") { menu.Close(); return "closed, owned colour " + lv.OwnedColor; }
+            if (!Enum.TryParse(arg, true, out GameVehicleColor col)) return "unknown colour '" + arg + "' - " + string.Join(", ", Enum.GetNames(typeof(GameVehicleColor)));
+            if (!menu.IsOpen || !Chassis.Compat.Interop.Same(menu.currentVehicle, lv)) return "open the menu for " + Registry.Name(lv) + " first ('chassis tune marco open')";
+            menu.ColorClicked(col);
+            menu.ConfirmButtonClicked();
+            return "bought " + col + " for " + Registry.Name(lv) + ", owned colour now " + lv.OwnedColor;
         }
 
         // ---- demo parts --------------------------------------------------------------------------------------------
