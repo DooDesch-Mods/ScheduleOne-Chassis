@@ -72,7 +72,7 @@ namespace Chassis.Debugging
                         Say("notice                       - close the offense notice after an arrest");
                         Say("hints [format]               - vehicle key hints; a format with {0} relabels the arrow keys");
                         Say("status                       - seated bodies and pushers, view, key hints, current vehicle");
-                        Say("showroom [tp|enter|hover|press <i>] - showroom cars; tp to car i's door, enter gets in, hover/press fire its prompt events");
+                        Say("showroom [tp|enter|hover|press <i>] [m] - showroom cars; tp to car i's door (m metres out, facing it), enter gets in, hover/press fire its prompt events");
                         Say("showroom ghost on|off        - draw the hidden display props over their cars (alignment check)");
                         Say("view [pitch]                 - first person on/off while seated (key V); a pitch turns it on looking down that far");
                         Say("exit                         - leave the vehicle (as the Interact key)");
@@ -193,7 +193,13 @@ namespace Chassis.Debugging
                                 int si = parts.Length > 3 && int.TryParse(parts[3], out int n) ? n : -1;
                                 var car = Rideables.Showroom.CarAt(si, out string dn);
                                 if (car == null) { Say("showroom " + act + ": no car at index " + si + (dn != null ? " (" + dn + ")" : "") + ", 0-" + (Rideables.Showroom.Count - 1)); break; }
-                                PlayerSingleton<PlayerMovement>.Instance.Teleport(car.GetExitPoint(0).position + Vector3.up * 0.1f, true);
+                                // tp <i> [m]: stand m metres out from the driver's door, facing the car, so the
+                                // interaction raycast hits it and the real hover prompt shows.
+                                Vector3 door = car.GetExitPoint(0).position;
+                                Vector3 outward = Vector3.ProjectOnPlane(door - car.transform.position, Vector3.up).normalized;
+                                float back = parts.Length > 4 && float.TryParse(parts[4], NumberStyles.Float, CultureInfo.InvariantCulture, out float bm) ? bm : 0f;
+                                PlayerSingleton<PlayerMovement>.Instance.Teleport(door + outward * back + Vector3.up * 0.1f, true);
+                                if (act == "tp") PlayerSingleton<PlayerCamera>.Instance.LookAt(car.transform.position + Vector3.up * 1.1f, 0.3f);
                                 if (act == "enter") car.EnterVehicle();
                                 Say("showroom " + act + ": " + dn + " " + Vehicles.Registry.Name(car));
                                 break;
