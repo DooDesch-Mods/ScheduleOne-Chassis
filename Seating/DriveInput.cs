@@ -35,7 +35,7 @@ namespace Chassis.Seating
                 string wheels = "";
                 foreach (var wc in lv.driveWheels) wheels += " rpm " + wc.rpm.ToString("F0") + " motor " + wc.motorTorque.ToString("F0") + " brake " + wc.brakeTorque.ToString("F0") + (wc.isGrounded ? "" : " AIR");
                 Core.Log.Msg("[Drive] t " + (Time.time % 1000f).ToString("F2") + " speed " + lv.Speed_Kmh.ToString("F1") + " km/h vel " + rb.velocity.magnitude.ToString("F2")
-                    + " pitch " + Mathf.DeltaAngle(0f, e.x).ToString("F0") + " roll " + Mathf.DeltaAngle(0f, e.z).ToString("F0") + " throttle " + lv.currentThrottle.ToString("F2") + wheels);
+                    + " pitch " + Mathf.DeltaAngle(0f, e.x).ToString("F0") + " roll " + Mathf.DeltaAngle(0f, e.z).ToString("F0") + " throttle " + lv.currentThrottle.ToString("F2") + " steer " + lv.CurrentSteerAngle.ToString("F1") + wheels);
             }
 #endif
 
