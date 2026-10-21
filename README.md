@@ -8,7 +8,7 @@
 > wheel that turns. Chassis adds a first person view, a horn, indicators, locks and owners, and a
 > base interior for the vanilla cars. Other mods build their vehicles on it.
 
-![Version](https://img.shields.io/badge/version-1.2.0-blue)
+![Version](https://img.shields.io/badge/version-1.3.0-blue)
 ![Game](https://img.shields.io/badge/game-Schedule%20I-purple)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 ![Status](https://img.shields.io/badge/status-working-brightgreen)
@@ -151,6 +151,24 @@ Every type and member: [API reference](https://docs.doodesch.de/mods/chassis/api
   normal build.
 - **Example:** [`Examples/ChassisCockpitExample`](Examples/ChassisCockpitExample) gives the
   Shitbox a cockpit of its own with a speedometer, odometer digits and a beacon switch.
+
+### Tuning
+
+A vehicle's tuning is a list of keys that your mod writes through `ChassisApi`, for example a tuning
+shop or a garage app. The host checks each change against the vehicle's owner, syncs it to every
+player and saves it with the vehicle.
+
+- **Parts:** `RegisterTuningPart` adds a part with its own model, fit and driving factors (torque,
+  gearing, brake, grip, steer, mass, spring, damper, downforce, ride height). `InstallPart` and
+  `RemovePart` fit it to a vehicle. Built-in parts: engine, brakes and transmission stages 1-3,
+  suspension 1-4, turbo and drift tyres.
+- **Looks:** `SetPaint` (primary and secondary, with a finish), `SetRimColor`, `SetXenon`,
+  `SetNeon`, `SetWindowTint`, `SetTyreSmoke` and `SetHorn`.
+- **Your own keys:** `SetTuning`, `GetTuning` and `ClearTuning`.
+- **Read:** `Tuning`, `InstalledPart`, `TuningStatsOf` (the driving factors in effect) and the
+  event `TuningChanged`.
+- **Example:** [Rollin](https://github.com/DooDesch-Mods/ScheduleOne-Rollin) builds the wheelchair
+  on Chassis and tunes it with rockets, spoilers, neon and hats.
 
 ## Building from source
 

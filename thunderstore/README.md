@@ -8,7 +8,7 @@
 > wheel that turns. Chassis adds a first person view, a horn, indicators, locks and owners, and a
 > base interior for the vanilla cars. Other mods build their vehicles on it.
 
-![Version](https://img.shields.io/badge/version-1.2.0-blue)
+![Version](https://img.shields.io/badge/version-1.3.0-blue)
 ![Game](https://img.shields.io/badge/game-Schedule%20I-purple)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 [![Polyfill](https://polyfill.doomods.com/badge/chassis.svg)](https://polyfill.doomods.com/mod/chassis)
@@ -82,7 +82,9 @@ Chassis has a public C# API in `Chassis.Api` (`ChassisApi`). With it you give a 
 profiles, a steering wheel, lids, lamps and a horn sound, sound the horn, set indicators, and
 read or set owner and lock, and add your own keys to the key hints. Mods can also build their
 own interior with working gauges and clickable switches, and read speed, rpm, lamps and the
-odometer as telemetry, and keep an NPC that was shot slumped in its seat. Profiles are JSON files in `UserData/Chassis/<vehicle code>.json`,
+odometer as telemetry, and keep an NPC that was shot slumped in its seat. A tuning API lets mods
+fit parts with their own models and driving factors, set paint, rim colour, xenon, neon, window
+tint, tyre smoke and horn, synced in co-op and saved with the vehicle. Profiles are JSON files in `UserData/Chassis/<vehicle code>.json`,
 and a file there wins over a profile from code. Every type and member:
 [API reference](https://docs.doodesch.de/mods/chassis/api/). Source:
 [GitHub](https://github.com/DooDesch-Mods/ScheduleOne-Chassis).
