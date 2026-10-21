@@ -76,6 +76,31 @@ namespace Chassis.Interior
             return made;
         }
 
+        /// <summary>
+        /// Every triangle of <paramref name="src"/> in root space, three corners each, without the cabin lid when
+        /// <paramref name="band"/> is given; null with <paramref name="report"/> set when the mesh cannot be read.
+        /// </summary>
+        internal static List<Vector3> Triangles(Mesh src, Matrix4x4 toRoot, Bounds? band, bool[] window, out string report)
+        {
+            var tris = new List<Vector3>();
+            float belt = band?.min.y ?? 0f;
+            float x0 = 0f, x1 = 0f, z0 = 0f, z1 = 0f;
+            if (band.HasValue) { var b = band.Value; x0 = b.min.x - Margin; x1 = b.max.x + Margin; z0 = b.min.z - Margin; z1 = b.max.z + Margin; }
+            try
+            {
+                Copy(src, toRoot, (int s, Vector3 a, Vector3 b, Vector3 c, out float ar) =>
+                {
+                    ar = 0f;
+                    bool glass = window != null && s < window.Length && window[s];
+                    if (band.HasValue && !glass && IsLid(a, b, c, belt, x0, x1, z0, z1, out _)) return false;
+                    tris.Add(a); tris.Add(b); tris.Add(c);
+                    return false;
+                }, "_Chassis_probe", out _, out _, out report);
+            }
+            catch (Exception e) { report = "readback threw: " + e.Message; Core.Log.Warning("[Interior] reading " + src.name + " for the shell test failed: " + e.Message); return null; }
+            return report == null ? tris : null;
+        }
+
         internal static void Reset() => _cut.Clear();
 
         private delegate bool DropTriangle(int submesh, Vector3 a, Vector3 b, Vector3 c, out float area);
