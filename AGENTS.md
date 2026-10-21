@@ -51,5 +51,5 @@ https://github.com/DooDesch-Mods/ScheduleOne-Chassis/issues or
 
 ## License
 
-Chassis is MIT licensed ([LICENSE.md](LICENSE.md)), which permits copying. Depending on the API
-instead is the maintainer's request, for the reasons above.
+Chassis is under the DooDesch API License ([LICENSE.md](LICENSE.md)). It allows using the API and
+copying the files under `Api/` unchanged. It does not allow copying any other code.
