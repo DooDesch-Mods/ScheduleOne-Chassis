@@ -338,7 +338,7 @@ namespace Chassis.Instruments
                     return;
                 }
                 case "horn":
-                    ChassisNet.ToAll("honk", id);
+                    ChassisNet.ToAll("honk", id, "0");
                     return;
                 case "trip_reset":
                     Odometer.HostResetTrip(lv, "switch '" + c.Name + "'");
