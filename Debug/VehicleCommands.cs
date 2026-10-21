@@ -1,5 +1,6 @@
 #if DEBUG
 using System;
+using System.Globalization;
 using Chassis.Api;
 using Chassis.Vehicles;
 
@@ -18,6 +19,9 @@ namespace Chassis.Debugging
             Say("car put <code> <x> <y> <z> [yaw] - spawn a car at this pose (host), stand beside it");
             Say("car bones                    - head, hips, knees and feet of your avatar in the vehicle space");
             Say("car remove                   - despawn the vehicle you sit in, or the nearest one (host)");
+            Say("car go [throttle] [steer] [s] - drive through the vanilla control override, -1..1 each (driver)");
+            Say("car slide [km/h] [deg] [s]   - hold the body at a speed turned off its facing, for tyre slip and drift smoke");
+            Say("car wheels                   - drift state, smoke and smoke colour per wheel");
             Say("car honk [flash]             - horn (key G)");
             Say("car blink l|r|off            - indicator (arrow keys)");
             Say("car lock on|off              - lock or unlock (owner only)");
@@ -64,7 +68,8 @@ namespace Chassis.Debugging
                     var profile = ChassisApi.For(lv);
                     Say(Registry.Name(lv) + " profile " + (profile != null ? "'" + profile.Code + "'" : "none") + " owner '" + ChassisApi.OwnerOf(lv) + "'"
                         + (ChassisApi.IsLocked(lv) ? " locked" : "") + " signal " + ChassisApi.Indicator(lv) + " headlights " + (lv.lights != null && lv.lights.HeadlightsOn)
-                        + " speed " + lv.Speed_Kmh.ToString("F1") + " steer " + lv.CurrentSteerAngle.ToString("F1"));
+                        + " speed " + lv.Speed_Kmh.ToString("F1") + " steer " + lv.CurrentSteerAngle.ToString("F1")
+                        + " at " + lv.transform.position.ToString("F1") + " yaw " + lv.transform.eulerAngles.y.ToString("F0"));
                     Say(Parts.Describe(lv));
                     break;
                 }
@@ -126,6 +131,31 @@ namespace Chassis.Debugging
                     if (arg.Length == 0) { Say("car owner <player code>"); break; }
                     Say(ChassisApi.SetOwner(lv, arg) ? "car owner: " + Registry.Name(lv) + " now belongs to " + arg : "car owner: refused, see the log");
                     break;
+                case "go":
+                    {
+                        if (!lv.LocalPlayerIsDriver) { Say("car go: sit in the driver seat first ('chassis car enter')"); break; }
+                        float throttle = Arg(p, 3, 1f), steer = Arg(p, 4, 0f), sec = Arg(p, 5, 3f);
+                        MelonLoader.MelonCoroutines.Start(Go(lv, Mathf.Clamp(throttle, -1f, 1f), Mathf.Clamp(steer, -1f, 1f), sec));
+                        Say("car go: " + Registry.Name(lv) + " throttle " + throttle.ToString("0.##", CultureInfo.InvariantCulture) + " steer " + steer.ToString("0.##", CultureInfo.InvariantCulture) + " for " + sec.ToString("0.#", CultureInfo.InvariantCulture) + " s");
+                        break;
+                    }
+                case "slide":
+                    {
+                        float kmh = Arg(p, 3, 40f), angle = Arg(p, 4, 30f), sec = Arg(p, 5, 3f);
+                        MelonLoader.MelonCoroutines.Start(Slide(lv, kmh / 3.6f, angle, sec));
+                        Say("car slide: " + Registry.Name(lv) + " held at " + kmh.ToString("0", CultureInfo.InvariantCulture) + " km/h, " + angle.ToString("0", CultureInfo.InvariantCulture) + " deg off its facing, for " + sec.ToString("0.#", CultureInfo.InvariantCulture) + " s");
+                        break;
+                    }
+                case "wheels":
+                    if (lv.wheels == null) { Say("car wheels: " + Registry.Name(lv) + " has no wheel list"); break; }
+                    foreach (var w in lv.wheels)
+                    {
+                        if (w == null) continue;
+                        var ps = w.DriftParticles;
+                        Say("car wheels: " + w.gameObject.name + " drifting " + w.IsDrifting + " for " + w.DriftTime.ToString("F2", CultureInfo.InvariantCulture) + " s, smoke "
+                            + (ps == null ? "none" : (ps.isPlaying ? "playing" : "stopped") + " with " + ps.particleCount + " particle(s), colour #" + ColorUtility.ToHtmlStringRGB(ps.main.startColor.color)));
+                    }
+                    break;
                 case "assign":
                     if (arg == "off" || arg.Length == 0) ChassisApi.Unassign(lv);
                     else ChassisApi.Assign(lv, p[3]);
@@ -158,6 +188,52 @@ namespace Chassis.Debugging
                 if (d < bd) { bd = d; best = v; }
             }
             return best;
+        }
+
+        private static float Arg(string[] p, int i, float fallback) =>
+            p.Length > i && float.TryParse(p[i], NumberStyles.Float, CultureInfo.InvariantCulture, out float f) ? f : fallback;
+
+        // Drives through the vanilla control override, so the wheels get real torque and steer, slip included.
+        private static System.Collections.IEnumerator Go(LandVehicle lv, float throttle, float steer, float seconds)
+        {
+            float until = Time.time + seconds;
+            Vector3 start = lv.transform.position;
+            float top = 0f;
+            while (lv != null && Time.time < until)
+            {
+                lv.overrideControls = true;
+                lv.throttleOverride = throttle;
+                lv.steerOverride = steer;
+                top = Mathf.Max(top, Mathf.Abs(lv.Speed_Kmh));
+                yield return null;
+            }
+            if (lv == null) { Core.Log.Warning("[Console] car go ended: the vehicle is gone."); yield break; }
+            lv.overrideControls = false;
+            lv.throttleOverride = 0f;
+            lv.steerOverride = 0f;
+            Core.Log.Msg("[Console] car go ended after " + Vector3.Distance(start, lv.transform.position).ToString("F1", CultureInfo.InvariantCulture) + " m, top " + top.ToString("F0", CultureInfo.InvariantCulture) + " km/h.");
+        }
+
+        // Holds the body at a speed along a heading turned off its facing, so the tyres slip sideways and the vanilla
+        // drift check fires without a long run-up.
+        private static System.Collections.IEnumerator Slide(LandVehicle lv, float metresPerSecond, float angle, float seconds)
+        {
+            float until = Time.time + seconds;
+            int smokeFrames = 0, frames = 0;
+            while (lv != null && Time.time < until)
+            {
+                var rb = lv.GetComponent<Rigidbody>();
+                if (rb == null) { Core.Log.Warning("[Console] car slide stopped: the vehicle has no Rigidbody."); yield break; }
+                Vector3 v = Quaternion.Euler(0f, angle, 0f) * lv.transform.forward * metresPerSecond;
+                rb.velocity = new Vector3(v.x, rb.velocity.y, v.z);
+                frames++;
+                if (lv.wheels != null)
+                    foreach (var w in lv.wheels)
+                        if (w != null && w.DriftParticles != null && w.DriftParticles.isPlaying) { smokeFrames++; break; }
+                yield return null;
+            }
+            if (lv == null) { Core.Log.Warning("[Console] car slide ended: the vehicle is gone."); yield break; }
+            Core.Log.Msg("[Console] car slide ended: drift smoke played in " + smokeFrames + " of " + frames + " frame(s).");
         }
 
         private static void Say(string line) => DebugConsolePatch.Say(line);
