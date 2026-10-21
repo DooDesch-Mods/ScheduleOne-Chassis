@@ -57,6 +57,7 @@ namespace Chassis
         {
             Seating.FirstPersonView.Reset();
             Seating.Occupants.Reset();
+            Rideables.Showroom.Reset();
             Vehicles.Registry.Reset();
             Vehicles.Fleet.Reset();
             Vehicles.Indicators.Reset();
@@ -98,6 +99,7 @@ namespace Chassis
             Guard("horn", Vehicles.Horn.Tick);
             Guard("indicators", Vehicles.Indicators.Tick);
             Guard("auto lights", Vehicles.AutoLights.Tick);
+            Guard("showroom", Rideables.Showroom.Tick);
             Guard("view", Seating.FirstPersonView.Tick);
             Guard("key hints", Vehicles.KeyHints.Tick);
             Guard("pedals", Instruments.Pedals.Tick);

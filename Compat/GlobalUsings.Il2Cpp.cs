@@ -49,3 +49,4 @@ global using VehicleSalesman = Il2CppScheduleOne.Dialogue.DialogueHandler_Vehicl
 global using GameVehicleSound = Il2CppScheduleOne.Vehicles.Sound.VehicleSound;
 global using GameVehicleModMenu = Il2CppScheduleOne.UI.VehicleModMenu;
 global using GameVehicleColor = Il2CppScheduleOne.Vehicles.Modification.EVehicleColor;
+global using VehicleSaleSign = Il2CppScheduleOne.Tools.VehicleSaleSign;
