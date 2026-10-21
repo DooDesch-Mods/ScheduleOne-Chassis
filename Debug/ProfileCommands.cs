@@ -54,12 +54,13 @@ namespace Chassis.Debugging
             }
         }
 
-        /// <summary>The vehicle the local player sits in, else the wheelchair.</summary>
+        /// <summary>The profile code of the vehicle the local player sits in or pushes, else null.</summary>
         private static string CurrentCode()
         {
             var lv = Player.Local != null && Player.Local.CurrentVehicle != null
                 ? Player.Local.CurrentVehicle.GetComponent<LandVehicle>() : null;
-            return lv != null ? ChassisApi.CodeOf(lv) : Rideables.WheelchairType.Code;
+            if (lv == null && Player.Local != null) lv = ChassisApi.PushedBy(Player.Local);
+            return lv != null ? ChassisApi.CodeOf(lv) : null;
         }
 
         private static string CodeArg(string[] p, int i) => p.Length > i ? p[i] : CurrentCode();

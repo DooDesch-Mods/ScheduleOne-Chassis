@@ -32,7 +32,7 @@ namespace Chassis.Api
         /// <summary>Vehicle code (<c>LandVehicle.VehicleCode</c>) this profile belongs to.</summary>
         /// <value>
         /// Lower case, matched without case. The vanilla cars are "shitbox", "shitbox_police", "veeper", "bruiser",
-        /// "bruiser_police", "dinkler", "hounddog", "cheetah" and "hotbox"; the wheelchair is "chassis_wheelchair".
+        /// "bruiser_police", "dinkler", "hounddog", "cheetah" and "hotbox"; the wheelchair from the mod Rollin is "rollin_wheelchair".
         /// A mod vehicle can use a code of its own and get it with <see cref="ChassisApi.Assign"/>.
         /// <see cref="ChassisApi.Codes"/> lists every code that has a profile.
         /// </value>
@@ -41,7 +41,7 @@ namespace Chassis.Api
         /// <summary>Path of the model frame below the vehicle root, or empty for the root itself.</summary>
         /// <value>
         /// Transform names joined with "/", as <c>Transform.Find</c> takes them, e.g. "Body/Model". When that path
-        /// does not exist, the first transform named like its last part is used. The wheelchair uses "ChassisModel";
+        /// does not exist, the first transform named like its last part is used. Rollin's wheelchair uses "ChassisModel";
         /// the vanilla cars leave it empty.
         /// </value>
         public string Frame = string.Empty;

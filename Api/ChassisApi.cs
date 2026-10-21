@@ -8,14 +8,16 @@ namespace Chassis.Api
     /// <summary>
     /// Public entry point for other mods: read and change the seat profiles Chassis uses per vehicle code.
     ///
-    /// Precedence, last one wins: built-in defaults, a profile a mod registers with <see cref="Register"/>, the JSON
-    /// file in UserData/Chassis/&lt;code&gt;.json. The file wins so a player or the debug console can always correct a mod's
+    /// Precedence, last one wins: a profile a mod registers with <see cref="Register"/>, the JSON file in
+    /// UserData/Chassis/&lt;code&gt;.json. The file wins so a player or the debug console can always correct a mod's
     /// values. Changes take effect on the next seat change; <see cref="Changed"/> tells seated rigs to re-read now.
     /// </summary>
     public static partial class ChassisApi
     {
         private static readonly Dictionary<string, ChassisProfile> _profiles = new Dictionary<string, ChassisProfile>(StringComparer.OrdinalIgnoreCase);
         private static readonly HashSet<string> _fromFile = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // What mods registered from code; a reload starts from these again.
+        private static readonly Dictionary<string, ChassisProfile> _fromCode = new Dictionary<string, ChassisProfile>(StringComparer.OrdinalIgnoreCase);
         private static bool _loaded;
 
         /// <summary>Raised with the vehicle code after a profile was registered, loaded or edited.</summary>
@@ -49,6 +51,7 @@ namespace Chassis.Api
         {
             if (profile == null || string.IsNullOrEmpty(profile.Code)) throw new ArgumentException("a profile needs a vehicle code");
             EnsureLoaded();
+            _fromCode[profile.Code] = profile;
             if (_fromFile.Contains(profile.Code))
             {
                 Core.Log.Msg("[Profiles] '" + profile.Code + "' registered by a mod, but UserData/Chassis/" + profile.Code + ".json overrides it.");
@@ -77,7 +80,7 @@ namespace Chassis.Api
         /// <summary>Tells seated rigs that a profile changed in place, so they re-read it this frame.</summary>
         public static void NotifyChanged(string vehicleCode) => Raise(vehicleCode);
 
-        /// <summary>Drops every loaded profile and reads defaults and files again.</summary>
+        /// <summary>Drops every loaded profile and reads the profiles mods registered and the files again.</summary>
         public static int Reload()
         {
             _loaded = false;
@@ -92,7 +95,7 @@ namespace Chassis.Api
         {
             if (_loaded) return;
             _loaded = true;
-            foreach (var p in BuiltInProfiles.All()) _profiles[p.Code] = p;
+            foreach (var kv in _fromCode) _profiles[kv.Key] = kv.Value;
 
             if (!Directory.Exists(Folder)) return;
             foreach (string file in Directory.GetFiles(Folder, "*.json"))

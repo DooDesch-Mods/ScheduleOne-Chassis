@@ -14,7 +14,7 @@ namespace Chassis.Api
         public int Seat { get; internal set; }
         /// <summary>The local player drives.</summary>
         public bool Driver { get; internal set; }
-        /// <summary>The local player pushes the vehicle from behind (a wheelchair) instead of sitting in it.</summary>
+        /// <summary>The local player pushes the vehicle from behind (<see cref="ChassisApi.PoseAsPusher"/>) instead of sitting in it.</summary>
         public bool Pushing { get; internal set; }
     }
 

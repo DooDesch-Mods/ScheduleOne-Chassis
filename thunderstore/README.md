@@ -23,8 +23,8 @@
   the steering wheel with both hands, and the wheel turns when you steer.
 - Press V in a vehicle for a first person view from your seat. Your body stays visible below you.
 - Press G for the horn. H stays the headlights.
-- The key hints at the bottom left show the vehicle's keys. Behind a wheelchair they show Push
-  and Let Go.
+- The key hints at the bottom left show the vehicle's keys. While you push a vehicle they show
+  Push and Let Go.
 - The left and right arrow keys switch the indicators on vehicles that have indicator lamps.
   After the turn they switch off on their own.
 - Each player-owned vehicle has an owner, and the owner can lock it. A locked vehicle lets in
@@ -37,8 +37,8 @@
 - The vanilla cars flash their own amber indicator lamps outside. A rear without one flashes part
   of the brake light in red.
 - Guns hit NPCs that sit in a car. A driver who goes down falls out, and the car stops.
-- The wheelchairs placed around town can be ridden: look at the seat, press Sit and roll with the
-  driving keys. A second player can take the handles and push.
+- Riding and pushing the wheelchairs moved to its own mod, Rollin. Without Rollin the wheelchairs
+  stay vanilla props.
 - In co-op, seats, horn, indicators, locks and owners sync through the host.
 
 ## Controls
@@ -63,8 +63,6 @@
 ![First person view](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/02-first-person.jpg)
 
 ![Key hints](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/08-key-hints.jpg)
-
-![Wheelchair](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/07-wheelchair.jpg)
 
 ## Requirements
 

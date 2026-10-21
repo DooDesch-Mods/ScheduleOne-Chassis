@@ -42,12 +42,11 @@
   one flashes part of the brake light in red.
 - **Shots into cars:** Guns hit NPCs that sit in a car. A driver who goes down falls out next to
   the car, and the car stops.
-- **Wheelchairs:** The wheelchairs placed around town can be ridden. Look at the seat and press
-  Sit, then roll with the driving keys. A second player can take the handles and push. When it is
-  empty again, it stays as a wheelchair where it stopped.
+- **Wheelchairs:** Riding and pushing the wheelchairs moved to its own mod,
+  [Rollin](https://github.com/DooDesch-Mods/ScheduleOne-Rollin). Without Rollin the wheelchairs stay vanilla props.
 - **Key hints:** The keys of the vehicle show at the bottom left, next to the game's own: First
-  Person, Horn, and Indicators on vehicles with indicator lamps. Behind a wheelchair they show
-  Push and Let Go with your own key bindings.
+  Person, Horn, and Indicators on vehicles with indicator lamps. While you push a vehicle (Rollin's
+  wheelchair) they show Push and Let Go with your own key bindings.
 - **Co-op:** Seats, horn, indicators, locks and owners sync through the host.
 
 ## Controls
@@ -68,7 +67,7 @@
 | ![Driver in the seat](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/01-seated-driver.jpg) | ![First person view](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/02-first-person.jpg) |
 | ![Base interior](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/03-interior.jpg) | ![NPC driver](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/04-npc-driver.jpg) |
 | ![Working dashboard](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/09-dash.jpg) | ![Indicators outside](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/10-indicators.jpg) |
-| ![Wheelchair](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/07-wheelchair.jpg) | ![Key hints](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/08-key-hints.jpg) |
+| ![Key hints](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/08-key-hints.jpg) | |
 
 ## Requirements
 
