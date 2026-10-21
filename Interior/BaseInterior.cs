@@ -42,6 +42,9 @@ namespace Chassis.Interior
         /// <summary>Hips above the cushion top for the fitted seats.</summary>
         private const float HipHeight = 0.08f;
 
+        /// <summary>The fitted kit gives way where it would reach out of the body. The debug console switches it, to compare.</summary>
+        internal static bool FitToShell = true;
+
         /// <summary>Vanilla cars get the base interior. Set from the preference at start; the debug console switches it live.</summary>
         internal static bool Enabled;
 
@@ -81,6 +84,7 @@ namespace Chassis.Interior
         private static readonly Dictionary<string, Func<LandVehicle, GameObject>> _factories = new Dictionary<string, Func<LandVehicle, GameObject>>(StringComparer.OrdinalIgnoreCase);
         private static readonly HashSet<ChassisProfile> _fitted = new HashSet<ChassisProfile>();
         private static readonly HashSet<string> _fittedCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, Bounds> _bands = new Dictionary<string, Bounds>(StringComparer.OrdinalIgnoreCase);
 
         // ---- interiors from mods -----------------------------------------------------------------------------------
 
@@ -280,14 +284,43 @@ namespace Chassis.Interior
                 Vector3 wheelAt = new Vector3(d.x, belt - 0.13f + lift, Mathf.Min(seatZ + 0.5f, dashFront - 0.18f));
                 parts.Add(new KitPart { Kind = "wheel", Position = wheelAt, Rotation = new Vector3(22f, 0f, 0f), Size = new Vector3(0.17f, 0f, 0.3f), Color = new Color(0.12f, 0.12f, 0.13f) });
                 float dashBack = wheelAt.z + 0.08f;
-                parts.Add(new KitPart
+                var dash = new KitPart
                 {
                     Kind = "dash",
                     Position = new Vector3(band.center.x, belt + 0.02f + lift, dashFront),
                     Size = new Vector3(Mathf.Max(0.6f, band.size.x - 0.12f), closed ? 0.2f : Mathf.Clamp(belt + 0.02f - floor - 0.3f, 0.2f, 0.45f), Mathf.Max(0.08f, dashFront - dashBack)),
                     Color = new Color(0.22f, 0.22f, 0.23f),
-                });
-                float dashTop = belt + 0.02f + lift;
+                };
+                parts.Add(dash);
+
+                // The kit stays inside the body. The windscreen often starts above the belt line and leans back over the
+                // dashboard; the dashboard's front edge gives way, then its top. The rear window and the roof slope
+                // down over the back row; the seat backs get shorter. The test runs against the body as read back
+                // from the GPU, without the cabin lid that is cut out.
+                _bands[code] = band;
+                var shell = ShellFit.Of(lv, Lod0(lv.GetComponentInChildren<LODGroup>(true)), CabinCentre(band), lid ? band : (Bounds?)null, m => IsWindow(m, glass), out string shellReport);
+                var fitNotes = new List<string>();
+                if (shell == null) Core.Log.Warning("[Interior] " + code + ": the shell test cannot run (" + shellReport + ") - the kit keeps its formula sizes.");
+                else if (FitToShell)
+                {
+                    float seen = belt - BeltMargin;
+                    int before = OutsideCount(shell, dash, underside, seen), now = before;
+                    float back0 = dash.Position.z, top0 = dash.Position.y;
+                    while (now > 0 && dash.Size.z - DashStep >= 0.08f)
+                    {
+                        dash.Position -= new Vector3(0f, 0f, DashStep);
+                        dash.Size -= new Vector3(0f, 0f, DashStep);
+                        now = OutsideCount(shell, dash, underside, seen);
+                    }
+                    while (now > 0 && top0 - dash.Position.y < DashMaxDrop - 0.001f)
+                    {
+                        dash.Position -= new Vector3(0f, DashStep, 0f);
+                        now = OutsideCount(shell, dash, underside, seen);
+                    }
+                    if (before > 0)
+                        fitNotes.Add("dash " + before + " corner(s) outside, front moved back " + (back0 - dash.Position.z).ToString("F2") + ", top lowered " + (top0 - dash.Position.y).ToString("F2") + (now > 0 ? ", " + now + " still outside" : ""));
+                }
+                float dashTop = dash.Position.y;
                 Vector3 gaugesAt = new Vector3(d.x, dashTop - 0.06f, dashBack);
                 parts.Add(new KitPart { Kind = "gauges", Position = gaugesAt, Size = new Vector3(0.3f, 0.1f, 0.05f), Color = new Color(0.16f, 0.16f, 0.17f) });
                 AddInstruments(profile, gaugesAt, wheelAt, new Vector3(band.center.x, dashTop, dashBack));
@@ -312,6 +345,31 @@ namespace Chassis.Interior
                         done[j] = true;
                     }
                     parts.Add(new KitPart { Kind = "bench", Position = new Vector3((minX + maxX) * 0.5f, cushion, local[i].z), Size = new Vector3(maxX - minX + 0.55f, 0.62f, 0.48f) });
+                }
+                if (shell != null)
+                {
+                    foreach (var part in parts)
+                    {
+                        if (!FitToShell || (part.Kind != "seat" && part.Kind != "bench")) continue;
+                        int before = OutsideCount(shell, part, underside, belt - BeltMargin), now = before;
+                        float back0 = part.Size.y;
+                        while (now > 0 && part.Size.y - BackStep >= BackMin - 0.001f)
+                        {
+                            part.Size -= new Vector3(0f, BackStep, 0f);
+                            now = OutsideCount(shell, part, underside, belt - BeltMargin);
+                        }
+                        if (before > 0)
+                            fitNotes.Add(part.Kind + " at z " + part.Position.z.ToString("F2") + " " + before + " corner(s) outside, back " + back0.ToString("F2") + " -> " + part.Size.y.ToString("F2") + (now > 0 ? ", " + now + " still outside" : ""));
+                    }
+                    // What still reaches out above the belt line after the fit, part by part.
+                    var still = new List<string>();
+                    foreach (var part in parts)
+                    {
+                        int n = OutsideCount(shell, part, underside, belt - BeltMargin);
+                        if (n > 0) still.Add(part.Kind + (string.IsNullOrEmpty(part.Name) ? "" : " " + part.Name) + " " + n);
+                    }
+                    Core.Log.Msg("[Interior] " + code + " shell test (" + shellReport + "): " + (!FitToShell ? "fit off" : fitNotes.Count > 0 ? string.Join("; ", fitNotes) : "every part inside") + "." + (still.Count > 0 ? " Still outside: " + string.Join(", ", still) + "." : ""));
+                    if (still.Count > 0) Core.Log.Warning("[Interior] " + code + ": " + still.Count + " kit part(s) still reach out of the body.");
                 }
 
                 float feetRaised = 0f;
@@ -351,6 +409,96 @@ namespace Chassis.Interior
                 Core.Log.Error("[Interior] fitting " + code + " failed - it keeps the vanilla cabin: " + e);
             }
         }
+
+        /// <summary>Where the shell test starts its segments: the middle of the window band, halfway up.</summary>
+        private static Vector3 CabinCentre(Bounds band) => new Vector3(band.center.x, (band.min.y + band.max.y) * 0.5f, band.center.z);
+
+        private const string MarksName = "Chassis_ShellMarks";
+
+        /// <summary>
+        /// Debug: tests the built kit of <paramref name="lv"/> against its body and, with <paramref name="mark"/>, puts a
+        /// small red cube on every corner outside and a green one at the cabin centre. Without it, removes the cubes.
+        /// </summary>
+        internal static string Probe(LandVehicle lv, bool mark)
+        {
+            if (lv == null) return "no car";
+            string code = ChassisApi.CodeOf(lv);
+            var old = lv.transform.Find(MarksName);
+            if (old != null) { old.SetParent(null, false); UnityEngine.Object.Destroy(old.gameObject); }
+            if (!_built.TryGetValue(lv.GetInstanceID(), out var b) || b.Root == null) return code + ": no interior built";
+            if (!_bands.TryGetValue(code, out var band)) return code + ": not fitted in this session, no window band";
+            var shell = ShellFit.Of(lv, Lod0(lv.GetComponentInChildren<LODGroup>(true)), CabinCentre(band), LiddedCodes.Contains(code) ? band : (Bounds?)null, m => false, out string report);
+            if (shell == null) return code + ": shell test cannot run (" + report + ")";
+            Transform root = lv.transform;
+            var found = new List<Vector3>();
+            var per = new List<string>();
+            foreach (var mf in b.Root.GetComponentsInChildren<MeshFilter>(true))
+            {
+                if (mf == null || mf.sharedMesh == null) continue;
+                int from = found.Count;
+                shell.OutsidePoints(mf.sharedMesh, root.worldToLocalMatrix * mf.transform.localToWorldMatrix, found);
+                int n = Keep(found, from, band.min.y - BeltMargin);
+                if (n == 0) continue;
+                per.Add(mf.gameObject.name + " " + n);
+                var at = new List<string>();
+                for (int i = from; i < found.Count; i++) at.Add(ProfileJson.F(found[i]));
+                Core.Log.Msg("[Interior] probe " + code + " " + mf.gameObject.name + " outside at " + string.Join(" ", at));
+            }
+            if (mark)
+            {
+                var holder = new GameObject(MarksName).transform;
+                holder.SetParent(root, false);
+                Cube(holder, shell.Centre, new Color(0.1f, 0.9f, 0.2f), 0.06f);
+                foreach (var p in found) Cube(holder, p, new Color(1f, 0.05f, 0.05f), 0.035f);
+            }
+            return code + ": " + report + ", " + found.Count + " kit corner(s) outside above the belt line" + (per.Count > 0 ? " - " + string.Join(", ", per) : "") + (mark ? " (red cubes)" : "");
+        }
+
+        /// <summary>Drops the points from <paramref name="from"/> on that lie at or below <paramref name="minY"/>; returns how many stay.</summary>
+        private static int Keep(List<Vector3> points, int from, float minY)
+        {
+            var above = new List<Vector3>();
+            for (int i = from; i < points.Count; i++) if (points[i].y > minY) above.Add(points[i]);
+            points.RemoveRange(from, points.Count - from);
+            points.AddRange(above);
+            return above.Count;
+        }
+
+        private static void Cube(Transform parent, Vector3 at, Color c, float size)
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            var col = go.GetComponent<Collider>();
+            if (col != null) UnityEngine.Object.Destroy(col);
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = at;
+            go.transform.localScale = Vector3.one * size;
+            go.GetComponent<MeshRenderer>().sharedMaterial = Backlit(c);
+        }
+
+        /// <summary>Steps and limits of the shell fit: the dashboard moves in 2 cm steps and drops at most 12 cm; seat backs shrink in 4 cm steps to 0.30 m.</summary>
+        private const float DashStep = 0.02f, DashMaxDrop = 0.12f, BackStep = 0.04f, BackMin = 0.30f;
+
+        /// <summary>
+        /// How many corners of a kit part lie outside the shell above <paramref name="minY"/>. Below the belt line the
+        /// body is opaque: a cushion corner just under the floor or a pedestal in the door does not show.
+        /// </summary>
+        private static int OutsideCount(ShellFit shell, KitPart part, float underside, float minY = float.NegativeInfinity)
+        {
+            Mesh mesh = MeshOf(part, underside, out Vector3 at);
+            if (mesh == null) return 0;
+            try
+            {
+                var found = new List<Vector3>();
+                shell.OutsidePoints(mesh, Matrix4x4.TRS(at, Quaternion.Euler(part.Rotation), Vector3.one), found);
+                int n = 0;
+                foreach (var p in found) if (p.y > minY) n++;
+                return n;
+            }
+            finally { UnityEngine.Object.Destroy(mesh); }
+        }
+
+        /// <summary>Kit corners this far below the belt line still count: the windscreen and the side windows start there.</summary>
+        private const float BeltMargin = 0.05f;
 
         /// <summary>The kit's instruments: two needles, three warning lamps, the light and hazard switches, the indicator stalk and the horn.</summary>
         private static void AddInstruments(ChassisProfile profile, Vector3 gauges, Vector3 wheel, Vector3 stack)
@@ -518,11 +666,12 @@ namespace Chassis.Interior
         /// <summary>Lowest height of a kit seat's cushion top above the lowest point of the body: a 4 cm cushion plus 1 cm.</summary>
         private const float SeatAboveUnderside = 0.05f;
 
-        private static Renderer Piece(Transform parent, KitPart part, string name, float underside)
+        /// <summary>The mesh of a kit part and where it stands in the frame (seats rise above the underside), or null for an unknown kind.</summary>
+        private static Mesh MeshOf(KitPart part, float underside, out Vector3 at)
         {
             Mesh mesh;
             string kind = (part.Kind ?? "").ToLowerInvariant();
-            Vector3 at = part.Position;
+            at = part.Position;
             switch (kind)
             {
                 case "seat":
@@ -568,6 +717,14 @@ namespace Chassis.Interior
                     Core.Log.Warning("[Interior] unknown kit part '" + part.Kind + "' - skipped.");
                     return null;
             }
+            return mesh;
+        }
+
+        private static Renderer Piece(Transform parent, KitPart part, string name, float underside)
+        {
+            string kind = (part.Kind ?? "").ToLowerInvariant();
+            Mesh mesh = MeshOf(part, underside, out Vector3 at);
+            if (mesh == null) return null;
             string objectName = !string.IsNullOrEmpty(part.Name) ? part.Name : kind == "wheel" ? WheelName : "Chassis_" + kind + "_" + name;
             var go = new GameObject(objectName);
             go.transform.SetParent(parent, false);
@@ -661,13 +818,16 @@ namespace Chassis.Interior
                 if (lod0 != null && !lod0.Contains(r.GetInstanceID())) continue;
                 var mf = r.GetComponent<MeshFilter>();
                 if (mf == null || mf.sharedMesh == null) continue;
-                var go = new GameObject(LiningName);
-                go.transform.SetParent(r.transform, false);
-                go.AddComponent<MeshFilter>().sharedMesh = mf.sharedMesh;
-                var lr = go.AddComponent<MeshRenderer>();
                 var orig = b.Original[i];
                 var mats = new Material[orig.Length];
-                for (int k = 0; k < orig.Length; k++) mats[k] = IsWindow(orig[k], ip.Glass) ? (glassInside ?? lining) : lining;
+                var window = new bool[orig.Length];
+                for (int k = 0; k < orig.Length; k++) mats[k] = (window[k] = IsWindow(orig[k], ip.Glass)) ? (glassInside ?? lining) : lining;
+                var inside = ShellCut.Inside(mf.sharedMesh, lv.transform.worldToLocalMatrix * r.transform.localToWorldMatrix, window, out string why);
+                if (inside == null) Core.Log.Warning("[Interior] " + Registry.Name(lv) + ": the lining of " + mf.sharedMesh.name + " keeps its sloped side walls, which may show as bright bars inside (" + why + ").");
+                var go = new GameObject(LiningName);
+                go.transform.SetParent(r.transform, false);
+                go.AddComponent<MeshFilter>().sharedMesh = inside ?? mf.sharedMesh;
+                var lr = go.AddComponent<MeshRenderer>();
                 lr.sharedMaterials = mats;
                 lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 b.Linings.Add(go);

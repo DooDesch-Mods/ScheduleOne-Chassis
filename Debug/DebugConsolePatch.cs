@@ -83,6 +83,8 @@ namespace Chassis.Debugging
                         Say("car [enter|honk|blink|lock|part|side|rain|assign|owners] - horn, indicators, lock, lids (see 'chassis car help')");
                         Say("tune [part|remove|set|clear|stats|demo] - paint, parts, lights and driving of a car (see 'chassis tune help')");
                         Say("interior on|off|rebuild      - base interior and tinted glass in the vanilla cars");
+                        Say("interior fit on|off          - the kit gives way where it reaches out of the body (off = formula sizes)");
+                        Say("interior probe [off]         - red cubes on kit corners outside the body of the car you sit in or the nearest");
                         Say("interior lift <m>            - lowest cushion top above the car's underside, fits the vanilla cars again");
                         Say("interior glass [r g b a] [smooth] [metal] [premul 0|1] [inside] - retint the glass live");
 #endif
@@ -285,6 +287,28 @@ namespace Chassis.Debugging
                         {
                             Interior.BaseInterior.CushionAboveUnderside = float.Parse(parts[3], System.Globalization.CultureInfo.InvariantCulture);
                             Say("interior lift: cushions at least " + Interior.BaseInterior.CushionAboveUnderside + " m above the underside, " + Interior.BaseInterior.Refit() + " code(s) fitted again");
+                        }
+                        else if (op == "fit" && parts.Length > 3)
+                        {
+                            Interior.BaseInterior.FitToShell = parts[3] != "off";
+                            int n = Interior.BaseInterior.RemoveAll();
+                            Say("interior fit " + (Interior.BaseInterior.FitToShell ? "on" : "off") + ": " + n + " removed, " + Interior.BaseInterior.Refit() + " code(s) fitted again");
+                        }
+                        else if (op == "probe")
+                        {
+                            // probe [off]: the car the player sits in, else the nearest one within 30 m.
+                            var lp = Player.Local;
+                            LandVehicle car = lp != null && lp.CurrentVehicle != null ? lp.CurrentVehicle.GetComponent<LandVehicle>() : null;
+                            if (car == null && lp != null)
+                            {
+                                float best = 30f;
+                                foreach (var v in UnityEngine.Object.FindObjectsOfType<LandVehicle>())
+                                {
+                                    float dist = Vector3.Distance(v.transform.position, lp.transform.position);
+                                    if (dist < best) { best = dist; car = v; }
+                                }
+                            }
+                            Say("interior probe: " + Interior.BaseInterior.Probe(car, !(parts.Length > 3 && parts[3] == "off")));
                         }
                         else if (op == "rebuild") { int n = Interior.BaseInterior.RemoveAll(); Interior.BaseInterior.Reset(); Say("interior: " + n + " removed, rebuilding from the current profiles"); }
                         else if (op == "glass")
