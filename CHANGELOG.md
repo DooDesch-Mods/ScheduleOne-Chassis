@@ -4,6 +4,22 @@ All notable changes to Chassis are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.3.0] - 2026-10-21
+
+### Changed
+- The drivable wheelchair moved into its own mod, [Rollin](https://github.com/DooDesch-Mods/ScheduleOne-Rollin). Install
+  Rollin to keep riding and pushing wheelchairs.
+- A repaint at Marco's replaces paint that a tuning mod gave the car.
+
+### For mod authors
+- Tuning API: `RegisterTuningPart`, `InstallPart` and `RemovePart` for parts with their own model and driving factors.
+- Built-in parts: engine, brakes and transmission stages 1-3, suspension 1-4, turbo, drift tyres.
+- `SetPaint` (primary, secondary, finish), `SetRimColor`, `SetXenon`, `SetNeon`, `SetWindowTint`, `SetTyreSmoke` and
+  `SetHorn`. `SetTuning` and `GetTuning` store keys of your own mod.
+- The host checks each change against the owner, syncs it and saves it with the car. `TuningStatsOf` and
+  `TuningChanged` read it.
+- `PoseAsPusher`, `ReleasePusher` and `PushedBy` let a player push a vehicle from behind, as Rollin's wheelchair does.
+
 ## [1.2.0] - 2026-10-21
 
 ### Added
