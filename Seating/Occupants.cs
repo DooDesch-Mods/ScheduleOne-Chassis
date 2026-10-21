@@ -9,7 +9,7 @@ namespace Chassis.Seating
     /// <summary>
     /// Who sits where, on this peer. Every seated player of a vehicle with a Chassis profile gets a <see cref="SeatRig"/>:
     /// the local player through <c>Player.EnterVehicle</c>, everyone else through <c>Player.CurrentVehicleChanged</c>,
-    /// which vanilla runs for remote players only. Pushers get a rig too, from <see cref="Rideables.Push"/>.
+    /// which vanilla runs for remote players only. Pushers get a rig too, from <see cref="ChassisApi.PoseAsPusher"/>.
     ///
     /// The rig poses the body every frame in a postfix to <c>Player.Update</c>, after vanilla and before the animator
     /// and Final IK run.
@@ -108,7 +108,7 @@ namespace Chassis.Seating
 
         // ---- drive state for the hands -----------------------------------------------------------------------------
 
-        /// <summary>The local driver's own throttle, before a pusher's input is added. Set by <see cref="Rideables.Push"/>.</summary>
+        /// <summary>The local driver's own throttle, before a pusher's input is added. Set by <see cref="DriveInput"/>.</summary>
         internal static float LocalDrive;
 
         private static void UpdateDrive(SeatRig rig)

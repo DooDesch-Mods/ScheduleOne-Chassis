@@ -5,8 +5,8 @@ using HarmonyLib;
 namespace Chassis.Debugging
 {
     /// <summary>
-    /// Look-check camera for screenshots: orbits the local player's vehicle, else the nearest vehicle with a seated body, else the nearest wheelchair vehicle at a distance, a yaw against the
-    /// chair's facing and a height, following it while it rolls. In a vehicle it writes after VehicleCamera; on foot
+    /// Look-check camera for screenshots: orbits the local player's vehicle, else the nearest vehicle with a seated body, at a distance, a yaw against the
+    /// vehicle's facing and a height, following it while it rolls. In a vehicle it writes after VehicleCamera; on foot
     /// through PlayerCamera.OverrideTransform every frame.
     /// </summary>
     [HarmonyPatch(typeof(VehicleCamera), "LateUpdate")]
@@ -34,7 +34,7 @@ namespace Chassis.Debugging
             Active = true;
             // From outside the own body must show, also on foot or while pushing.
             Player.Local?.SetThirdPersonMeshesVisibility(true);
-            return "cam: " + _dist + " m at " + _yaw + " deg, " + _height + " m up" + (Target() == null ? " (no wheelchair vehicle yet)" : "");
+            return "cam: " + _dist + " m at " + _yaw + " deg, " + _height + " m up" + (Target() == null ? " (no vehicle yet)" : "");
         }
 
         private static IEnumerable<Seating.SeatRig> Seated()
@@ -54,13 +54,6 @@ namespace Chassis.Debugging
                 if (rig.Vehicle == null || rig.IsPusher) continue;
                 float d = Vector3.Distance(rig.Vehicle.position, local.transform.position);
                 if (d < bd) { bd = d; best = rig.Vehicle; }
-            }
-            if (best != null) return best;
-            foreach (var v in UnityEngine.Object.FindObjectsOfType<LandVehicle>())
-            {
-                if (!Rideables.WheelchairType.Is(v)) continue;
-                float d = Vector3.Distance(v.transform.position, local.transform.position);
-                if (d < bd) { bd = d; best = v.transform; }
             }
             return best;
         }

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Text;
 using Chassis.Api;
 using Chassis.Net;
-using Chassis.Rideables;
 using Chassis.Seating;
 using UnityEngine.InputSystem;
 #if IL2CPP
@@ -23,7 +22,7 @@ namespace Chassis.Vehicles
     /// Adds the keys of the current vehicle to the key hints at the bottom left, next to the game's own Headlights /
     /// Handbrake / Exit Vehicle. The list follows the vehicle and the seat: First Person in a seat with a Chassis
     /// profile, Horn and (with indicator lamps in the profile) Indicators for the driver, Push and Let Go while pushing
-    /// a wheelchair, then whatever mods add through <see cref="ChassisApi.AddKeyHint(string, string, Func{KeyHintContext, bool}, KeyCode[])"/>.
+    /// (<see cref="ChassisApi.PoseAsPusher"/>), then whatever mods add through <see cref="ChassisApi.AddKeyHint(string, string, Func{KeyHintContext, bool}, KeyCode[])"/>.
     ///
     /// The hint strip only draws descriptors that point at an input action. The Chassis keys are plain keys, so each
     /// gets an action of its own bound to the key; the strip reads only its binding path to pick the key picture.
@@ -137,8 +136,9 @@ namespace Chassis.Vehicles
             if (lp == null) return false;
             LandVehicle lv = null;
             // A seat wins over pushing: the hints follow the vehicle the player sits in.
-            bool pushing = lp.CurrentVehicle == null && Push.LocalPushing;
-            if (pushing) lv = Ids.Find<LandVehicle>(Push.LocalVehicleId);
+            var pushed = lp.CurrentVehicle == null ? ChassisApi.PushedBy(lp) : null;
+            bool pushing = pushed != null;
+            if (pushing) lv = pushed;
             else if (lp.CurrentVehicle != null) lv = lp.CurrentVehicle.GetComponent<LandVehicle>();
             if (lv == null) return false;
 

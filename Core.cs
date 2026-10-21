@@ -56,9 +56,7 @@ namespace Chassis
         private static void ResetWorld()
         {
             Seating.FirstPersonView.Reset();
-            Rideables.Push.Reset();
             Seating.Occupants.Reset();
-            Rideables.PropSwap.Reset();
             Vehicles.Registry.Reset();
             Vehicles.Fleet.Reset();
             Vehicles.Indicators.Reset();
@@ -78,18 +76,13 @@ namespace Chassis
             Instruments.Watch.Reset();
             Tune.State.Reset();
             Tune.Apply.Reset();
-#if DEBUG
-            Seating.SitDemo.Reset();
-#endif
         }
 
         public override void OnLateUpdate()
         {
             if (!_inWorld) return;
-            Guard("push placement", Rideables.Push.LateTick);
             Guard("parts", Vehicles.Parts.LateTick);
 #if DEBUG
-            Seating.SitDemo.LateProbe();
             Guard("look cam", Debugging.LookCam.LateTick);
 #endif
         }
@@ -105,8 +98,6 @@ namespace Chassis
             Guard("horn", Vehicles.Horn.Tick);
             Guard("indicators", Vehicles.Indicators.Tick);
             Guard("auto lights", Vehicles.AutoLights.Tick);
-            Guard("prop swap", Rideables.PropSwap.Tick);
-            Guard("push", Rideables.Push.Tick);
             Guard("view", Seating.FirstPersonView.Tick);
             Guard("key hints", Vehicles.KeyHints.Tick);
             Guard("pedals", Instruments.Pedals.Tick);
