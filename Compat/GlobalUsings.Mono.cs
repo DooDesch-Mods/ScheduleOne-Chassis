@@ -46,3 +46,6 @@ global using GameUiText = TMPro.TextMeshProUGUI;
 global using GameHud = ScheduleOne.UI.HUD;
 global using GameMoneyManager = ScheduleOne.Money.MoneyManager;
 global using VehicleSalesman = ScheduleOne.Dialogue.DialogueHandler_VehicleSalesman;
+global using GameVehicleSound = ScheduleOne.Vehicles.Sound.VehicleSound;
+global using GameVehicleModMenu = ScheduleOne.UI.VehicleModMenu;
+global using GameVehicleColor = ScheduleOne.Vehicles.Modification.EVehicleColor;

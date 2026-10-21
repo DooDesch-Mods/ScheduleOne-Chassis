@@ -3,6 +3,7 @@ using System.Globalization;
 using Chassis.Instruments;
 using Chassis.Rideables;
 using Chassis.Seating;
+using Chassis.Tune;
 using Chassis.Vehicles;
 
 namespace Chassis.Net
@@ -25,7 +26,9 @@ namespace Chassis.Net
     ///   req.ctl vehicle name player v -> ctl vehicle name v player    (a switch was used, Controls)
     ///   req.trip vehicle              -> odo ...                      (trip back to 0)
     ///                                    odo id,odo,trip;...           (host: odometers once a second, Odometer)
-    ///   req.sync player               -> own, blink, part, side, odo, ctls (a client that joined late)
+    ///   req.tune vehicle player k v   -> tune vehicle k v             (host: only the owner, Tune.State)
+    ///                                    tunes vehicle k=v;k=v         (host: a car's whole tuning)
+    ///   req.sync player               -> own, blink, part, side, odo, ctls, tunes (a client that joined late)
     /// Ids are FishNet object ids; numbers are invariant culture.
     /// </summary>
     internal static class ChassisSync
@@ -56,6 +59,7 @@ namespace Chassis.Net
                 case "req.pedal": ChassisNet.ToAll("pedal", m.Arg(0), m.Arg(1), m.Arg(2) == "1" ? "1" : "0"); break;
                 case "req.ctl": Controls.HostUse(I(m.Arg(0)), m.Arg(1), I(m.Arg(2)), Fl(m.Arg(3))); break;
                 case "req.trip": Controls.HostTrip(I(m.Arg(0))); break;
+                case "req.tune": State.HostRequest(I(m.Arg(0)), m.Arg(1), m.Arg(2), m.Arg(3)); break;
                 case "req.sync":
                     Core.Log.Msg("[Net] " + m.Arg(0) + " asked for the current vehicle state.");
                     Fleet.Broadcast(true);
@@ -63,6 +67,7 @@ namespace Chassis.Net
                     Parts.HostReplay();
                     Odometer.Broadcast(true);
                     Controls.HostReplay();
+                    State.HostReplay();
                     break;
                 default: Core.Log.Warning("[Net] unknown request " + m + ", dropped."); break;
             }
@@ -90,6 +95,8 @@ namespace Chassis.Net
                 case "odo": Odometer.OnOdo(m.Arg(0)); break;
                 case "ctl": Controls.OnUse(I(m.Arg(0)), m.Arg(1), Fl(m.Arg(2)), I(m.Arg(3))); break;
                 case "ctls": Controls.OnStates(m.Arg(0)); break;
+                case "tune": State.OnTune(I(m.Arg(0)), m.Arg(1), m.Arg(2)); break;
+                case "tunes": State.OnTunes(I(m.Arg(0)), m.Arg(1)); break;
                 default: Core.Log.Warning("[Net] unknown state " + m + ", dropped."); break;
             }
         }
