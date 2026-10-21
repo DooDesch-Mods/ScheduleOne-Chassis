@@ -101,6 +101,32 @@ namespace Chassis.Interior
             return report == null ? tris : null;
         }
 
+        /// <summary>A normal whose up component (in root space) is below this belongs to a side wall.</summary>
+        private const float WallUp = 0.85f;
+
+        /// <summary>
+        /// A copy of <paramref name="src"/> for the lining that draws the shell's back faces, lit with the outward normals.
+        /// A side surface that slopes up outside, such as the shoulder under the side windows, would catch the sky and show
+        /// as a bright bar along the cabin; in the copy every side wall gets a level normal, so it shades like the door
+        /// below it. Roof and floor keep theirs, the glass submeshes in <paramref name="window"/> too. Null with
+        /// <paramref name="report"/> set when the mesh cannot be read.
+        /// </summary>
+        internal static Mesh Inside(Mesh src, Matrix4x4 toRoot, bool[] window, out string report)
+        {
+            string key = "in|" + src.GetInstanceID();
+            if (_cut.TryGetValue(key, out var done)) { report = done != null ? "inside copy reused" : "could not be read before"; return done; }
+            Mesh made = null;
+            try
+            {
+                made = Copy(src, toRoot, (int s, Vector3 a, Vector3 b, Vector3 c, out float ar) => { ar = 0f; return false; },
+                    "_Chassis_inside", out _, out _, out report, window ?? new bool[0]);
+                if (made != null) { report = "side walls levelled"; Core.Log.Msg("[Interior] " + src.name + ": lining copy with levelled side walls made."); }
+            }
+            catch (Exception e) { report = "readback threw: " + e.Message; Core.Log.Error("[Interior] levelling the side walls of " + src.name + " failed: " + e); }
+            _cut[key] = made;
+            return made;
+        }
+
         internal static void Reset() => _cut.Clear();
 
         private delegate bool DropTriangle(int submesh, Vector3 a, Vector3 b, Vector3 c, out float area);
@@ -108,9 +134,10 @@ namespace Chassis.Interior
         /// <summary>
         /// Reads <paramref name="src"/> back from the GPU and copies it without the triangles <paramref name="drop"/> picks
         /// (corners in root space). Null with <paramref name="report"/> set when the mesh cannot be read, null with no
-        /// report when nothing was dropped.
+        /// report when nothing was dropped. With <paramref name="level"/>, the copy is always made and the side walls
+        /// outside the submeshes it marks get level normals.
         /// </summary>
-        private static Mesh Copy(Mesh src, Matrix4x4 toRoot, DropTriangle drop, string suffix, out int removed, out float area, out string report)
+        private static Mesh Copy(Mesh src, Matrix4x4 toRoot, DropTriangle drop, string suffix, out int removed, out float area, out string report, bool[] level = null)
         {
             removed = 0;
             area = 0f;
@@ -181,7 +208,7 @@ namespace Chassis.Interior
                 }
                 tris.Add(keep.ToArray());
             }
-            if (removed == 0) { report = null; return null; }
+            if (removed == 0 && level == null) { report = null; return null; }
 
             var m = new Mesh { name = src.name + suffix };
             if (count > 65535) m.indexFormat = IndexFormat.UInt32;
@@ -189,7 +216,12 @@ namespace Chassis.Interior
             foreach (var c in channels)
             {
                 if (c.attr == VertexAttribute.Position) continue;
-                if (c.attr == VertexAttribute.Normal) m.normals = Read3(vdata, count, step, c.at);
+                if (c.attr == VertexAttribute.Normal)
+                {
+                    var n = Read3(vdata, count, step, c.at);
+                    if (level != null) Level(n, tris, level, toRoot);
+                    m.normals = n;
+                }
                 else if (c.attr == VertexAttribute.Tangent) m.tangents = Read4(vdata, count, step, c.at, c.dim);
                 else if (c.attr == VertexAttribute.Color) m.colors = Colors(Read4(vdata, count, step, c.at, c.dim));
                 else
@@ -221,6 +253,26 @@ namespace Chassis.Interior
                 if (p.x < x0 || p.x > x1 || p.z < z0 || p.z > z1) return false;
             }
             return true;
+        }
+
+        /// <summary>Levels the side-wall normals of the vertices that a submesh outside <paramref name="keep"/> uses.</summary>
+        private static void Level(Vector3[] normals, List<int[]> tris, bool[] keep, Matrix4x4 toRoot)
+        {
+            var fromRoot = toRoot.inverse;
+            var done = new bool[normals.Length];
+            for (int s = 0; s < tris.Count; s++)
+            {
+                if (s < keep.Length && keep[s]) continue;
+                foreach (int v in tris[s])
+                {
+                    if (done[v]) continue;
+                    done[v] = true;
+                    Vector3 n = toRoot.MultiplyVector(normals[v]).normalized;
+                    if (Mathf.Abs(n.y) >= WallUp) continue;
+                    n.y = 0f;
+                    normals[v] = fromRoot.MultiplyVector(n).normalized;
+                }
+            }
         }
 
         private static Vector3[] Read3(float[] d, int count, int step, int at)
