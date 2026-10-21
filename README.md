@@ -104,6 +104,7 @@ Settings live in `UserData/MelonPreferences.cfg` under `Chassis`.
 The public API is the static class `ChassisApi` in the namespace `Chassis.Api`
 ([`Api/`](Api/)). Reference `Chassis.dll` and add Chassis as a dependency of your package.
 Every type and member: [API reference](https://docs.doodesch.de/mods/chassis/api/).
+Developers and AI coding agents: read [AGENTS.md](AGENTS.md) - depend on the API, do not copy the source.
 
 - **Profiles:** A `ChassisProfile` per vehicle code holds seats, steering wheel, lids, lamps,
   horn and interior. `ChassisApi.Register` adds one from code, `ChassisApi.Assign` gives one
