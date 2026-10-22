@@ -4,6 +4,15 @@ All notable changes to Chassis are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.5.0] - 2026-10-22
+
+### Added
+- Drivers hold the steering wheel: both hands close around the rim and turn with it, for you and for NPC drivers.
+
+### For mod authors
+- `HandProfile.RimRadius`, `RimThickness`, `RimOffset` and `GripAngle` close the hands around the rim. `FitSeat`
+  measures `RimRadius` from the wheel's mesh.
+
 ## [1.4.0] - 2026-10-21
 
 ### Added
