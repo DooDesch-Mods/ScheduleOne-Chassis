@@ -254,9 +254,23 @@ namespace Chassis.Seating
 
         private void PlaceAnchor()
         {
-            _anchor.localPosition = _seat.Root;
-            _anchor.localRotation = Quaternion.Euler(0f, _seat.Yaw, 0f);
+            _anchor.localPosition = BodyRoot();
+            _anchor.localRotation = BodyRotation();
             _anchor.localScale = Inverse(_frame.lossyScale);
+        }
+
+        /// <summary>The sit clip's hips above the avatar root (<see cref="SeatProfile.Root"/>).</summary>
+        private static readonly Vector3 SitHips = new Vector3(0f, 0.825f, 0f);
+
+        /// <summary>The avatar's rotation in the frame: the seat's yaw, then its recline about the hips.</summary>
+        private Quaternion BodyRotation() => Quaternion.Euler(0f, _seat.Yaw, 0f) * Quaternion.Euler(-_seat.Recline, 0f, 0f);
+
+        /// <summary>The avatar root in the frame, moved so a reclined body keeps its hips where the upright one has them.</summary>
+        private Vector3 BodyRoot()
+        {
+            if (Mathf.Approximately(_seat.Recline, 0f)) return _seat.Root;
+            Quaternion yaw = Quaternion.Euler(0f, _seat.Yaw, 0f);
+            return _seat.Root + yaw * (SitHips - Quaternion.Euler(-_seat.Recline, 0f, 0f) * SitHips);
         }
 
         private void ApplyGlide()
@@ -269,8 +283,8 @@ namespace Chassis.Seating
                 return;
             }
             float k = Mathf.SmoothStep(0f, 1f, _glideT);
-            root.position = _frame.TransformPoint(Vector3.Lerp(_glideFrom, _seat.Root, k));
-            root.rotation = _frame.rotation * Quaternion.Slerp(_glideFromRot, Quaternion.Euler(0f, _seat.Yaw, 0f), k);
+            root.position = _frame.TransformPoint(Vector3.Lerp(_glideFrom, BodyRoot(), k));
+            root.rotation = _frame.rotation * Quaternion.Slerp(_glideFromRot, BodyRotation(), k);
         }
 
         /// <summary>Profile changed in place: re-read seat values.</summary>
