@@ -4,6 +4,11 @@ All notable changes to Chassis are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.6.1] - 2026-10-22
+
+### Fixed
+- The cheetah's body beside the rear window is no longer see-through.
+
 ## [1.6.0] - 2026-10-22
 
 ### Fixed
