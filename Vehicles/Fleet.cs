@@ -19,9 +19,16 @@ namespace Chassis.Vehicles
     /// an older record through <see cref="ChassisApi.ResolveUnknownOwner"/>.
     ///
     /// Unlocked, everyone may drive. Locked, only the owner gets in, and others only while the owner sits inside.
+    ///
+    /// Vanilla gives the local player the code <see cref="NoSteamCode"/> when Steam was not ready at start. Such a
+    /// game has no other players, so that player owns every vehicle; and a host with a Steam id takes over the records
+    /// written under that code, because a save played without Steam is the host's own save.
     /// </summary>
     internal static class Fleet
     {
+        /// <summary>The player code vanilla uses when Steam was not initialised (<c>Player.OnStartClient</c>).</summary>
+        internal const string NoSteamCode = "0";
+
         internal sealed class Rec
         {
             internal string Owner = string.Empty;
@@ -63,7 +70,8 @@ namespace Chassis.Vehicles
         internal static bool IsOwner(LandVehicle lv, string playerCode)
         {
             var r = For(lv);
-            return r != null && !string.IsNullOrEmpty(playerCode) && r.Owner == playerCode;
+            if (r == null || string.IsNullOrEmpty(playerCode)) return false;
+            return r.Owner == playerCode || playerCode == NoSteamCode;
         }
 
         internal static bool IsMine(LandVehicle lv) => IsOwner(lv, MyCode());
@@ -74,7 +82,7 @@ namespace Chassis.Vehicles
             why = null;
             var r = For(lv);
             if (r == null || !r.Locked) return true;
-            if (r.Owner == MyCode()) return true;
+            if (IsOwner(lv, MyCode())) return true;
             var seats = lv.Seats;
             if (seats != null)
                 foreach (var s in seats)
@@ -154,13 +162,13 @@ namespace Chassis.Vehicles
             EnsureLoaded();
             string host = MyCode();
             if (host.Length == 0) return;
+            bool changed = AdoptNoSteamRecords(host);
             for (int i = Pending.Count - 1; i >= 0; i--)
             {
                 if (now - Pending[i].At <= ClaimSeconds) continue;
                 Core.Log.Warning("[Fleet] the '" + Pending[i].Code + "' purchase announced by " + Pending[i].Buyer + " never showed up as a vehicle - announcement dropped.");
                 Pending.RemoveAt(i);
             }
-            bool changed = false;
             foreach (var v in Registry.All)
             {
                 if (v == null || !v.IsPlayerOwned) continue;
@@ -209,6 +217,24 @@ namespace Chassis.Vehicles
             }
             Core.Log.Msg("[Fleet] " + Registry.Name(v) + " " + Short(v.GUID.ToString()) + " had no owner record - it belongs to the host (" + host + ").");
             return new Rec { Owner = host };
+        }
+
+        /// <summary>
+        /// Host with a Steam id: records written while the game ran without Steam become the host's. Returns whether
+        /// any record changed.
+        /// </summary>
+        private static bool AdoptNoSteamRecords(string host)
+        {
+            if (host == NoSteamCode) return false;
+            int adopted = 0;
+            foreach (var r in ByGuid.Values)
+            {
+                if (r.Owner != NoSteamCode) continue;
+                r.Owner = host;
+                adopted++;
+            }
+            if (adopted > 0) Core.Log.Msg("[Fleet] " + adopted + " vehicle(s) saved without Steam (owner " + NoSteamCode + ") now belong to the host " + host + ".");
+            return adopted > 0;
         }
 
         /// <summary>Host: send the current records to everyone when they changed (or when forced).</summary>

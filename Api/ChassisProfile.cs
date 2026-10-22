@@ -120,6 +120,10 @@ namespace Chassis.Api
         /// <value>0 faces the frame's forward axis, 90 its right, 180 backwards.</value>
         public float Yaw;
 
+        /// <summary>How far the whole body leans back, in degrees, turned about the hips; the back stays straight.</summary>
+        /// <value>0 sits upright as the sit clip does. 15 suits a low car roof. Hands and feet keep their own points.</value>
+        public float Recline;
+
         /// <summary>Camera position for the first-person view.</summary>
         /// <value>A point in the frame, in metres; about 0.6 m above the hips looks from the avatar's eyes.</value>
         public Vector3 Eyes;
