@@ -8,7 +8,8 @@ namespace Chassis.Interior
     /// <summary>
     /// Opens the cabin of a vanilla body that closes it with a flat lid at the belt line. The body meshes are not
     /// readable on the CPU, so the vertex and index buffers are read back from the GPU into a readable copy, and the
-    /// copy leaves out the near-horizontal triangles that lie inside the window band's footprint at belt height.
+    /// copy leaves out the near-horizontal triangles that lie inside the window band's footprint at belt height, under
+    /// the roof or the glass.
     /// One copy per source mesh and car code; a mesh with no such triangles keeps its original.
     /// </summary>
     internal static class ShellCut
@@ -32,6 +33,9 @@ namespace Chassis.Interior
             if (_cut.TryGetValue(key, out var done)) { report = done != null ? "open copy reused" : "no lid"; return done; }
             float belt = band.min.y;
             float x0 = band.min.x - Margin, x1 = band.max.x + Margin, z0 = band.min.z - Margin, z1 = band.max.z + Margin;
+            var cover = new Cover(belt + Above);
+            int open = 0;
+            var kept = new Bounds();
             Mesh made = null;
             try
             {
@@ -39,10 +43,17 @@ namespace Chassis.Interior
                 {
                     ar = 0f;
                     bool glass = window != null && s < window.Length && window[s];
-                    return !glass && IsLid(a, b, c, belt, x0, x1, z0, z1, out ar);
-                }, "_Chassis_open", out int removed, out float area, out report);
+                    if (glass || !IsLid(a, b, c, belt, x0, x1, z0, z1, out ar)) return false;
+                    Vector3 mid = (a + b + c) / 3f;
+                    if (cover.Over(mid)) return true;
+                    if (open++ == 0) kept = new Bounds(mid, Vector3.zero); else kept.Encapsulate(mid);
+                    return false;
+                }, "_Chassis_open", out int removed, out float area, out report, scan: cover.Add);
                 if (made != null) report = "lid of " + removed + " triangle(s), " + area.ToString("F2") + " m2 removed";
                 else if (report == null) report = "no lid";
+                if (open > 0)
+                    report += "; " + open + " flat triangle(s) at belt height kept, nothing above them (x " + kept.min.x.ToString("F2") + ".." + kept.max.x.ToString("F2")
+                        + ", z " + kept.min.z.ToString("F2") + ".." + kept.max.z.ToString("F2") + ")";
             }
             catch (Exception e) { report = "readback threw: " + e.Message; Core.Log.Error("[Interior] opening " + src.name + " failed: " + e); }
             _cut[key] = made;
@@ -86,16 +97,17 @@ namespace Chassis.Interior
             float belt = band?.min.y ?? 0f;
             float x0 = 0f, x1 = 0f, z0 = 0f, z1 = 0f;
             if (band.HasValue) { var b = band.Value; x0 = b.min.x - Margin; x1 = b.max.x + Margin; z0 = b.min.z - Margin; z1 = b.max.z + Margin; }
+            var cover = new Cover(belt + Above);
             try
             {
                 Copy(src, toRoot, (int s, Vector3 a, Vector3 b, Vector3 c, out float ar) =>
                 {
                     ar = 0f;
                     bool glass = window != null && s < window.Length && window[s];
-                    if (band.HasValue && !glass && IsLid(a, b, c, belt, x0, x1, z0, z1, out _)) return false;
+                    if (band.HasValue && !glass && IsLid(a, b, c, belt, x0, x1, z0, z1, out _) && cover.Over((a + b + c) / 3f)) return false;
                     tris.Add(a); tris.Add(b); tris.Add(c);
                     return false;
-                }, "_Chassis_probe", out _, out _, out report);
+                }, "_Chassis_probe", out _, out _, out report, scan: band.HasValue ? cover.Add : (Action<Vector3, Vector3, Vector3>)null);
             }
             catch (Exception e) { report = "readback threw: " + e.Message; Core.Log.Warning("[Interior] reading " + src.name + " for the shell test failed: " + e.Message); return null; }
             return report == null ? tris : null;
@@ -135,9 +147,10 @@ namespace Chassis.Interior
         /// Reads <paramref name="src"/> back from the GPU and copies it without the triangles <paramref name="drop"/> picks
         /// (corners in root space). Null with <paramref name="report"/> set when the mesh cannot be read, null with no
         /// report when nothing was dropped. With <paramref name="level"/>, the copy is always made and the side walls
-        /// outside the submeshes it marks get level normals.
+        /// outside the submeshes it marks get level normals. <paramref name="scan"/> sees every triangle before
+        /// <paramref name="drop"/> sees the first one.
         /// </summary>
-        private static Mesh Copy(Mesh src, Matrix4x4 toRoot, DropTriangle drop, string suffix, out int removed, out float area, out string report, bool[] level = null)
+        private static Mesh Copy(Mesh src, Matrix4x4 toRoot, DropTriangle drop, string suffix, out int removed, out float area, out string report, bool[] level = null, Action<Vector3, Vector3, Vector3> scan = null)
         {
             removed = 0;
             area = 0f;
@@ -194,11 +207,19 @@ namespace Chassis.Interior
             var root = new Vector3[count];
             for (int v = 0; v < count; v++) root[v] = toRoot.MultiplyPoint3x4(pos[v]);
 
-            var tris = new List<int[]>();
             for (int s = 0; s < subs; s++)
             {
                 var d = src.GetSubMesh(s);
                 if (d.topology != MeshTopology.Triangles) { report = "submesh " + s + " is " + d.topology; return null; }
+                if (scan == null) continue;
+                for (int t = d.indexStart; t + 2 < d.indexStart + d.indexCount; t += 3)
+                    scan(root[indices[t] + d.baseVertex], root[indices[t + 1] + d.baseVertex], root[indices[t + 2] + d.baseVertex]);
+            }
+
+            var tris = new List<int[]>();
+            for (int s = 0; s < subs; s++)
+            {
+                var d = src.GetSubMesh(s);
                 var keep = new List<int>(d.indexCount);
                 for (int t = d.indexStart; t + 2 < d.indexStart + d.indexCount; t += 3)
                 {
@@ -253,6 +274,45 @@ namespace Chassis.Interior
                 if (p.x < x0 || p.x > x1 || p.z < z0 || p.z > z1) return false;
             }
             return true;
+        }
+
+        /// <summary>How far above a lid triangle the roof or the glass has to be.</summary>
+        private const float Clear = 0.05f;
+
+        /// <summary>
+        /// The body above the belt zone, in root space: roof, pillars and glass. The cabin lid lies under them. A flat
+        /// shoulder beside the rear window or a rear deck at belt height has open sky above it; it is part of the outside
+        /// of the car and stays.
+        /// </summary>
+        private sealed class Cover
+        {
+            private readonly List<Vector3> _tris = new List<Vector3>();
+            private readonly float _from;
+
+            internal Cover(float from) { _from = from; }
+
+            internal void Add(Vector3 a, Vector3 b, Vector3 c)
+            {
+                if (Mathf.Max(a.y, Mathf.Max(b.y, c.y)) <= _from) return;
+                _tris.Add(a); _tris.Add(b); _tris.Add(c);
+            }
+
+            /// <summary>Whether a triangle of the body lies straight above <paramref name="p"/>.</summary>
+            internal bool Over(Vector3 p)
+            {
+                for (int i = 0; i + 2 < _tris.Count; i += 3)
+                {
+                    Vector3 a = _tris[i], b = _tris[i + 1], c = _tris[i + 2];
+                    float d = (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z);
+                    if (Mathf.Abs(d) < 1e-8f) continue;
+                    float u = ((b.z - c.z) * (p.x - c.x) + (c.x - b.x) * (p.z - c.z)) / d;
+                    float v = ((c.z - a.z) * (p.x - c.x) + (a.x - c.x) * (p.z - c.z)) / d;
+                    float w = 1f - u - v;
+                    if (u < 0f || v < 0f || w < 0f) continue;
+                    if (u * a.y + v * b.y + w * c.y > p.y + Clear) return true;
+                }
+                return false;
+            }
         }
 
         /// <summary>Levels the side-wall normals of the vertices that a submesh outside <paramref name="keep"/> uses.</summary>
