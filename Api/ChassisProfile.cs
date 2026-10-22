@@ -172,6 +172,29 @@ namespace Chassis.Api
         /// <summary>How strongly the hands turn to the grip, 0 to 1; 0 leaves the wrists to the animation.</summary>
         public float RotationWeight;
 
+        /// <summary>
+        /// Wheel mode: radius of the steering wheel's rim, from the steering pivot to the middle of the rim. Above 0 the
+        /// hands close around the rim at <see cref="GripAngle"/>: palm on the rim, fingers around it, thumb on the inside,
+        /// and <see cref="GripStart"/> and <see cref="RotationWeight"/> are not used. 0 keeps the wrists at
+        /// <see cref="GripStart"/> with the fingers as the animation leaves them.
+        /// </summary>
+        /// <value>In metres, e.g. 0.18 on a car wheel 0.39 m across. <see cref="ChassisApi.FitSeat(LandVehicle, int, Transform, Transform, float)"/> measures it from the wheel's mesh.</value>
+        public float RimRadius;
+
+        /// <summary>Wheel mode: thickness of the rim the fingers close around.</summary>
+        /// <value>In metres, e.g. 0.03.</value>
+        public float RimThickness = 0.03f;
+
+        /// <summary>
+        /// Wheel mode: how far the rim's middle sits from the steering pivot along the column, towards the driver, in
+        /// metres. 0 when the pivot is the rim's centre; set it when the pivot sits at the hub behind the rim.
+        /// </summary>
+        public float RimOffset;
+
+        /// <summary>Wheel mode with a <see cref="RimRadius"/>: where the right hand holds the rim, the left one mirrored.</summary>
+        /// <value>Degrees from level towards the top of the wheel: 0 holds it at quarter to three, 30 at ten to two, negative below.</value>
+        public float GripAngle;
+
         /// <summary>Elbow bend goal (right side).</summary>
         /// <value>A point in the frame the elbow bends towards, in metres: right of and behind the hand points it outwards.</value>
         public Vector3 Elbow = new Vector3(0.55f, 0.85f, -0.4f);

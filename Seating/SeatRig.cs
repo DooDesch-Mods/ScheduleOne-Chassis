@@ -13,7 +13,7 @@ namespace Chassis.Seating
     /// LateUpdate. Under the player that parent faces the camera; under the anchor it faces the seat. The anchor
     /// cancels the frame's scale so the avatar keeps its own size.
     /// </summary>
-    internal sealed class SeatRig
+    internal sealed partial class SeatRig
     {
         internal const float GlideSeconds = 0.35f;
 
@@ -407,9 +407,13 @@ namespace Chassis.Seating
             if (_glideT < 1f) { _glideT = Mathf.Min(1f, _glideT + dt / GlideSeconds); }
             ApplyGlide();
             if (!_ikOn) return;
+#if DEBUG
+            SeeHands();
+#endif
 
             var s = _ik.BodyIK.solvers;
             var hands = _seat.Hands;
+            bool rimGrip = false;
             if (Npc != null && !Npc.IsConscious) Slump(s);
             else if (hands != null)
             {
@@ -423,14 +427,22 @@ namespace Chassis.Seating
                     PlaceGrip(_gripR, _rimR, hands, 1f, _strokeR);
                     lean = (fl + fr) * 0.5f;
                 }
+                else if (hands.Mode == "wheel" && PlaceRimGrips(hands))
+                {
+                    rimGrip = true;
+                    lean = 0f;
+                }
                 else
                 {
                     Mirror(_gripL, _gripR, hands.GripStart, hands.Mode == "wheel" ? WheelCentre() : 0f);
                     lean = 0f;
                 }
-                Quaternion seatRot = _frame.rotation * Quaternion.Euler(0f, _seat.Yaw, 0f);
-                _gripR.rotation = seatRot * Quaternion.Euler(0f, 0f, 90f);
-                _gripL.rotation = seatRot * Quaternion.Euler(0f, 0f, -90f);
+                if (!rimGrip)
+                {
+                    Quaternion seatRot = _frame.rotation * Quaternion.Euler(0f, _seat.Yaw, 0f);
+                    _gripR.rotation = seatRot * Quaternion.Euler(0f, 0f, 90f);
+                    _gripL.rotation = seatRot * Quaternion.Euler(0f, 0f, -90f);
+                }
                 if (hands.Mode == "wheel") TurnWithWheel(hands);
                 Mirror(_elbowL, _elbowR, hands.Elbow);
                 // Closer to the stroke end, the body leans further towards the rims.
@@ -442,7 +454,14 @@ namespace Chassis.Seating
                 }
                 else s.spine.IKPositionWeight = 0f;
                 s.leftHand.IKPositionWeight = 1f; s.rightHand.IKPositionWeight = 1f;
-                s.leftHand.IKRotationWeight = hands.RotationWeight; s.rightHand.IKRotationWeight = hands.RotationWeight;
+                float rw = rimGrip ? 1f : hands.RotationWeight;
+                s.leftHand.IKRotationWeight = rw; s.rightHand.IKRotationWeight = rw;
+            }
+            if (rimGrip != _rimGrip)
+            {
+                Core.Log.Msg("[Seat] " + Name + (rimGrip ? " holds the rim of " + Code + "'s wheel (radius " + hands.RimRadius.ToString("F3") + " m, at " + hands.GripAngle.ToString("F0") + " deg)."
+                    : hands != null && hands.Mode == "wheel" && hands.RimRadius > 0f ? " lets go of the rim (no wheel, no hand bones or slumped), hands on the plain grip." : " lets go of the rim."));
+                _rimGrip = rimGrip;
             }
             var feet = _seat.Feet;
             if (feet != null)
@@ -623,6 +642,8 @@ namespace Chassis.Seating
                 }
             }
             catch (Exception e) { Core.Log.Error("[Seat] detaching " + Name + " failed: " + e); }
+            try { ReleaseGrip(); }
+            catch (Exception e) { Core.Log.Error("[Seat] opening " + Name + "'s hands failed: " + e); }
             foreach (var t in new[] { _gripL, _gripR, _footL, _footR, _kneeL, _kneeR, _elbowL, _elbowR, _anchor })
                 if (t != null) UnityEngine.Object.Destroy(t.gameObject);
             _anchor = null;

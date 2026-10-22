@@ -15,6 +15,9 @@ namespace Chassis.Debugging
         internal static bool Active;
         private static float _dist = 2.6f, _yaw = 35f, _height = 1.2f;
         private static bool _overriding;
+        /// <summary>Aim at the seated body's hands instead of its head (<c>chassis cam hands ...</c>).</summary>
+        private static bool _hands;
+        private static int _hand;
 
         internal static string Set(string[] p)
         {
@@ -28,13 +31,16 @@ namespace Chassis.Debugging
                 if (lp != null && (rig == null || rig.IsPusher)) lp.SetThirdPersonMeshesVisibility(false);
                 return "cam: off";
             }
+            _hands = p.Length > 2 && (p[2] == "hands" || p[2] == "handl" || p[2] == "handr");
+            _hand = p.Length > 2 && p[2] == "handl" ? -1 : p.Length > 2 && p[2] == "handr" ? 1 : 0;
+            if (_hands) p = System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Where(p, (x, i) => i != 2));
             if (p.Length > 2) float.TryParse(p[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _dist);
             if (p.Length > 3) float.TryParse(p[3], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _yaw);
             if (p.Length > 4) float.TryParse(p[4], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _height);
             Active = true;
             // From outside the own body must show, also on foot or while pushing.
             Player.Local?.SetThirdPersonMeshesVisibility(true);
-            return "cam: " + _dist + " m at " + _yaw + " deg, " + _height + " m up" + (Target() == null ? " (no vehicle yet)" : "");
+            return "cam: " + (_hands ? (_hand < 0 ? "left hand, " : _hand > 0 ? "right hand, " : "hands, ") : "") + _dist + " m at " + _yaw + " deg, " + _height + " m up" + (Target() == null ? " (no vehicle yet)" : "");
         }
 
         private static IEnumerable<Seating.SeatRig> Seated()
@@ -67,9 +73,14 @@ namespace Chassis.Debugging
             Vector3 centre = t.position + Vector3.up * 0.7f;
             // Frame a seated body's head where there is one, so a car shot shows the driver and not the bonnet.
             foreach (var rig in Seated())
-                if (rig.Vehicle == t && !rig.IsPusher && rig.Head != null) { centre = rig.Head.position; break; }
+                if (rig.Vehicle == t && !rig.IsPusher && rig.Head != null)
+                {
+                    centre = _hands && rig.HandAt(_hand).HasValue ? rig.HandAt(_hand).Value : rig.Head.position;
+                    break;
+                }
             Vector3 dir = Quaternion.Euler(0f, _yaw, 0f) * fwd;
-            at = t.position + dir * _dist + Vector3.up * _height;
+            // Close to the hands the camera orbits them, not the vehicle's origin.
+            at = (_hands ? centre : t.position) + dir * _dist + Vector3.up * _height;
             rot = Quaternion.LookRotation(centre - at, Vector3.up);
             return true;
         }
