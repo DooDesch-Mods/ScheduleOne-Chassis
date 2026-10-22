@@ -84,6 +84,7 @@ namespace Chassis
         {
             if (!_inWorld) return;
             Guard("parts", Vehicles.Parts.LateTick);
+            Guard("grips", Seating.SeatRig.LateTick);
 #if DEBUG
             Guard("look cam", Debugging.LookCam.LateTick);
 #endif

@@ -395,6 +395,9 @@ namespace Chassis.Interior
                 {
                     ds.Hands.Mode = "wheel";
                     ds.Hands.GripStart = wheelAt + Vector3.right * 0.17f;
+                    // The kit wheel's rim: 0.17 m to the middle of a tube 0.024 m thick each way, in the pivot's plane.
+                    ds.Hands.RimRadius = 0.17f;
+                    ds.Hands.RimThickness = 0.048f;
                 }
 
                 _fitted.Add(profile);

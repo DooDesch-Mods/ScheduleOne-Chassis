@@ -19,7 +19,7 @@ namespace Chassis.Debugging
             Say("profile show [code]                  - the profile as JSON (code: default the vehicle you sit in)");
             Say("profile set <field> <values> [code] [seat] - move a value, writes the JSON:");
             Say("    root|eyes|gripstart|gripend|elbow|foot|footrot|knee <x> <y> <z>");
-            Say("    leanstart|leanend <x> <y> <z> <w>, yaw|recovery|handrotw|footrotw|followmax <v>, handmode rim|fixed|wheel");
+            Say("    leanstart|leanend <x> <y> <z> <w>, yaw|recovery|handrotw|footrotw|followmax|rimradius|rimthick|rimoffset|gripangle <v>, handmode rim|fixed|wheel");
             Say("    stand|handle|pushelbow <x> <y> <z>, reach <v>");
             Say("profile save [code] | reload         - write the JSON | read defaults and files again");
         }
@@ -71,7 +71,7 @@ namespace Chassis.Debugging
             string field = p[3].ToLower();
             int argc = field switch
             {
-                "yaw" or "recovery" or "handrotw" or "footrotw" or "reach" or "followmax" or "handmode" => 1,
+                "yaw" or "recovery" or "handrotw" or "footrotw" or "reach" or "followmax" or "handmode" or "rimradius" or "rimthick" or "rimoffset" or "gripangle" => 1,
                 "leanstart" or "leanend" => 4,
                 _ => 3,
             };
@@ -94,6 +94,10 @@ namespace Chassis.Debugging
                 case "handrotw": Hands(seat).RotationWeight = Mathf.Clamp01(F(p, 4, 0f)); break;
                 case "handmode": Hands(seat).Mode = p.Length > 4 ? p[4].ToLower() : "fixed"; break;
                 case "followmax": Hands(seat).FollowMax = F(p, 4, 90f); break;
+                case "rimradius": Hands(seat).RimRadius = Mathf.Max(0f, F(p, 4, 0f)); break;
+                case "rimthick": Hands(seat).RimThickness = Mathf.Max(0f, F(p, 4, 0.03f)); break;
+                case "gripangle": Hands(seat).GripAngle = F(p, 4, 0f); break;
+                case "rimoffset": Hands(seat).RimOffset = F(p, 4, 0f); break;
                 case "leanstart": Hands(seat).LeanStart = v; Hands(seat).LeanStartWeight = Mathf.Clamp01(F(p, 7, 0f)); break;
                 case "leanend": Hands(seat).LeanEnd = v; Hands(seat).LeanEndWeight = Mathf.Clamp01(F(p, 7, 0f)); break;
                 case "foot": Feet(seat).Position = v; break;

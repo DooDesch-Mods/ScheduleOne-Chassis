@@ -79,6 +79,8 @@ namespace Chassis.Debugging
                         Say("drive <fwd> <steer> [s]       - driver input for s seconds (default 3)");
                         Say("despawn car                  - remove the nearest car within 30 m");
                         Say("cam <dist> <yaw> <height>|off - orbit camera around your vehicle or the nearest seated body");
+                        Say("cam hands|handl|handr <dist> <yaw> <height> - the same, aimed at both hands or one");
+                        Say("grip [markers on|off] [wrap palm f1 f2 f3 t1 t2 t3 roll at] - steering wheel grip: colour markers, live angles");
                         Say("feet                         - ankle axes of every seated body (side x near -1 = sole down)");
                         Say("profile list|show|save|reload|set <field> <values> [code] [seat] - seat profiles (see 'chassis profile')");
                         Say("target seat|patrol|near|gun|shoot|keep|list - shots into cars (see 'chassis target')");
@@ -264,6 +266,9 @@ namespace Chassis.Debugging
                         break;
                     case "cam":
                         Say(LookCam.Set(parts));
+                        break;
+                    case "grip":
+                        Say(Seating.SeatRig.Tune(parts));
                         break;
                     case "drive":
                         {

@@ -70,9 +70,48 @@ namespace Chassis.Api
                     Knee = F(s + fwd * 0.5f + up * (hipHeight + 0.1f) + right * 0.15f),
                 },
             };
+            if (steeringPivot != null) seat.Hands.RimRadius = RimRadiusOf(steeringPivot, seat.Hands.RimThickness);
             Core.Log.Msg("[Profiles] fitted seat " + seatIndex + " of " + vehicle.name + ": root " + ProfileJson.F(seat.Root) + " yaw " + seat.Yaw.ToString("F0")
-                + " eyes " + ProfileJson.F(seat.Eyes) + ", hands " + seat.Hands.Mode + " at " + ProfileJson.F(seat.Hands.GripStart) + ".");
+                + " eyes " + ProfileJson.F(seat.Eyes) + ", hands " + seat.Hands.Mode + " at " + ProfileJson.F(seat.Hands.GripStart) + ", rim radius " + seat.Hands.RimRadius.ToString("F3") + ".");
             return seat;
+        }
+
+        /// <summary>
+        /// The rim's radius from the wheel's meshes under the pivot, measured in the pivot's space: the thinnest extent is
+        /// the column, the widest one across it is the rim's outer diameter. 0 (the hands keep the plain grip) when no
+        /// readable mesh hangs under the pivot, as with a static-batched wheel.
+        /// </summary>
+        private static float RimRadiusOf(Transform pivot, float thickness)
+        {
+            bool any = false;
+            Vector3 min = Vector3.positiveInfinity, max = Vector3.negativeInfinity;
+            foreach (var mf in pivot.GetComponentsInChildren<MeshFilter>(true))
+            {
+                var mesh = mf.sharedMesh;
+                // A static-batched wheel shares one combined mesh with the whole scene; its bounds say nothing about the wheel.
+                if (mesh == null || mesh.name.StartsWith("Combined Mesh")) continue;
+                var b = mesh.bounds;
+                for (int i = 0; i < 8; i++)
+                {
+                    var c = b.center + Vector3.Scale(b.extents, new Vector3((i & 1) == 0 ? -1 : 1, (i & 2) == 0 ? -1 : 1, (i & 4) == 0 ? -1 : 1));
+                    var p = pivot.InverseTransformPoint(mf.transform.TransformPoint(c));
+                    min = Vector3.Min(min, p); max = Vector3.Max(max, p);
+                    any = true;
+                }
+            }
+            if (!any) { Core.Log.Warning("[Profiles] no mesh under the steering pivot " + pivot.name + ", the rim radius stays 0 and the hands keep the plain grip; set it with 'profile set rimradius'."); return 0f; }
+            // Scale to world metres along each pivot axis.
+            Vector3 size = Vector3.Scale(max - min, pivot.lossyScale);
+            float a = Mathf.Abs(size.x), b2 = Mathf.Abs(size.y), c2 = Mathf.Abs(size.z);
+            float across = a <= b2 && a <= c2 ? Mathf.Max(b2, c2) : b2 <= c2 ? Mathf.Max(a, c2) : Mathf.Max(a, b2);
+            if (across < 0.2f || across > 0.8f)
+            {
+                Core.Log.Warning("[Profiles] steering wheel " + pivot.name + " measures " + ProfileJson.F(size) + " m, no wheel size; the rim radius stays 0 and the hands keep the plain grip.");
+                return 0f;
+            }
+            float r = Mathf.Max(0f, across * 0.5f - thickness * 0.5f);
+            Core.Log.Msg("[Profiles] steering wheel " + pivot.name + " measures " + ProfileJson.F(size) + " m, rim radius " + r.ToString("F3") + " m.");
+            return r;
         }
 
         // ---- first person ------------------------------------------------------------------------------------------
