@@ -4,6 +4,16 @@ All notable changes to Chassis are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.6.0] - 2026-10-22
+
+### Fixed
+- Cars bought while Steam was not ready at the start are yours again in a lobby: locked cars let you in and the
+  Yesla app shows.
+
+### For mod authors
+- `SeatProfile.Recline` leans the seated body back about the hips with a straight back; hands, feet and eyes keep
+  their points. Console: `chassis profile set recline <degrees>`.
+
 ## [1.5.0] - 2026-10-22
 
 ### Added
