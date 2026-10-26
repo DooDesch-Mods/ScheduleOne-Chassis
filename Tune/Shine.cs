@@ -16,7 +16,7 @@ namespace Chassis.Tune
     {
         private const string ProbeName = "Chassis_ChromeProbe";
         private const int Resolution = 128;
-        private const float MovingEvery = 0.2f, StandingEvery = 2f, FarAway = 60f, RoofGap = 0.5f;
+        private const float MovingEvery = 0.5f, StandingEvery = 2f, FarAway = 60f, RoofGap = 0.5f, FarClip = 80f;
 
         private sealed class Entry
         {
@@ -24,6 +24,7 @@ namespace Chassis.Tune
             internal ReflectionProbe P;
             internal float Next;
             internal Vector3 Last;
+            internal int Render;
         }
 
         private static readonly Dictionary<int, Entry> _probes = new Dictionary<int, Entry>();
@@ -83,7 +84,7 @@ namespace Chassis.Tune
             var p = go.AddComponent<ReflectionProbe>();
             p.mode = ReflectionProbeMode.Realtime;
             p.refreshMode = ReflectionProbeRefreshMode.ViaScripting;
-            p.timeSlicingMode = ReflectionProbeTimeSlicingMode.AllFacesAtOnce;
+            p.timeSlicingMode = ReflectionProbeTimeSlicingMode.IndividualFaces;
             p.resolution = Resolution;
             p.hdr = true;
             p.boxProjection = false;
@@ -95,7 +96,7 @@ namespace Chassis.Tune
             p.importance = 100;
             p.cullingMask = mask;
             p.nearClipPlane = 0.3f;
-            p.farClipPlane = 150f;
+            p.farClipPlane = FarClip;
             // The game draws no skybox the probe could see; left alone the sky in the mirror is black and chrome
             // turns dark. The fog colour is what the horizon shows, so it stands in for the sky (set again per render).
             p.clearFlags = ReflectionProbeClearFlags.SolidColor;
@@ -105,24 +106,30 @@ namespace Chassis.Tune
             return p;
         }
 
-        /// <summary>Every frame: renders at most one probe, the one whose turn it is.</summary>
+        /// <summary>Every frame: starts at most one probe, the one whose turn it is, and none while one is still rendering.</summary>
         internal static void Tick()
         {
             if (_probes.Count == 0) return;
             var cam = Camera.main;
             float now = Time.unscaledTime;
             Entry due = null;
+            bool busy = false;
             _gone.Clear();
             foreach (var kv in _probes)
             {
                 var e = kv.Value;
                 if (e.V == null || e.P == null) { _gone.Add(kv.Key); continue; }
+                if (e.Render != 0)
+                {
+                    if (!e.P.IsFinishedRendering(e.Render)) { busy = true; continue; }
+                    e.Render = 0;
+                }
                 if (now < e.Next) continue;
                 if (cam != null && (cam.transform.position - e.V.transform.position).sqrMagnitude > FarAway * FarAway) { e.Next = now + StandingEvery; continue; }
                 if (due == null || e.Next < due.Next) due = e;
             }
             foreach (int k in _gone) _probes.Remove(k);
-            if (due == null) return;
+            if (due == null || busy) return;
             var pos = due.V.transform.position;
             bool moving = (pos - due.Last).sqrMagnitude > 0.01f;
             due.Last = pos;
@@ -130,7 +137,7 @@ namespace Chassis.Tune
             try
             {
                 due.P.backgroundColor = RenderSettings.fogColor;
-                due.P.RenderProbe();
+                due.Render = due.P.RenderProbe();
             }
             catch (Exception ex)
             {
