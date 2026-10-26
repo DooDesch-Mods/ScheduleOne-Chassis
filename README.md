@@ -168,6 +168,9 @@ player and saves it with the vehicle.
 - **Looks:** `SetPaint` (primary and secondary, with a finish), `SetRimColor`, `SetXenon`,
   `SetNeon`, `SetWindowTint`, `SetTyreSmoke` and `SetHorn`.
 - **Your own keys:** `SetTuning`, `GetTuning` and `ClearTuning`.
+- **Preview:** `PreviewTuning`, `PreviewPart` and `EndPreview` show a change on this machine only,
+  without the host and without saving, for a shop that shows a part before the player buys it.
+  `IsPreviewing` and `ShownTuning` read it.
 - **Read:** `Tuning`, `InstalledPart`, `TuningStatsOf` (the driving factors in effect) and the
   event `TuningChanged`.
 - **Example:** [Rollin](https://github.com/DooDesch-Mods/ScheduleOne-Rollin) builds the wheelchair

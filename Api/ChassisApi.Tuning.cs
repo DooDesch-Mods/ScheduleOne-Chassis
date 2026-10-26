@@ -87,6 +87,35 @@ namespace Chassis.Api
         /// <summary>A copy of every tuning key of a car.</summary>
         public static Dictionary<string, string> Tuning(LandVehicle vehicle) => new Dictionary<string, string>(State.Of(vehicle), StringComparer.OrdinalIgnoreCase);
 
+        // ---- preview -----------------------------------------------------------------------------------------------
+        //
+        // A shop shows a part or a colour before the player buys it. A preview changes the car on this machine only: it
+        // is not sent to the host, not saved and does not raise TuningChanged. It sits on top of the real tuning until
+        // EndPreview; a real change underneath still shows where the preview does not cover it.
+
+        /// <summary>
+        /// Shows a tuning key on this machine only. Same keys and values as <see cref="SetTuning"/>; an empty value shows
+        /// the key removed, key "*" with an empty value shows the whole car stock.
+        /// </summary>
+        public static bool PreviewTuning(LandVehicle vehicle, string key, string value) => State.Preview(vehicle, key, value, "PreviewTuning");
+
+        /// <summary>Shows a part in its slot on this machine only.</summary>
+        public static bool PreviewPart(LandVehicle vehicle, string partId)
+        {
+            var p = Catalog.Get(partId);
+            if (p == null) { Core.Log.Warning("[Tuning] PreviewPart: no part '" + partId + "' is registered."); return false; }
+            return State.Preview(vehicle, "part." + p.Slot, p.Id, "PreviewPart");
+        }
+
+        /// <summary>Ends the preview of one key, or every preview on the car when <paramref name="key"/> is null.</summary>
+        public static bool EndPreview(LandVehicle vehicle, string key = null) => State.EndPreview(vehicle, key, "EndPreview");
+
+        /// <summary>Whether the car shows a preview on this machine.</summary>
+        public static bool IsPreviewing(LandVehicle vehicle) => vehicle != null && State.HasPreview(vehicle);
+
+        /// <summary>The value the car shows on this machine: the preview where there is one, else the real tuning.</summary>
+        public static string ShownTuning(LandVehicle vehicle, string key) => vehicle == null ? null : State.GetShown(vehicle, key);
+
         /// <summary>The driving factors of all parts on the car together.</summary>
         public static TuningStats TuningStatsOf(LandVehicle vehicle)
         {

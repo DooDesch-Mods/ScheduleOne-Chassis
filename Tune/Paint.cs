@@ -127,7 +127,7 @@ namespace Chassis.Tune
         internal static Color BodyColour(LandVehicle v, out float metallic, out float smooth)
         {
             metallic = 0.1f; smooth = 0.6f;
-            string p = State.Get(v, "paint");
+            string p = State.GetShown(v, "paint");
             if (p != null && Values.Paint(p, out Color c, out string finish)) { Values.Finish(finish, out metallic, out smooth); return c; }
             var vc = v.Color;
             if (vc != null && vc.BodyMeshes != null)

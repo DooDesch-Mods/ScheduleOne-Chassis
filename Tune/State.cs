@@ -34,11 +34,70 @@ namespace Chassis.Tune
 
         private static readonly Dictionary<string, string> Empty = new Dictionary<string, string>();
 
+        // Values shown on this machine only, over the real state: a shop shows a part or a colour before it is bought.
+        // Never sent, never saved. An empty value shows the key as removed.
+        private static readonly Dictionary<int, Dictionary<string, string>> _preview = new Dictionary<int, Dictionary<string, string>>();
+
         internal static Dictionary<string, string> Of(int id) => id >= 0 && _byId.TryGetValue(id, out var s) ? s : Empty;
 
         internal static Dictionary<string, string> Of(LandVehicle v) => Of(Ids.Of(v));
 
         internal static string Get(LandVehicle v, string key) => Of(v).TryGetValue(key, out var s) ? s : null;
+
+        /// <summary>
+        /// What the car shows on this machine: the real state with the local preview on top. The apply path reads this;
+        /// saving, the network and the API getters read <see cref="Of(int)"/>.
+        /// </summary>
+        internal static Dictionary<string, string> Shown(int id)
+        {
+            var real = Of(id);
+            if (id < 0 || !_preview.TryGetValue(id, out var over) || over.Count == 0) return real;
+            var merged = over.ContainsKey(ClearAll)
+                ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(real, StringComparer.OrdinalIgnoreCase);
+            foreach (var kv in over)
+            {
+                if (kv.Key == ClearAll) continue;
+                if (kv.Value.Length == 0) merged.Remove(kv.Key);
+                else merged[kv.Key] = kv.Value;
+            }
+            return merged;
+        }
+
+        internal static string GetShown(LandVehicle v, string key) => Shown(Ids.Of(v)).TryGetValue(key, out var s) && s.Length > 0 ? s : null;
+
+        internal static bool HasPreview(LandVehicle v) => _preview.TryGetValue(Ids.Of(v), out var over) && over.Count > 0;
+
+        /// <summary>Shows a value on this machine only. "*" with no value shows the whole car stock.</summary>
+        internal static bool Preview(LandVehicle v, string key, string value, string why)
+        {
+            if (v == null) { Core.Log.Warning("[Tuning] " + why + ": no vehicle given - ignored."); return false; }
+            value = value ?? string.Empty;
+            string bad = Check(v, key, value);
+            if (bad != null) { Core.Log.Warning("[Tuning] " + why + " on " + Registry.Name(v) + ": " + key + " = '" + value + "' refused, " + bad + "."); return false; }
+            int id = Ids.Of(v);
+            if (id < 0) { Core.Log.Warning("[Tuning] " + why + ": " + v.vehicleCode + " has no network id yet - ignored."); return false; }
+            if (!_preview.TryGetValue(id, out var over)) _preview[id] = over = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (key == ClearAll) over.Clear();
+            over[key] = value;
+            Bump(id);
+            Core.Log.Msg("[Tuning] " + Registry.Name(v) + ": preview " + (key == ClearAll ? "of the stock car" : key + " = '" + value + "'") + " (" + why + ").");
+            return true;
+        }
+
+        /// <summary>Drops the local preview of one key, or of every key when <paramref name="key"/> is null.</summary>
+        internal static bool EndPreview(LandVehicle v, string key, string why)
+        {
+            if (v == null) { Core.Log.Warning("[Tuning] " + why + ": no vehicle given - ignored."); return false; }
+            int id = Ids.Of(v);
+            if (!_preview.TryGetValue(id, out var over) || over.Count == 0) return false;
+            bool changed = key == null ? over.Count > 0 : over.Remove(key);
+            if (key == null) _preview.Remove(id);
+            if (!changed) return false;
+            Bump(id);
+            Core.Log.Msg("[Tuning] " + Registry.Name(v) + ": preview " + (key == null ? "ended" : "of " + key + " ended") + " (" + why + ").");
+            return true;
+        }
 
         /// <summary>Goes up with every change of the car's state; the apply path compares it.</summary>
         internal static int Version(int id) => _versions.TryGetValue(id, out int n) ? n : 0;
@@ -191,6 +250,7 @@ namespace Chassis.Tune
             foreach (int id in _gone)
             {
                 _byId.Remove(id);
+                _preview.Remove(id);
                 _seenAlive.Remove(id);
                 _seeded.Remove(id);
                 Bump(id);
@@ -301,6 +361,7 @@ namespace Chassis.Tune
         internal static void Reset()
         {
             _byId.Clear();
+            _preview.Clear();
             _versions.Clear();
             _fromFile.Clear();
             _seeded.Clear();
