@@ -4,6 +4,15 @@ All notable changes to Chassis are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.7.1] - 2026-10-27
+
+### Fixed
+- Window tints are clearly darker; the game's fog washed them out to grey.
+- Changing the window tint no longer flashes the stock body colour for a moment.
+- Chrome paint looks like chrome and reflects the street around the car, also while it drives; metallic paints look
+  metallic.
+- Neon lights the ground in an even band along the sills and bumpers, with no tube in sight.
+
 ## [1.7.0] - 2026-10-26
 
 ### Fixed
