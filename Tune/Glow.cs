@@ -142,7 +142,7 @@ namespace Chassis.Tune
         }
 
         /// <summary>
-        /// Bounds of the body in the car's space: the painted body meshes (<c>VehicleColor.BodyMeshes</c>), else every
+        /// Bounds of the body in the car's space: the painted body (a mod's paint targets, else <c>VehicleColor.BodyMeshes</c>), else every
         /// mesh without the wheels and Chassis' own objects. Lamps, light beams and props reach past the body, so the
         /// painted meshes come first.
         /// </summary>
@@ -150,15 +150,12 @@ namespace Chassis.Tune
         {
             b = new Bounds();
             bool any = false;
-            var vc = v.Color;
-            if (vc != null && vc.BodyMeshes != null)
-                foreach (var bm in vc.BodyMeshes)
-                {
-                    if (bm == null || bm.Renderer == null) continue;
-                    var bmf = bm.Renderer.GetComponent<MeshFilter>();
-                    if (bmf == null || bmf.sharedMesh == null) continue;
-                    Add(v, bm.Renderer.transform, bmf.sharedMesh.bounds, ref b, ref any);
-                }
+            foreach (var t in Paint.TargetsOf(v, out _))
+            {
+                var bmf = t.Renderer.GetComponent<MeshFilter>();
+                if (bmf == null || bmf.sharedMesh == null) continue;
+                Add(v, t.Renderer.transform, bmf.sharedMesh.bounds, ref b, ref any);
+            }
             if (any) return true;
             Core.Log.Warning("[Tuning] " + Registry.Name(v) + " has no painted body mesh to measure - measuring every mesh of the car.");
 

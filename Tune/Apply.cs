@@ -30,6 +30,8 @@ namespace Chassis.Tune
 
             internal readonly List<Paint.Slot> PaintSlots = new List<Paint.Slot>();
             internal string PaintKey = "";
+            internal readonly List<Paint.Slot> Paint2Slots = new List<Paint.Slot>();
+            internal string Paint2Key = "";
 
             internal string PartsKey = "";
             internal readonly List<GameObject> Built = new List<GameObject>();
@@ -91,7 +93,7 @@ namespace Chassis.Tune
                 int version = State.Version(id);
                 var known = Find(v);
                 // An untuned car Chassis never touched needs no record.
-                if (known == null && State.Of(id).Count == 0) continue;
+                if (known == null && State.Shown(id).Count == 0) continue;
                 var c = known ?? For(v);
                 if (c.Id != id) { c.Id = id; c.Seen = -1; }
                 if (c.Seen == version) continue;
@@ -108,9 +110,10 @@ namespace Chassis.Tune
         /// <summary>Applies every aspect of one car. A failing aspect logs and the others still run.</summary>
         internal static void All(Car c)
         {
-            var s = State.Of(c.Id);
+            var s = State.Shown(c.Id);
             Step(c, "driving", () => Handling.Apply(c, StatsOf(c, s)));
             Step(c, "paint", () => Paint.Apply(c, Get(s, "paint")));
+            Step(c, "second paint", () => Paint.Apply2(c, Get(s, "paint2")));
             Step(c, "parts", () => Body.ApplyParts(c, s, _epoch));
             Step(c, "wheels", () => Body.ApplyWheels(c, s, _epoch));
             Step(c, "xenon", () => Glow.Xenon(c, Get(s, "xenon")));
@@ -161,7 +164,7 @@ namespace Chassis.Tune
         /// <summary>The tinted glass colour the tuning asks for on this car, or null for the profile's own tint.</summary>
         internal static Color? TintOf(LandVehicle v)
         {
-            string t = State.Get(v, "tint");
+            string t = State.GetShown(v, "tint");
             return t != null && Values.Rgba(t, out Color c) ? c : (Color?)null;
         }
 
@@ -207,6 +210,9 @@ namespace Chassis.Tune
             var s = State.Of(id);
             var lines = new List<string> { Registry.Name(v) + ": " + (s.Count == 0 ? "stock" : s.Count + " tuning key(s)") };
             foreach (var kv in s) lines.Add("  " + kv.Key + " = " + kv.Value);
+            if (State.HasPreview(v))
+                foreach (var kv in State.Shown(id))
+                    if (!s.TryGetValue(kv.Key, out var real) || real != kv.Value) lines.Add("  preview: " + kv.Key + " = " + kv.Value);
             var c = Find(v);
             lines.Add("  driving: " + (c?.Stats != null ? c.Stats.ToString() : "stock"));
             return string.Join("\n", lines);

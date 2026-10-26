@@ -24,6 +24,8 @@ namespace Chassis.Debugging
             Say("tune set <key> <value>       - any key: paint C81E1E,metallic | rims 202020,chrome | xenon 9FB8FF | neon 00FFAA,lr | tint 10121480 | smoke FF2080 | horn <sound>");
             Say("tune unset <key>             - remove one key");
             Say("tune clear                   - everything back to stock");
+            Say("tune preview <key> <value>   - show a key on this machine only (empty value: removed)");
+            Say("tune endpreview [key]        - end one preview, or all");
             Say("tune stats                   - stock and current driving values");
             Say("tune demo                    - register demo parts (wing, bumper, exhaust, rims) fitted to this car's code");
             Say("tune marco open|<colour>|close - Marco's repaint menu for the car; a colour is picked and bought through the menu's own buttons");
@@ -52,6 +54,8 @@ namespace Chassis.Debugging
             {
                 case "":
                     foreach (string line in Tune.Apply.Describe(lv).Split('\n')) Say(line);
+                    var targets = Tune.Paint.TargetsOf(lv, out bool own);
+                    Say("paint targets: " + targets.Count + " slot(s), " + targets.FindAll(t => t.Secondary).Count + " of them second paint, " + (own ? "set by a mod" : "the vanilla body"));
                     break;
                 case "parts":
                     var list = ChassisApi.TuningParts(lv, a1.Length > 0 ? a1 : null);
@@ -72,6 +76,12 @@ namespace Chassis.Debugging
                     break;
                 case "clear":
                     Say("tune clear: " + (ChassisApi.ClearTuning(lv) ? "asked" : "refused, see the log"));
+                    break;
+                case "preview":
+                    Say("tune preview: " + (ChassisApi.PreviewTuning(lv, a1, rest) ? "showing " + a1 + " = '" + rest + "' here" : "refused, see the log"));
+                    break;
+                case "endpreview":
+                    Say("tune endpreview: " + (ChassisApi.EndPreview(lv, a1.Length > 0 ? a1 : null) ? "ended" : "there was no preview"));
                     break;
                 case "stats":
                     foreach (string line in Handling.Describe(lv).Split('\n')) Say(line);
