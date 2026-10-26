@@ -167,6 +167,12 @@ player and saves it with the vehicle.
   suspension 1-4, turbo and drift tyres.
 - **Looks:** `SetPaint` (primary and secondary, with a finish), `SetRimColor`, `SetXenon`,
   `SetNeon`, `SetWindowTint`, `SetTyreSmoke` and `SetHorn`.
+- **Paint on your own model:** `SetPaintTargets` names the material slots that take the body paint,
+  per vehicle or per vehicle code. Without targets the paint goes on the vanilla body. A target
+  marked `Secondary` takes the second paint instead (stripes, trim); `HasSecondPaint` tells a shop
+  to offer it. A target marked `Flat` drops its colour texture while painted, for a dark or two-toned
+  texture that would darken the paint. `PaintTargetsOf` reads them. `PaintRenderers` paints slots that belong to no vehicle, for a model
+  that stays when its vehicle is gone.
 - **Your own keys:** `SetTuning`, `GetTuning` and `ClearTuning`.
 - **Preview:** `PreviewTuning`, `PreviewPart` and `EndPreview` show a change on this machine only,
   without the host and without saving, for a shop that shows a part before the player buys it.

@@ -30,6 +30,8 @@ namespace Chassis.Tune
 
             internal readonly List<Paint.Slot> PaintSlots = new List<Paint.Slot>();
             internal string PaintKey = "";
+            internal readonly List<Paint.Slot> Paint2Slots = new List<Paint.Slot>();
+            internal string Paint2Key = "";
 
             internal string PartsKey = "";
             internal readonly List<GameObject> Built = new List<GameObject>();
@@ -111,6 +113,7 @@ namespace Chassis.Tune
             var s = State.Shown(c.Id);
             Step(c, "driving", () => Handling.Apply(c, StatsOf(c, s)));
             Step(c, "paint", () => Paint.Apply(c, Get(s, "paint")));
+            Step(c, "second paint", () => Paint.Apply2(c, Get(s, "paint2")));
             Step(c, "parts", () => Body.ApplyParts(c, s, _epoch));
             Step(c, "wheels", () => Body.ApplyWheels(c, s, _epoch));
             Step(c, "xenon", () => Glow.Xenon(c, Get(s, "xenon")));

@@ -54,6 +54,8 @@ namespace Chassis.Debugging
             {
                 case "":
                     foreach (string line in Tune.Apply.Describe(lv).Split('\n')) Say(line);
+                    var targets = Tune.Paint.TargetsOf(lv, out bool own);
+                    Say("paint targets: " + targets.Count + " slot(s), " + targets.FindAll(t => t.Secondary).Count + " of them second paint, " + (own ? "set by a mod" : "the vanilla body"));
                     break;
                 case "parts":
                     var list = ChassisApi.TuningParts(lv, a1.Length > 0 ? a1 : null);

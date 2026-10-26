@@ -51,9 +51,42 @@ namespace Chassis.Api
         /// <summary>The part id in a slot, or null for stock.</summary>
         public static string InstalledPart(LandVehicle vehicle, string slot) => State.Get(vehicle, "part." + slot);
 
-        /// <summary>Paints the body (or the second paint of parts) in any colour with a finish from <see cref="TuningFinish"/>.</summary>
+        /// <summary>Paints the body, or with <paramref name="secondary"/> the second paint (secondary paint targets and "paint2" parts), in any colour with a finish from <see cref="TuningFinish"/>.</summary>
         public static bool SetPaint(LandVehicle vehicle, Color colour, string finish = TuningFinish.Classic, bool secondary = false)
             => State.Request(vehicle, secondary ? "paint2" : "paint", Values.Hex(colour) + "," + (finish ?? TuningFinish.Classic), "SetPaint");
+
+        /// <summary>
+        /// Names the material slots that take this car's body paint, for a car whose visible body is not its
+        /// <c>VehicleColor.BodyMeshes</c> (a model of your own on a stock car). Set it on every peer. Null goes back to
+        /// the body meshes. A paint already on the car moves to the new slots.
+        /// </summary>
+        public static void SetPaintTargets(LandVehicle vehicle, IEnumerable<PaintTarget> targets) => Paint.SetTargets(vehicle, targets);
+
+        /// <summary>The same for every car of a vehicle code; a target set on the car itself comes first. Null removes it.</summary>
+        public static void SetPaintTargets(string code, Func<LandVehicle, IEnumerable<PaintTarget>> targets) => Paint.SetTargets(code, targets);
+
+        /// <summary>The material slots the car's body paint goes on now.</summary>
+        public static List<PaintTarget> PaintTargetsOf(LandVehicle vehicle) => Paint.TargetsOf(vehicle, out _);
+
+        /// <summary>
+        /// True when a mod named this car's paint targets. The game's own colours (<c>LandVehicle.ApplyColor</c>) still
+        /// paint the vanilla body, so a shop offers only custom paint for such a car.
+        /// </summary>
+        public static bool HasOwnPaintTargets(LandVehicle vehicle)
+        {
+            Paint.TargetsOf(vehicle, out bool own);
+            return own;
+        }
+
+        /// <summary>True when the car has <see cref="PaintTarget.Secondary"/> targets, so the second paint shows on its body.</summary>
+        public static bool HasSecondPaint(LandVehicle vehicle) => Paint.TargetsOf(vehicle, out _).Exists(t => t.Secondary);
+
+        /// <summary>
+        /// Paints material slots that belong to no tuned car, on this machine only: e.g. a model that stays when the car
+        /// it rides on is gone. <paramref name="paint"/> is a "paint" value (RRGGBB,finish); null or empty puts the
+        /// original materials back. The mod saves and syncs the value itself.
+        /// </summary>
+        public static bool PaintRenderers(IEnumerable<PaintTarget> targets, string paint) => Paint.PaintFree(targets, paint);
 
         /// <summary>Back to the vanilla paint.</summary>
         public static bool ClearPaint(LandVehicle vehicle, bool secondary = false) => State.Request(vehicle, secondary ? "paint2" : "paint", "", "ClearPaint");
