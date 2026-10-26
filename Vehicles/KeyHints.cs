@@ -64,6 +64,12 @@ namespace Chassis.Vehicles
         /// <summary>Per signature and drawn line: the key picture labels to write over the game's, null to keep its own.</summary>
         private static readonly Dictionary<string, List<string[]>> _labels = new Dictionary<string, List<string[]>>();
 
+        /// <summary>
+        /// Drawn in place of a key the strip has no picture for: the space bar's wide key, labelled with the real key's name.
+        /// The strip drops a key without a picture silently (Left Ctrl has none).
+        /// </summary>
+        private const string FallbackPath = "<Keyboard>/space";
+
         private static string _shownSig;
         private static bool _loaded;   // the strip took the module, so a missing module later was removed by the game
 
@@ -119,11 +125,11 @@ namespace Chassis.Vehicles
             if (want == null) return;
             if (want.Length == 0) { Core.Log.Msg("[KeyHints] this seat offers no Chassis keys."); return; }
 
-            var data = Data(want);
+            var data = Data(want, prompts);
             if (data == null) return;
             prompts.LoadModule(data, EInputPromptPosition.BottomLeftInGame, null);
             _loaded = prompts.HasActivePrompt(ModuleId);
-            if (_loaded) { Core.Log.Msg("[KeyHints] shown in the key hints: " + want + "."); ShortLabels(prompts, want, true); }
+            if (_loaded) { Core.Log.Msg("[KeyHints] shown in the key hints: " + want + "."); CheckDrawn(prompts, data.Descriptors.Count); ShortLabels(prompts, want, true); }
             else Core.Log.Warning("[KeyHints] the key hints refused the vehicle keys (" + want + ").");
         }
 
@@ -194,7 +200,7 @@ namespace Chassis.Vehicles
             return _sig.ToString();
         }
 
-        private static InputPromptsData Data(string sig)
+        private static InputPromptsData Data(string sig, InputPromptsManager prompts)
         {
             if (_cache.TryGetValue(sig, out var cached) && cached != null) return cached;
 
@@ -211,15 +217,16 @@ namespace Chassis.Vehicles
             {
                 var e = _shown[i];
                 var actions = new ActionRefList();
+                string[] stand = null;
                 if (e.Buttons != null) GameActions(e, actions);
-                else KeyActions(e, _shownKeys[i], map, i, actions);
+                else stand = KeyActions(e, _shownKeys[i], map, i, actions, prompts);
                 if (actions.Count == 0) { Core.Log.Warning("[KeyHints] '" + e.Label + "' has no key the hints can draw - not shown."); continue; }
                 var descriptor = Create<InputPromptsDescriptorData>();
                 descriptor.DisplayName = e.Label;
                 descriptor.DisplayColor = Color.white;
                 descriptor.Actions = actions;
                 data.Descriptors.Add(descriptor);
-                labels.Add(e.Buttons == null && actions.Count == _shownKeys[i].Length ? ShortNames(_shownKeys[i]) : null);
+                labels.Add(e.Buttons == null && actions.Count == _shownKeys[i].Length ? Merge(ShortNames(_shownKeys[i]), stand) : null);
             }
             if (data.Descriptors.Count == 0) { Core.Log.Warning("[KeyHints] none of the vehicle keys can be drawn (" + sig + ")."); return null; }
             _cache[sig] = data;
@@ -227,15 +234,68 @@ namespace Chassis.Vehicles
             return data;
         }
 
-        private static void KeyActions(Entry e, KeyCode[] keys, InputActionMap map, int index, ActionRefList into)
+        /// <summary>Adds an action per key; returns the labels for keys drawn on the stand-in picture, null when there are none.</summary>
+        private static string[] KeyActions(Entry e, KeyCode[] keys, InputActionMap map, int index, ActionRefList into, InputPromptsManager prompts)
         {
+            string[] stand = null;
             for (int k = 0; k < keys.Length; k++)
             {
                 string path = ControlPath(keys[k]);
                 if (path == null) { Core.Log.Warning("[KeyHints] no keyboard path for " + keys[k] + " - left out of '" + e.Label + "'."); continue; }
                 InputAction action = InputActionSetupExtensions.AddAction(map, "k" + index + "_" + k, InputActionType.Button, path, null, null, null, null);
+                if (!HasPicture(prompts, path))
+                {
+                    // The name the game would print on the key ("Strg" on a German keyboard), from the real binding.
+                    string name = InputActionRebindingExtensions.GetBindingDisplayString(action, 0, InputBinding.DisplayStringOptions.DontIncludeInteractions);
+                    if (string.IsNullOrEmpty(name)) name = keys[k].ToString();
+                    action = InputActionSetupExtensions.AddAction(map, "k" + index + "_" + k + "_pic", InputActionType.Button, FallbackPath, null, null, null, null);
+                    if (stand == null) stand = new string[keys.Length];
+                    stand[k] = name;
+                    Core.Log.Msg("[KeyHints] the hint strip has no picture for " + path + " - '" + e.Label + "' shows it as a wide key labelled '" + name + "'.");
+                }
                 into.Add(InputActionReference.Create(action));
             }
+            return stand;
+        }
+
+        /// <summary>Whether the strip has a key picture for a control path; true when the list cannot be read, so the game decides.</summary>
+        private static bool HasPicture(InputPromptsManager prompts, string path)
+        {
+            try
+            {
+                var list = prompts._bindingDataList;
+                if (list == null) { Core.Log.Warning("[KeyHints] the hint strip's picture list is not set - " + path + " is drawn as it is."); return true; }
+                for (int i = 0; i < list.Count; i++)
+                    if (list[i] != null && list[i].ControlPath == path) return true;
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Core.Log.Warning("[KeyHints] could not read the hint strip's picture list, " + path + " is drawn as it is: " + ex.Message);
+                return true;
+            }
+        }
+
+        private static string[] Merge(string[] first, string[] second)
+        {
+            if (first == null) return second;
+            if (second == null) return first;
+            var r = new string[first.Length];
+            for (int i = 0; i < r.Length; i++) r[i] = first[i] ?? (i < second.Length ? second[i] : null);
+            return r;
+        }
+
+        /// <summary>Warns when the strip drew fewer lines than it was given; it drops a line without a usable key silently.</summary>
+        private static void CheckDrawn(InputPromptsManager prompts, int given)
+        {
+            try
+            {
+                var ui = prompts._inputPromptsUI;
+                if (ui == null || !ui._activePrompts.ContainsKey(ModuleId)) { Core.Log.Warning("[KeyHints] no panel " + ModuleId + " in the hint strip - cannot count the drawn keys."); return; }
+                int drawn = ui._activePrompts[ModuleId]._activePrompts.Count;
+                if (drawn < given) Core.Log.Warning("[KeyHints] the hint strip drew " + drawn + " of " + given + " vehicle key line(s); the rest have no key picture.");
+            }
+            catch (Exception ex) { Core.Log.Warning("[KeyHints] could not count the drawn key lines: " + ex.Message); }
         }
 
         private static void GameActions(Entry e, ActionRefList into)
@@ -271,7 +331,7 @@ namespace Chassis.Vehicles
             return r;
         }
 
-        /// <summary>Writes the short labels over the key pictures of the shown panel; the game's fields are private.</summary>
+        /// <summary>Writes the short and stand-in labels over the key pictures of the shown panel; the game's fields are private.</summary>
         private static void ShortLabels(InputPromptsManager prompts, string sig, bool log)
         {
             if (!_labels.TryGetValue(sig, out var labels)) return;
