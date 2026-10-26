@@ -247,6 +247,14 @@ namespace Chassis.Tune
             if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", metallic);
             if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", smooth);
             if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", smooth);
+            // URP/Lit with a metallic map reads metal from the map's red channel and ignores _Metallic. The vanilla car
+            // maps are black on the body (metal only on the trim), so a metallic or chrome paint stayed flat. Those
+            // finishes switch the map off; the others keep it and the trim stays as vanilla made it.
+            if (m.HasProperty("_MetallicGlossMap") && m.GetTexture("_MetallicGlossMap") != null)
+            {
+                if (metallic >= 0.5f) m.DisableKeyword("_METALLICSPECGLOSSMAP");
+                else m.EnableKeyword("_METALLICSPECGLOSSMAP");
+            }
         }
 
         private static void Put(Slot s)

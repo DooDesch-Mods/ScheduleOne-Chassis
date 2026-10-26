@@ -105,6 +105,7 @@ namespace Chassis.Tune
                 _nextVerify = Time.unscaledTime + 1f;
                 Verify();
             }
+            Shine.Tick();
         }
 
         /// <summary>Applies every aspect of one car. A failing aspect logs and the others still run.</summary>
@@ -114,6 +115,7 @@ namespace Chassis.Tune
             Step(c, "driving", () => Handling.Apply(c, StatsOf(c, s)));
             Step(c, "paint", () => Paint.Apply(c, Get(s, "paint")));
             Step(c, "second paint", () => Paint.Apply2(c, Get(s, "paint2")));
+            Step(c, "chrome reflections", () => Shine.Set(c, IsChrome(Get(s, "paint")) || IsChrome(Get(s, "paint2"))));
             Step(c, "parts", () => Body.ApplyParts(c, s, _epoch));
             Step(c, "wheels", () => Body.ApplyWheels(c, s, _epoch));
             Step(c, "xenon", () => Glow.Xenon(c, Get(s, "xenon")));
@@ -129,6 +131,8 @@ namespace Chassis.Tune
         }
 
         private static string Get(Dictionary<string, string> s, string key) => s.TryGetValue(key, out var v) && v.Length > 0 ? v : null;
+
+        private static bool IsChrome(string paint) => paint != null && Values.Paint(paint, out _, out string finish) && finish == TuningFinish.Chrome;
 
         /// <summary>The parts installed on the car, by slot, that are registered and fit its code.</summary>
         internal static List<TuningPart> Parts(Car c, Dictionary<string, string> s)
@@ -173,9 +177,9 @@ namespace Chassis.Tune
             string key = value ?? "";
             if (key == c.TintKey) return;
             c.TintKey = key;
-            if (Interior.BaseInterior.RebuildVehicle(c.V))
+            if (Interior.BaseInterior.RetintVehicle(c.V))
             {
-                Core.Log.Msg("[Tuning] " + Registry.Name(c.V) + ": windows " + (value != null ? "tinted " + value : "back to the profile's tint") + ", interior rebuilt.");
+                Core.Log.Msg("[Tuning] " + Registry.Name(c.V) + ": windows " + (value != null ? "tinted " + value : "back to the profile's tint") + ".");
                 return;
             }
             if (value != null && !c.TintWarned)
@@ -226,6 +230,7 @@ namespace Chassis.Tune
             Handling.Reset();
             Body.Reset();
             Glow.Reset();
+            Shine.Reset();
         }
 
         internal static string F(float v) => v.ToString("0.###", CultureInfo.InvariantCulture);
