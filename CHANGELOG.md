@@ -4,6 +4,19 @@ All notable changes to Chassis are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.7.0] - 2026-10-26
+
+### Fixed
+- Key hints on Left Ctrl show up at the bottom left: the game has no picture for that key and dropped them.
+
+### For mod authors
+- `ChassisApi.PreviewTuning`, `PreviewPart` and `EndPreview` show a part or a paint on this machine only, without
+  saving or syncing it.
+- `ChassisApi.SetPaintTargets` puts the body paint on your own model instead of the stock body; `Secondary` targets
+  take the second paint.
+- `ChassisApi.PaintRenderers` paints a model with no car under it, on this machine only.
+- `ChassisApi.AddKeyHint` takes any key: one the hint strip has no picture for is drawn on a wide key with its name.
+
 ## [1.6.1] - 2026-10-22
 
 ### Fixed
