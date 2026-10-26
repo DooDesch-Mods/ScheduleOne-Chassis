@@ -10,13 +10,14 @@ namespace Chassis.Tune
     /// Chrome needs something sharp to reflect. The game lights every car from one 16-pixel sky map
     /// (<c>ReflectionProbeManager</c>), which turns a mirror finish into flat grey. A car with a chrome paint gets its own
     /// small realtime reflection probe above its roof that sees the street around it, without the car's own layers. It renders
-    /// a few times a second while the car moves near the camera, rarely while it stands, and never far away.
+    /// one cube face per frame; while the car moves near the camera the next render starts as soon as the last one is
+    /// done, so the mirror keeps up with the street. A standing car renders rarely, a car far away never.
     /// </summary>
     internal static class Shine
     {
         private const string ProbeName = "Chassis_ChromeProbe";
         private const int Resolution = 128;
-        private const float MovingEvery = 0.5f, StandingEvery = 2f, FarAway = 60f, RoofGap = 0.5f, FarClip = 80f;
+        private const float MovingEvery = 0f, StandingEvery = 2f, FarAway = 60f, RoofGap = 0.5f, FarClip = 80f;
 
         private sealed class Entry
         {
