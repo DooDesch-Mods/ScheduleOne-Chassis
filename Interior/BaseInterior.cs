@@ -73,6 +73,8 @@ namespace Chassis.Interior
             internal readonly List<Renderer> Glazed = new List<Renderer>();
             internal readonly List<Material[]> Original = new List<Material[]>();
             internal readonly List<GameObject> Linings = new List<GameObject>();
+            internal GlassProfile Glass;
+            internal readonly List<KeyValuePair<Renderer, bool[]>> LiningGlass = new List<KeyValuePair<Renderer, bool[]>>();
             internal readonly List<MeshFilter> Opened = new List<MeshFilter>();
             internal readonly List<Mesh> Closed = new List<Mesh>();
         }
@@ -139,6 +141,35 @@ namespace Chassis.Interior
             _built.Remove(lv.GetInstanceID());
             _next = 0f;
             Core.Log.Msg("[Interior] rebuilding the interior of " + Registry.Name(lv) + ".");
+            return true;
+        }
+
+        /// <summary>
+        /// Puts the current tint into the window slots of a built interior in place, outside glass and the lining's inside
+        /// glass. The other slots keep what they hold now, so a custom paint stays on; a rebuild would put the stock
+        /// materials back for a moment. False when the car has no built interior with glass.
+        /// </summary>
+        internal static bool RetintVehicle(LandVehicle lv)
+        {
+            if (lv == null || !_built.TryGetValue(lv.GetInstanceID(), out var b) || b.Glass == null || b.Glazed.Count == 0) return false;
+            Color tint = Chassis.Tune.Apply.TintOf(lv) ?? b.Glass.Tint;
+            Material outside = Glass(tint), inside = Glass(tint, true);
+            for (int i = 0; i < b.Glazed.Count; i++)
+            {
+                var r = b.Glazed[i];
+                if (r == null) continue;
+                var mats = r.sharedMaterials;
+                var orig = b.Original[i];
+                for (int k = 0; k < mats.Length && k < orig.Length; k++) if (IsWindow(orig[k], b.Glass)) mats[k] = outside;
+                r.sharedMaterials = mats;
+            }
+            foreach (var kv in b.LiningGlass)
+            {
+                if (kv.Key == null) continue;
+                var mats = kv.Key.sharedMaterials;
+                for (int k = 0; k < mats.Length && k < kv.Value.Length; k++) if (kv.Value[k]) mats[k] = inside;
+                kv.Key.sharedMaterials = mats;
+            }
             return true;
         }
 
@@ -615,6 +646,7 @@ namespace Chassis.Interior
                 int opened = 0;
                 if (ip.OpenLid && ip.Glass != null && WindowBand(lv, ip.Glass, out Bounds band))
                     opened = OpenShell(lv, ip.Glass, profile.Code, band, Lod0(lod), b);
+                b.Glass = ip.Glass;
                 int glazed = ip.Glass != null ? Glaze(lv, ip.Glass, b) : 0;
                 int lined = ip.Lining ? Line(lv, ip, b, kitRenderers, lod) : 0;
                 AddToLod(lod, kitRenderers, Registry.Name(lv));
@@ -834,6 +866,7 @@ namespace Chassis.Interior
                 lr.sharedMaterials = mats;
                 lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 b.Linings.Add(go);
+                if (glassInside != null) b.LiningGlass.Add(new KeyValuePair<Renderer, bool[]>(lr, window));
                 lodRenderers.Add(lr);
                 lined++;
             }
@@ -1044,7 +1077,18 @@ namespace Chassis.Interior
             mat.SetFloat("_SpecularHighlights", 1f);
             mat.DisableKeyword("_ENVIRONMENTREFLECTIONS_OFF");
             mat.DisableKeyword("_SPECULARHIGHLIGHTS_OFF");
+            // The game's screen fog runs after the transparent queue and reads the depth texture. A pane that writes no
+            // depth gets the fog of the street behind it, which washes even a black tint out to grey. The outside glass
+            // therefore writes depth in the transparent queue, so the fog sees the pane. The opaque queue is no option:
+            // the game renders deferred, and there the glass would lose its blending and turn solid. The inside glass is
+            // looked through from the cabin, where the fog of the street behind is right, and writes no depth.
+            bool depth = !inside && GlassDepth > 0;
+            mat.renderQueue = 3000;
+            mat.SetFloat("_ZWrite", depth ? 1f : 0f);
         }
+
+        /// <summary>0: the outside glass writes no depth. 1: it writes depth in the transparent queue.</summary>
+        internal static int GlassDepth = 1;
 
         private static Material VanillaGlass()
         {

@@ -29,6 +29,7 @@ namespace Chassis.Debugging
             Say("tune stats                   - stock and current driving values");
             Say("tune demo                    - register demo parts (wing, bumper, exhaust, rims) fitted to this car's code");
             Say("tune marco open|<colour>|close - Marco's repaint menu for the car; a colour is picked and bought through the menu's own buttons");
+            Say("tune shine [hexmask]         - chrome probe layers nearby, or render the probes with this layer mask");
         }
 
         internal static void Run(string[] p)
@@ -91,6 +92,11 @@ namespace Chassis.Debugging
                     break;
                 case "marco":
                     Say("tune marco: " + Marco(lv, a1));
+                    break;
+                case "shine":
+                    int? mask = null;
+                    if (a1.Length > 0) mask = Convert.ToInt32(a1.StartsWith("0x") ? a1.Substring(2) : a1, 16);
+                    Say("tune shine: " + Shine.Debug(mask));
                     break;
                 default:
                     Say("tune: unknown '" + op + "', try 'chassis tune help'");

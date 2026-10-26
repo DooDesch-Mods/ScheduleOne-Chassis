@@ -348,6 +348,12 @@ namespace Chassis.Debugging
                             Say("interior probe: " + Interior.BaseInterior.Probe(car, !(parts.Length > 3 && parts[3] == "off")));
                         }
                         else if (op == "rebuild") { int n = Interior.BaseInterior.RemoveAll(); Interior.BaseInterior.Reset(); Say("interior: " + n + " removed, rebuilding from the current profiles"); }
+                        else if (op == "glassdepth" && parts.Length > 3)
+                        {
+                            Interior.BaseInterior.GlassDepth = int.Parse(parts[3]);
+                            int n = Interior.BaseInterior.Retint(null, Interior.BaseInterior.GlassSmoothness, Interior.BaseInterior.GlassMetallic, Interior.BaseInterior.GlassPremultiply, Interior.BaseInterior.GlassInside);
+                            Say("interior glassdepth " + Interior.BaseInterior.GlassDepth + ": " + n + " material(s)");
+                        }
                         else if (op == "glass")
                         {
                             // glass [r g b a] [smoothness] [metallic]: retints every tinted window already made.
