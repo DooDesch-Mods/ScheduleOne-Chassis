@@ -57,24 +57,36 @@ namespace Chassis.Tune
 
         // ---- neon --------------------------------------------------------------------------------------------------
 
-        private const float StripThick = 0.025f, StripInset = 0.12f, TyreClear = 0.22f;
+        private const float StripThick = 0.03f, SillTuck = 0.2f, ArchGap = 0.12f, TyreClear = 0.22f, LightEvery = 0.6f;
+        private const float LightDrop = 0.06f, LightIntensity = 2.2f;
 
-        /// <summary>The innermost wheel centre on each side, in the car's space.</summary>
-        private static bool Track(LandVehicle v, out float left, out float right)
+        /// <summary>The wheels in the car's space: innermost centre on each side, front and rear axle, tyre radius.</summary>
+        private static bool Wheels(LandVehicle v, out float left, out float right, out float front, out float rear, out float radius)
         {
-            left = float.MinValue; right = float.MaxValue;
+            left = float.MinValue; right = float.MaxValue; front = float.MinValue; rear = float.MaxValue; radius = 0f;
             if (v.wheels == null) return false;
+            float scale = Mathf.Max(0.01f, v.transform.lossyScale.y);
             foreach (var w in v.wheels)
             {
                 if (w == null) continue;
-                float x = v.transform.InverseTransformPoint(w.transform.position).x;
-                if (x < 0f) left = Mathf.Max(left, x);
-                else right = Mathf.Min(right, x);
+                var p = v.transform.InverseTransformPoint(w.transform.position);
+                if (p.x < 0f) left = Mathf.Max(left, p.x);
+                else right = Mathf.Min(right, p.x);
+                front = Mathf.Max(front, p.z);
+                rear = Mathf.Min(rear, p.z);
+                var wc = w.wheelCollider;
+                if (wc != null) radius = Mathf.Max(radius, wc.radius * wc.transform.lossyScale.y / scale);
             }
-            return left > float.MinValue && right < float.MaxValue;
+            if (radius <= 0f) radius = 0.33f;
+            return left > float.MinValue && right < float.MaxValue && front > rear;
         }
 
-        /// <summary>Glowing strips under the body on the chosen sides, and two lights that colour the ground.</summary>
+        /// <summary>
+        /// Glowing tubes under the body on the chosen sides, and point lights spread along each tube, so the ground glows
+        /// in an even band around the car. The side tubes run between the wheel arches and the front and rear tubes
+        /// between the wheels, so no tube shows inside an arch; each sits 20 cm in from the body edge, so from the
+        /// side only its glow shows.
+        /// </summary>
         internal static void Neon(Tune.Apply.Car c, string value)
         {
             string key = value ?? "";
@@ -87,40 +99,70 @@ namespace Chassis.Tune
 
             var root = new GameObject(Body.PartPrefix + "neon");
             root.transform.SetParent(c.V.transform, false);
-            // Inside the wheel track, so the strips hide under the body and only their glow shows.
             float y = b.min.y + StripThick;
-            float x0 = b.min.x + StripInset, x1 = b.max.x - StripInset, z0 = b.min.z + StripInset * 3f, z1 = b.max.z - StripInset * 3f;
-            if (Track(c.V, out float left, out float right))
+            // Side tubes along the sills, front and rear tubes under the bumpers.
+            float sx0 = b.min.x + SillTuck, sx1 = b.max.x - SillTuck;
+            float sz0 = b.min.z + SillTuck, sz1 = b.max.z - SillTuck;
+            float ex0 = sx0, ex1 = sx1, fz = b.max.z - SillTuck, bz = b.min.z + SillTuck;
+            bool wheels = Wheels(c.V, out float left, out float right, out float front, out float rear, out float radius);
+            if (wheels)
             {
-                x0 = Mathf.Max(x0, left + TyreClear);
-                x1 = Mathf.Min(x1, right - TyreClear);
-                if (x1 - x0 < 0.3f) { x0 = b.center.x - 0.15f; x1 = b.center.x + 0.15f; }
+                sz0 = rear + radius + ArchGap;
+                sz1 = front - radius - ArchGap;
+                ex0 = Mathf.Max(ex0, left + TyreClear);
+                ex1 = Mathf.Min(ex1, right - TyreClear);
             }
+            else Core.Log.Warning("[Tuning] " + Registry.Name(c.V) + ": no wheels to measure - neon tubes run the body's length.");
+            if (sz1 - sz0 < 0.3f) { float mid = (sz0 + sz1) * 0.5f; sz0 = mid - 0.15f; sz1 = mid + 0.15f; }
+            if (ex1 - ex0 < 0.3f) { ex0 = b.center.x - 0.15f; ex1 = b.center.x + 0.15f; }
+
             var mesh = new KitMesh();
-            if (sides.IndexOf('l') >= 0) mesh.Box(new Vector3(x0, y, (z0 + z1) * 0.5f), new Vector3(StripThick, StripThick, z1 - z0));
-            if (sides.IndexOf('r') >= 0) mesh.Box(new Vector3(x1, y, (z0 + z1) * 0.5f), new Vector3(StripThick, StripThick, z1 - z0));
-            if (sides.IndexOf('f') >= 0) mesh.Box(new Vector3((x0 + x1) * 0.5f, y, z1), new Vector3(x1 - x0, StripThick, StripThick));
-            if (sides.IndexOf('b') >= 0) mesh.Box(new Vector3((x0 + x1) * 0.5f, y, z0), new Vector3(x1 - x0, StripThick, StripThick));
+            var lights = new List<Vector3>();
+            void Tube(Vector3 a, Vector3 e)
+            {
+                var mid = (a + e) * 0.5f;
+                var d = e - a;
+                mesh.Box(mid, new Vector3(Mathf.Max(StripThick, Mathf.Abs(d.x)), StripThick, Mathf.Max(StripThick, Mathf.Abs(d.z))));
+                int n = Mathf.Max(1, Mathf.RoundToInt(d.magnitude / LightEvery));
+                for (int i = 0; i < n; i++) lights.Add(Vector3.Lerp(a, e, (i + 0.5f) / n) + Vector3.down * (StripThick + LightDrop));
+            }
+            if (sides.IndexOf('l') >= 0) Tube(new Vector3(sx0, y, sz0), new Vector3(sx0, y, sz1));
+            if (sides.IndexOf('r') >= 0) Tube(new Vector3(sx1, y, sz0), new Vector3(sx1, y, sz1));
+            if (sides.IndexOf('f') >= 0) Tube(new Vector3(ex0, y, fz), new Vector3(ex1, y, fz));
+            if (sides.IndexOf('b') >= 0) Tube(new Vector3(ex0, y, bz), new Vector3(ex1, y, bz));
             root.AddComponent<MeshFilter>().sharedMesh = mesh.Build("Chassis_Neon");
             var r = root.AddComponent<MeshRenderer>();
             r.sharedMaterial = Emissive(colour);
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 
-            float len = b.max.z - b.min.z;
-            for (int i = 0; i < 2; i++)
+            // The light reaches the ground below the tube and about half a metre past the body, not across the street.
+            float ground = wheels ? LowestWheel(c.V, radius) : b.min.y - 0.3f;
+            float clearance = Mathf.Max(0.1f, b.min.y - ground);
+            float range = Mathf.Clamp(clearance * 4f + 1.2f, 1.8f, 3f);
+            for (int i = 0; i < lights.Count; i++)
             {
                 var lg = new GameObject(Body.PartPrefix + "neon_light_" + i);
                 lg.transform.SetParent(root.transform, false);
-                lg.transform.localPosition = new Vector3(b.center.x, b.min.y - 0.05f, b.center.z + (i == 0 ? 0.25f : -0.25f) * len);
+                lg.transform.localPosition = lights[i];
                 var l = lg.AddComponent<Light>();
                 l.type = LightType.Point;
                 l.color = colour;
-                l.range = Mathf.Clamp(len * 0.6f, 2f, 4f);
-                l.intensity = 2.5f;
+                l.range = range;
+                l.intensity = LightIntensity;
                 l.shadows = LightShadows.None;
+                l.renderMode = LightRenderMode.ForcePixel;
             }
             c.Neon = root;
-            Core.Log.Msg("[Tuning] " + Registry.Name(c.V) + ": neon " + Values.Hex(colour) + " on " + sides + ", under y " + Tune.Apply.F(b.min.y) + ".");
+            Core.Log.Msg("[Tuning] " + Registry.Name(c.V) + ": neon " + Values.Hex(colour) + " on " + sides + ", under y " + Tune.Apply.F(b.min.y)
+                         + ", " + lights.Count + " light(s) of " + Tune.Apply.F(range) + " m.");
+        }
+
+        /// <summary>The ground under the car in its space: the lowest wheel centre minus the tyre radius.</summary>
+        private static float LowestWheel(LandVehicle v, float radius)
+        {
+            float low = float.MaxValue;
+            foreach (var w in v.wheels) if (w != null) low = Mathf.Min(low, v.transform.InverseTransformPoint(w.transform.position).y);
+            return low == float.MaxValue ? 0f : low - radius;
         }
 
         private static readonly Dictionary<string, Material> _emissive = new Dictionary<string, Material>();
