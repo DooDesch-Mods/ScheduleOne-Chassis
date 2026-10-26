@@ -873,7 +873,7 @@ namespace Chassis.Interior
             return lined;
         }
 
-        private static HashSet<int> Lod0(LODGroup lod)
+        internal static HashSet<int> Lod0(LODGroup lod)
         {
             if (lod == null) return null;
             try
