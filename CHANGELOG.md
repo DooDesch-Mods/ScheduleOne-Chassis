@@ -4,6 +4,19 @@ All notable changes to Chassis are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.8.0] - 2026-10-27
+
+### Added
+- New "Reflections" row in the graphics settings, Low to Ultra. High and Ultra give sharper chrome that updates faster.
+
+### Fixed
+- Tuned cars no longer reverse almost as fast as they drive forward.
+- Lowered suspension now shows on big vehicles like the RV.
+- Underglow no longer lights the inside of the car.
+
+### For mod authors
+- `ChassisApi.HornClip` returns the sound a vehicle's horn plays.
+
 ## [1.7.1] - 2026-10-27
 
 ### Fixed
