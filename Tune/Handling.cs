@@ -66,6 +66,7 @@ namespace Chassis.Tune
             lv.downforce = st.Downforce * s.Downforce;
             lv.maxSteeringAngle = st.Steer * s.Steer;
             if (lv.Rb != null) lv.Rb.mass = st.Mass * s.Mass;
+            float drop = 0f;
             for (int i = 0; i < st.Wheels.Count; i++)
             {
                 var wc = st.Wheels[i];
@@ -74,8 +75,10 @@ namespace Chassis.Tune
                 spring.spring *= s.Spring;
                 spring.damper *= s.Damper;
                 wc.suspensionSpring = spring;
-                // The wheel hangs from its centre; a higher centre puts the body lower over the same wheel.
-                wc.center = st.Centers[i] - Vector3.up * s.RideHeight;
+                // The wheel hangs from its centre; a higher centre puts the body lower over the same wheel. The drop is
+                // in metres along the car's up, whatever the wheel transform's scale.
+                drop = s.RideHeight * DropScale(wc);
+                wc.center = st.Centers[i] + wc.transform.InverseTransformVector(lv.transform.up * drop);
             }
             if (st.Sound != null) st.Sound.EnginePitchMultiplier = st.Pitch * s.EnginePitch;
             if (Mathf.Abs(s.Grip - 1f) > 0.0001f) _grip[lv.GetInstanceID()] = s.Grip;
@@ -83,7 +86,7 @@ namespace Chassis.Tune
 
             c.HandlingKey = key;
             c.Stats = s;
-            Core.Log.Msg("[Tuning] " + Registry.Name(lv) + " drives " + key + ": torque " + Tune.Apply.F(Peak(curve)) + " peak, brake x" + Tune.Apply.F(lv.BrakeForceMultiplier) + ", steer " + Tune.Apply.F(lv.maxSteeringAngle) + " deg, mass " + Tune.Apply.F(lv.Rb != null ? lv.Rb.mass : 0f) + " kg.");
+            Core.Log.Msg("[Tuning] " + Registry.Name(lv) + " drives " + key + ": torque " + Tune.Apply.F(Peak(curve)) + " peak, brake x" + Tune.Apply.F(lv.BrakeForceMultiplier) + ", steer " + Tune.Apply.F(lv.maxSteeringAngle) + " deg, mass " + Tune.Apply.F(lv.Rb != null ? lv.Rb.mass : 0f) + " kg, ride " + Tune.Apply.F(drop) + " m.");
         }
 
         private static Stock Read(LandVehicle lv)
@@ -115,6 +118,19 @@ namespace Chassis.Tune
             return st;
         }
 
+        /// <summary>Tyre radius of a stock car; the ride height of a part is meant for a wheel this size.</summary>
+        private const float CarTyreRadius = 0.35f;
+
+        /// <summary>
+        /// A bigger wheel drops further, so a lowered RV or truck shows it as clearly as a car: the ride height grows with
+        /// the tyre's radius in metres over a car's, never below the part's own value.
+        /// </summary>
+        private static float DropScale(WheelCollider wc)
+        {
+            float radius = wc.radius * wc.transform.lossyScale.y;
+            return Mathf.Max(1f, radius / CarTyreRadius);
+        }
+
         internal static float Peak(AnimationCurve c)
         {
             float max = 0f;
@@ -137,7 +153,8 @@ namespace Chassis.Tune
             if (st == null) return "now:   " + now + "\nstock: same (no part changed the driving)";
             string stock = "torque " + Tune.Apply.F(MaxOf(st.Torque)) + " peak, brake x" + Tune.Apply.F(st.Brake) + ", handbrake " + Tune.Apply.F(st.HandBrake) + ", downforce " + Tune.Apply.F(st.Downforce)
                 + ", steer " + Tune.Apply.F(st.Steer) + ", mass " + Tune.Apply.F(st.Mass) + (st.Springs.Count > 0 ? ", spring " + Tune.Apply.F(st.Springs[0].spring) + ", damper " + Tune.Apply.F(st.Springs[0].damper) + ", wheel centre y " + Tune.Apply.F(st.Centers[0].y) : "") + ", pitch x" + Tune.Apply.F(st.Pitch);
-            return "now:   " + now + "\nstock: " + stock + "\nparts: " + (c.Stats != null ? c.Stats.ToString() : "stock");
+            string cap = c.Stats != null && c.HandlingKey != "stock" ? ", reverse cap " + Tune.Apply.F(ReversePatch.CapOf(lv, c.Stats)) + " km/h" : "";
+            return "now:   " + now + "\nstock: " + stock + "\nparts: " + (c.Stats != null ? c.Stats.ToString() : "stock") + cap;
         }
 
         private static float MaxOf(Keyframe[] k) { float m = 0f; foreach (var x in k) m = Mathf.Max(m, x.value); return m; }
@@ -147,6 +164,49 @@ namespace Chassis.Tune
         internal static void Forget(int instanceId) => _grip.Remove(instanceId);
 
         internal static void Reset() => _grip.Clear();
+    }
+
+    /// <summary>
+    /// Reverse keeps vanilla's share of the forward speed on a tuned car. Vanilla reads the torque curve at
+    /// <c>speed / reverseMultiplier</c> in reverse, so reverse reaches the curve's flat end at a fraction of the forward
+    /// speed, and parts multiply that flat end: a tuned car reversed nearly as fast as it drove forward. On a tuned car
+    /// the drive wheels get no torque once reverse passes <c>reverseMultiplier</c> x the car's top speed x the parts'
+    /// gearing and torque. A car without driving parts stays vanilla.
+    /// </summary>
+    [HarmonyPatch(typeof(LandVehicle), "ApplyThrottle")]
+    internal static class ReversePatch
+    {
+        private static bool _failed;
+        private static int _loggedFor;
+
+        internal static float CapOf(LandVehicle lv, TuningStats s) =>
+            lv.reverseMultiplier * lv.TopSpeed * Mathf.Max(1f, s.Gearing) * Mathf.Max(1f, s.Torque);
+
+        private static void Postfix(LandVehicle __instance)
+        {
+            if (_failed || !__instance.LocalPlayerIsDriver) return;
+            try
+            {
+                if (__instance.currentThrottle >= 0f || __instance.Speed_Kmh > -0.1f) return;
+                var c = Tune.Apply.Find(__instance);
+                var s = c?.Stats;
+                if (s == null || c.HandlingKey == "stock") return;
+                float cap = CapOf(__instance, s);
+                if (-__instance.Speed_Kmh < cap) return;
+                foreach (var wc in __instance.driveWheels) if (wc != null) wc.motorTorque = 0f;
+                int id = __instance.GetInstanceID();
+                if (_loggedFor != id)
+                {
+                    _loggedFor = id;
+                    Core.Log.Msg("[Tuning] " + Registry.Name(__instance) + " reverses at its cap of " + Tune.Apply.F(cap) + " km/h (" + Tune.Apply.F(__instance.reverseMultiplier) + " x top " + Tune.Apply.F(__instance.TopSpeed) + " km/h x gearing " + Tune.Apply.F(s.Gearing) + " x torque " + Tune.Apply.F(s.Torque) + ").");
+                }
+            }
+            catch (Exception e)
+            {
+                _failed = true;
+                Core.Log.Error("[Tuning] capping the reverse speed failed - tuned cars reverse without a cap for this session: " + e);
+            }
+        }
     }
 
     /// <summary>Scales the tyre friction vanilla has just written from the weather settings.</summary>
