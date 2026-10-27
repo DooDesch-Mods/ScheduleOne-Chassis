@@ -43,6 +43,7 @@ global using GameText = TMPro.TextMeshPro;
 global using GameFontAsset = TMPro.TMP_FontAsset;
 global using GameTextAlign = TMPro.TextAlignmentOptions;
 global using GameUiText = TMPro.TextMeshProUGUI;
+global using GameDropdown = TMPro.TMP_Dropdown;
 global using GameHud = ScheduleOne.UI.HUD;
 global using GameMoneyManager = ScheduleOne.Money.MoneyManager;
 global using VehicleSalesman = ScheduleOne.Dialogue.DialogueHandler_VehicleSalesman;

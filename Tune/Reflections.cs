@@ -69,7 +69,9 @@ namespace Chassis.Tune
 
         /// <summary>
         /// The graphics tab starts its "Quality" row: a copy of the row goes under it. The copy is made under an inactive
-        /// holder and loses its <c>QualityDropdown</c> before it ever wakes, so it can never change the game's quality.
+        /// holder and loses its <c>QualityDropdown</c> before it ever wakes, and its controls get fresh change events, so
+        /// it can never change the game's quality. The row's control is a TMP dropdown with the mouse and a popup selector
+        /// in other layouts; whichever the row has is filled.
         /// </summary>
         [HarmonyPatch(typeof(GameQualityDropdown), "Start")]
         private static class QualityRowPatch
@@ -93,11 +95,15 @@ namespace Chassis.Tune
             catch (Exception e) { Core.Log.Error("[Reflections] adding the settings row failed - the level stays in MelonPreferences only: " + e); }
         }
 
-        private static void Build(GameObject quality)
+        private static void Build(GameObject dropdownOwner)
         {
-            Transform parent = quality.transform.parent;
-            if (parent == null) { Core.Log.Warning("[Reflections] the Quality row has no parent - no Reflections row."); return; }
+            // QualityDropdown sits inside the row (label and control); the row is the child of the tab's layout group.
+            Transform rowT = dropdownOwner.transform;
+            while (rowT.parent != null && rowT.parent.GetComponent<UnityEngine.UI.LayoutGroup>() == null) rowT = rowT.parent;
+            Transform parent = rowT.parent;
+            if (parent == null) { Core.Log.Warning("[Reflections] no layout group above the Quality dropdown - no Reflections row."); return; }
             if (parent.Find(RowName) != null) { Core.Log.Msg("[Reflections] the settings row is there already."); return; }
+            GameObject quality = rowT.gameObject;
 
             var holder = new GameObject("Chassis_ReflectionsHolder");
             holder.SetActive(false);
@@ -106,34 +112,53 @@ namespace Chassis.Tune
             {
                 row = UnityEngine.Object.Instantiate(quality, holder.transform);
                 row.name = RowName;
-                var copy = row.GetComponent<GameQualityDropdown>();
-                if (copy != null) UnityEngine.Object.DestroyImmediate(copy);
+                int removed = 0;
+                foreach (var copy in row.GetComponentsInChildren<GameQualityDropdown>(true)) { UnityEngine.Object.DestroyImmediate(copy); removed++; }
+                if (removed == 0) Core.Log.Warning("[Reflections] the copied row had no QualityDropdown to remove.");
                 row.transform.SetParent(parent, false);
                 row.transform.SetSiblingIndex(quality.transform.GetSiblingIndex() + 1);
             }
             finally { UnityEngine.Object.Destroy(holder); }
 
+            var dropdown = row.GetComponentInChildren<GameDropdown>(true);
             var selector = row.GetComponentInChildren<GamePopupSelector>(true);
-            if (selector == null)
+            if (dropdown == null && selector == null)
             {
                 UnityEngine.Object.Destroy(row);
-                Core.Log.Warning("[Reflections] the Quality row has no popup selector - no Reflections row.");
+                Core.Log.Warning("[Reflections] the Quality row has neither a dropdown nor a popup selector - no Reflections row.");
                 return;
             }
-            selector.ClearOptions();
-            for (int i = 0; i < Names.Length; i++) selector.AddOption(new GameMenuOption(i, Names[i], null));
-            selector.SetCurrentOptionWithoutNotify(Level);
+            if (dropdown != null)
+            {
+                dropdown.onValueChanged = new GameDropdown.DropdownEvent();
+                dropdown.ClearOptions();
+                for (int i = 0; i < Names.Length; i++) dropdown.options.Add(new GameDropdown.OptionData(Names[i]));
+                dropdown.SetValueWithoutNotify(Level);
+                dropdown.RefreshShownValue();
 #if IL2CPP
-            selector.OnChanged.AddListener((Action<GameMenuOption>)(o => Set(o.optionID)));
+                dropdown.onValueChanged.AddListener((Action<int>)(i => Set(i)));
 #else
-            selector.OnChanged.AddListener(o => Set(o.optionID));
+                dropdown.onValueChanged.AddListener(i => Set(i));
 #endif
+            }
+            if (selector != null)
+            {
+                selector.OnChanged = new UnityEngine.Events.UnityEvent<GameMenuOption>();
+                selector.ClearOptions();
+                for (int i = 0; i < Names.Length; i++) selector.AddOption(new GameMenuOption(i, Names[i], null));
+                selector.SetCurrentOptionWithoutNotify(Level);
+#if IL2CPP
+                selector.OnChanged.AddListener((Action<GameMenuOption>)(o => Set(o.optionID)));
+#else
+                selector.OnChanged.AddListener(o => Set(o.optionID));
+#endif
+            }
 
             int labels = 0;
             foreach (var t in row.GetComponentsInChildren<GameUiText>(true))
                 if (t != null && string.Equals(t.text, "Quality", StringComparison.OrdinalIgnoreCase)) { t.text = "Reflections"; labels++; }
             if (labels == 0) Core.Log.Warning("[Reflections] no 'Quality' label in the copied row - it keeps the copied name.");
-            Core.Log.Msg("[Reflections] settings row added under Quality, showing " + Names[Level] + ".");
+            Core.Log.Msg("[Reflections] settings row added under Quality (" + (dropdown != null ? "dropdown" : "") + (dropdown != null && selector != null ? " and " : "") + (selector != null ? "popup selector" : "") + "), showing " + Names[Level] + ".");
         }
     }
 }

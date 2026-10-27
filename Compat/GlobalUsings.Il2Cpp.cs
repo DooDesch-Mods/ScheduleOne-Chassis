@@ -43,6 +43,7 @@ global using GameText = Il2CppTMPro.TextMeshPro;
 global using GameFontAsset = Il2CppTMPro.TMP_FontAsset;
 global using GameTextAlign = Il2CppTMPro.TextAlignmentOptions;
 global using GameUiText = Il2CppTMPro.TextMeshProUGUI;
+global using GameDropdown = Il2CppTMPro.TMP_Dropdown;
 global using GameHud = Il2CppScheduleOne.UI.HUD;
 global using GameMoneyManager = Il2CppScheduleOne.Money.MoneyManager;
 global using VehicleSalesman = Il2CppScheduleOne.Dialogue.DialogueHandler_VehicleSalesman;
