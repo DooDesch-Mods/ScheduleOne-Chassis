@@ -97,9 +97,7 @@ namespace Chassis.Vehicles
             var horn = ChassisApi.For(lv)?.Horn;
             try
             {
-                // A horn from the car's tuning wins over the profile's.
-                string tuned = Tune.State.Get(lv, "horn");
-                var clip = Sounds.Get(!string.IsNullOrEmpty(tuned) ? tuned : horn?.Clip, Sounds.Horn);
+                var clip = ClipOf(lv, false);
                 var at = horn != null ? horn.Position : new Vector3(0f, 0.6f, 1.8f);
                 float volume = (horn != null ? horn.Volume : 0.8f) * Sounds.Volume();
                 if (hold)
@@ -116,6 +114,14 @@ namespace Chassis.Vehicles
                 Core.Log.Msg("[Horn] " + (hold ? "horn held on " : "honked ") + Registry.Name(lv) + " at " + lv.transform.position.ToString("F0") + ".");
             }
             catch (Exception e) { Core.Log.Error("[Horn] could not play the horn of " + Registry.Name(lv) + ": " + e); }
+        }
+
+        /// <summary>The clip the horn plays; a horn from the car's tuning wins over the profile's unless <paramref name="stock"/>.</summary>
+        internal static AudioClip ClipOf(LandVehicle lv, bool stock)
+        {
+            if (lv == null) return Sounds.Get(null, Sounds.Horn);
+            string tuned = stock ? null : Tune.State.Get(lv, "horn");
+            return Sounds.Get(!string.IsNullOrEmpty(tuned) ? tuned : ChassisApi.For(lv)?.Horn?.Clip, Sounds.Horn);
         }
 
         /// <summary>Everyone: the held horn of the vehicle stops.</summary>

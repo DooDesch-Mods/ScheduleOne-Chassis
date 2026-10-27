@@ -97,6 +97,14 @@ namespace Chassis.Api
         /// <param name="flash">true also blinks the headlights twice.</param>
         public static void Honk(LandVehicle vehicle, bool flash = false) => Horn.Request(vehicle, flash);
 
+        /// <summary>
+        /// The clip the horn of a vehicle plays: the tuned horn ("horn" tuning key) if one is set, else the profile's
+        /// <see cref="HornProfile.Clip"/>, else the built-in two-tone horn. Plays nothing; a shop uses it to let the
+        /// player hear a horn on this machine only.
+        /// </summary>
+        /// <param name="stock">true skips the tuned horn: the horn the vehicle has without parts.</param>
+        public static AudioClip HornClip(LandVehicle vehicle, bool stock = false) => Horn.ClipOf(vehicle, stock);
+
         // ---- indicators --------------------------------------------------------------------------------------------
 
         /// <summary>Raised on every peer with the vehicle and the new side when an indicator changes: -1 left, 1 right, 0 off, 2 hazard lights.</summary>
