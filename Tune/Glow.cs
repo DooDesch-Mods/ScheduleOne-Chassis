@@ -58,6 +58,8 @@ namespace Chassis.Tune
 
         private const float SillTuck = 0.2f, ArchGap = 0.06f, TyreClear = 0.22f, LightEvery = 0.6f;
         private const float LightDrop = 0.08f, LightIntensity = 2.2f;
+        /// <summary>Wide enough to light the ground well past the body, narrow enough to stay under the floor.</summary>
+        private const float SpotAngle = 150f;
         /// <summary>
         /// Fitted strips: how far in from the body's edge they sit, how deep a band behind the edge counts as its lower
         /// rim, the step along the edge, and the height change between two steps that ends a strip (a wheel arch).
@@ -129,6 +131,7 @@ namespace Chassis.Tune
             foreach (var t in rows) report.Add(t.Key + " " + Tune.Apply.F(Row(t.Value, lights)) + " m");
 
             // The light reaches the ground below the row and about half a metre past the body, not across the street.
+            // Spots that face the ground: a point light shone up through the floor and lit the cabin from below.
             float ground = wheels ? LowestWheel(c.V, radius) : b.min.y - 0.3f;
             float clearance = Mathf.Max(0.1f, b.min.y - ground);
             float range = Mathf.Clamp(clearance * 4f + 1.2f, 1.8f, 3f);
@@ -137,8 +140,11 @@ namespace Chassis.Tune
                 var lg = new GameObject(Body.PartPrefix + "neon_light_" + i);
                 lg.transform.SetParent(root.transform, false);
                 lg.transform.localPosition = lights[i];
+                lg.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
                 var l = lg.AddComponent<Light>();
-                l.type = LightType.Point;
+                l.type = LightType.Spot;
+                l.spotAngle = SpotAngle;
+                l.innerSpotAngle = SpotAngle * 0.6f;
                 l.color = colour;
                 l.range = range;
                 l.intensity = LightIntensity;
@@ -147,7 +153,7 @@ namespace Chassis.Tune
             }
             c.Neon = root;
             Core.Log.Msg("[Tuning] " + Registry.Name(c.V) + ": neon " + Values.Hex(colour) + " on " + sides + (map != null ? ", fitted to the underside" : ", straight")
-                         + " (" + string.Join(", ", report) + "), " + lights.Count + " light(s) of " + Tune.Apply.F(range) + " m.");
+                         + " (" + string.Join(", ", report) + "), " + lights.Count + " spot light(s) of " + Tune.Apply.F(range) + " m facing the ground.");
         }
 
         /// <summary>The car's underside map, read once per car; null when its body cannot be read.</summary>
