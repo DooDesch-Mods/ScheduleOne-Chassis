@@ -13,7 +13,7 @@
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 [![Polyfill](https://polyfill.doomods.com/badge/chassis.svg)](https://polyfill.doomods.com/mod/chassis)
 
-[![MLVScan Chassis.dll](https://mlvscan.com/attestations/att_m3co6Vo2v3DJ5riDF_Zj8In5/badge.svg)](https://mlvscan.com/attestations/att_m3co6Vo2v3DJ5riDF_Zj8In5)
+[![MLVScan Chassis.dll](https://mlvscan.com/attestations/att_kVMtJKAwRCmmPBj2cVcWDAAq/badge.svg)](https://mlvscan.com/attestations/att_kVMtJKAwRCmmPBj2cVcWDAAq)
 
 ![Chassis](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/header.jpg)
 
