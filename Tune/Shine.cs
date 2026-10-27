@@ -16,8 +16,7 @@ namespace Chassis.Tune
     internal static class Shine
     {
         private const string ProbeName = "Chassis_ChromeProbe";
-        private const int Resolution = 128;
-        private const float MovingEvery = 0f, StandingEvery = 2f, FarAway = 60f, RoofGap = 0.5f, FarClip = 80f;
+        private const float FarAway = 60f, RoofGap = 0.5f, FarClip = 80f;
 
         private sealed class Entry
         {
@@ -47,7 +46,7 @@ namespace Chassis.Tune
             var p = Make(c.V, out string layers);
             if (p == null) return;
             _probes[key] = new Entry { V = c.V, P = p, Next = 0f, Last = c.V.transform.position };
-            Core.Log.Msg("[Tuning] " + Registry.Name(c.V) + ": chrome reflections on (probe " + Resolution + " px, " + p.size.x.ToString("F1") + " m, the car's layers " + layers + " left out).");
+            Core.Log.Msg("[Tuning] " + Registry.Name(c.V) + ": chrome reflections on (probe " + Reflections.Size + " px, " + p.size.x.ToString("F1") + " m, the car's layers " + layers + " left out).");
         }
 
         private static ReflectionProbe Make(LandVehicle v, out string layers)
@@ -85,8 +84,8 @@ namespace Chassis.Tune
             var p = go.AddComponent<ReflectionProbe>();
             p.mode = ReflectionProbeMode.Realtime;
             p.refreshMode = ReflectionProbeRefreshMode.ViaScripting;
-            p.timeSlicingMode = ReflectionProbeTimeSlicingMode.IndividualFaces;
-            p.resolution = Resolution;
+            p.timeSlicingMode = Reflections.TimeSlicing;
+            p.resolution = Reflections.Size;
             p.hdr = true;
             p.boxProjection = false;
             // Probe boxes are axis-aligned in the world: a cube around the whole car covers it at any heading.
@@ -126,7 +125,7 @@ namespace Chassis.Tune
                     e.Render = 0;
                 }
                 if (now < e.Next) continue;
-                if (cam != null && (cam.transform.position - e.V.transform.position).sqrMagnitude > FarAway * FarAway) { e.Next = now + StandingEvery; continue; }
+                if (cam != null && (cam.transform.position - e.V.transform.position).sqrMagnitude > FarAway * FarAway) { e.Next = now + Reflections.StandingEvery; continue; }
                 if (due == null || e.Next < due.Next) due = e;
             }
             foreach (int k in _gone) _probes.Remove(k);
@@ -134,7 +133,7 @@ namespace Chassis.Tune
             var pos = due.V.transform.position;
             bool moving = (pos - due.Last).sqrMagnitude > 0.01f;
             due.Last = pos;
-            due.Next = now + (moving ? MovingEvery : StandingEvery);
+            due.Next = now + (moving ? Reflections.MovingEvery : Reflections.StandingEvery);
             try
             {
                 due.P.backgroundColor = RenderSettings.fogColor;
@@ -180,6 +179,26 @@ namespace Chassis.Tune
             return "probe mask 0x" + first.P.cullingMask.ToString("X8") + "; layers within " + FarAway + " m: " + string.Join(", ", parts);
         }
 #endif
+
+        /// <summary>The <see cref="Reflections"/> level changed: every probe takes the new size and slicing and renders again.</summary>
+        internal static void Restyle()
+        {
+            int n = 0;
+            foreach (var e in _probes.Values)
+            {
+                if (e.P == null) continue;
+                try
+                {
+                    e.P.resolution = Reflections.Size;
+                    e.P.timeSlicingMode = Reflections.TimeSlicing;
+                    e.Render = 0;
+                    e.Next = 0f;
+                    n++;
+                }
+                catch (Exception ex) { Core.Log.Error("[Tuning] restyling the chrome probe of " + Registry.Name(e.V) + " failed: " + ex.Message); }
+            }
+            Core.Log.Msg("[Tuning] " + n + " chrome probe(s) now " + Reflections.Size + " px, " + Reflections.TimeSlicing + ".");
+        }
 
         internal static void Reset()
         {

@@ -50,3 +50,6 @@ global using GameVehicleSound = ScheduleOne.Vehicles.Sound.VehicleSound;
 global using GameVehicleModMenu = ScheduleOne.UI.VehicleModMenu;
 global using GameVehicleColor = ScheduleOne.Vehicles.Modification.EVehicleColor;
 global using VehicleSaleSign = ScheduleOne.Tools.VehicleSaleSign;
+global using GameQualityDropdown = ScheduleOne.UI.Settings.QualityDropdown;
+global using GamePopupSelector = ScheduleOne.UIPopupSelector;
+global using GameMenuOption = ScheduleOne.UIPopupScreen_ContextMenu.ContextMenuOption;
