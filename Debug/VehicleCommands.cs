@@ -23,6 +23,7 @@ namespace Chassis.Debugging
             Say("car slide [km/h] [deg] [s]   - hold the body at a speed turned off its facing, for tyre slip and drift smoke");
             Say("car wheels                   - drift state, smoke and smoke colour per wheel");
             Say("car honk [flash]             - horn (key G)");
+            Say("car hear [d1,d2,...]         - plays the horn from each distance and reports the level at the listener");
             Say("car blink l|r|off            - indicator (arrow keys)");
             Say("car lock on|off              - lock or unlock (owner only)");
             Say("car part <name> open|close   - lid from the profile");
@@ -110,6 +111,12 @@ namespace Chassis.Debugging
                     ChassisApi.Honk(lv, arg == "flash");
                     Say("car honk: asked");
                     break;
+#if IL2CPP
+                case "hear":
+                    MelonLoader.MelonCoroutines.Start(Hear(lv, arg));
+                    Say("car hear: started");
+                    break;
+#endif
                 case "blink":
                     ChassisApi.SetIndicator(lv, arg == "l" || arg == "left" ? -1 : arg == "r" || arg == "right" ? 1 : 0);
                     Say("car blink: asked " + arg);
@@ -235,6 +242,69 @@ namespace Chassis.Debugging
             if (lv == null) { Core.Log.Warning("[Console] car slide ended: the vehicle is gone."); yield break; }
             Core.Log.Msg("[Console] car slide ended: drift smoke played in " + smokeFrames + " of " + frames + " frame(s).");
         }
+
+#if IL2CPP
+        /// <summary>
+        /// Moves the listener away from the vehicle step by step and plays the horn locally at each distance. The level
+        /// is the loudest RMS of the mixed output during the honk minus the quiet second before it, so wind and traffic
+        /// do not count as horn.
+        /// </summary>
+        private static System.Collections.IEnumerator Hear(LandVehicle lv, string list)
+        {
+            var ci = CultureInfo.InvariantCulture;
+            var steps = new System.Collections.Generic.List<float>();
+            foreach (var part in (list.Length > 0 ? list : "5,15,30,60,100,150,250,400").Split(','))
+                if (float.TryParse(part, NumberStyles.Float, ci, out float d)) steps.Add(d);
+            var move = PlayerSingleton<PlayerMovement>.Instance;
+            Vector3 home = Player.Local.transform.position;
+            Vector3 car = lv.transform.position;
+            int id = Chassis.Net.Ids.Of(lv);
+            var buf = new Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray<float>(1024);
+            foreach (float d in steps)
+            {
+                Vector3 at = car + Vector3.right * d;
+                if (Physics.Raycast(at + Vector3.up * 300f, Vector3.down, out RaycastHit hit, 600f, ~0, QueryTriggerInteraction.Ignore)) at = hit.point;
+                move.Teleport(at + Vector3.up * 0.2f, true);
+                float quiet = 0f, loud = 0f;
+                float end = Time.realtimeSinceStartup + 1f;
+                while (Time.realtimeSinceStartup < end) { quiet = Mathf.Max(quiet, Rms(buf)); yield return null; }
+                Horn.OnHonk(id, false);
+                end = Time.realtimeSinceStartup + 0.8f;
+                float lowest = float.MaxValue;
+                while (Time.realtimeSinceStartup < end)
+                {
+                    loud = Mathf.Max(loud, Rms(buf));
+                    var playing = lv.transform.Find("ChassisHorn")?.GetComponent<AudioLowPassFilter>();
+                    if (playing != null) lowest = Mathf.Min(lowest, playing.cutoffFrequency);
+                    yield return null;
+                }
+                var listener = UnityEngine.Object.FindObjectOfType<AudioListener>();
+                float real = listener != null ? Vector3.Distance(listener.transform.position, car) : -1f;
+                var hs = lv.transform.Find("ChassisHorn")?.GetComponent<AudioSource>();
+                var lp = hs != null ? hs.GetComponent<AudioLowPassFilter>() : null;
+                string curve = hs == null ? "no source" : hs.rolloffMode == AudioRolloffMode.Custom
+                    ? "gain " + hs.GetCustomCurve(AudioSourceCurveType.CustomRolloff).Evaluate(Mathf.Clamp01(real / hs.maxDistance)).ToString("F3", ci)
+                    : hs.rolloffMode.ToString();
+                if (lp != null) curve += ", cutoff while playing " + lowest.ToString("F0", ci) + " Hz";
+                Say("car hear: " + d.ToString("F0", ci) + " m (listener " + real.ToString("F0", ci) + " m) " + curve + ", horn " + Mathf.Max(0f, loud - quiet).ToString("F4", ci)
+                    + " (peak " + loud.ToString("F4", ci) + ", quiet " + quiet.ToString("F4", ci) + ")");
+            }
+            move.Teleport(home, true);
+            var src = lv.transform.Find("ChassisHorn")?.GetComponent<AudioSource>();
+            if (src != null)
+                Say("car hear: source " + src.rolloffMode + " " + src.minDistance.ToString("F0", ci) + "-" + src.maxDistance.ToString("F0", ci)
+                    + " m, blend " + src.spatialBlend.ToString("F2", ci) + ", at " + src.transform.position.ToString("F1"));
+            Say("car hear: done");
+        }
+
+        private static float Rms(Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray<float> buf)
+        {
+            AudioListener.GetOutputData(buf, 0);
+            double sum = 0;
+            for (int i = 0; i < buf.Length; i++) sum += buf[i] * buf[i];
+            return (float)Math.Sqrt(sum / buf.Length);
+        }
+#endif
 
         private static void Say(string line) => DebugConsolePatch.Say(line);
     }
