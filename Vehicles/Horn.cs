@@ -102,15 +102,21 @@ namespace Chassis.Vehicles
                 float volume = (horn != null ? horn.Volume : 0.8f) * Sounds.Volume();
                 if (hold)
                 {
-                    var held = Sounds.On(lv, HeldSource, at);
+                    var held = Sounds.On(lv, HeldSource, at, Sounds.HornReach);
                     held.clip = clip;
                     held.loop = true;
                     held.volume = volume;
+                    Sounds.Muffle(held);
                     held.Play();
                     // A lost stop message must not leave the horn sounding: it also stops once nobody drives.
                     MelonCoroutines.Start(StopWhenEmpty(lv, held));
                 }
-                else Sounds.On(lv, "ChassisHorn", at).PlayOneShot(clip, volume);
+                else
+                {
+                    var once = Sounds.On(lv, "ChassisHorn", at, Sounds.HornReach);
+                    Sounds.Muffle(once);
+                    once.PlayOneShot(clip, volume);
+                }
                 Core.Log.Msg("[Horn] " + (hold ? "horn held on " : "honked ") + Registry.Name(lv) + " at " + lv.transform.position.ToString("F0") + ".");
             }
             catch (Exception e) { Core.Log.Error("[Horn] could not play the horn of " + Registry.Name(lv) + ": " + e); }
@@ -138,7 +144,11 @@ namespace Chassis.Vehicles
 
         private static IEnumerator StopWhenEmpty(LandVehicle lv, AudioSource source)
         {
-            while (lv != null && source != null && source.isPlaying && lv.IsOccupied) yield return null;
+            while (lv != null && source != null && source.isPlaying && lv.IsOccupied)
+            {
+                Sounds.Muffle(source);
+                yield return null;
+            }
             if (lv == null || source == null || !source.isPlaying) yield break;
             source.Stop();
             Core.Log.Msg("[Horn] horn of " + Registry.Name(lv) + " stopped: nobody drives it.");
@@ -167,7 +177,8 @@ namespace Chassis.Vehicles
             try
             {
                 var clip = Sounds.Get(horn?.Chirp, Sounds.Chirp);
-                var source = Sounds.On(lv, "ChassisHorn", horn != null ? horn.Position : new Vector3(0f, 0.6f, 1.8f));
+                var source = Sounds.On(lv, "ChassisChirp", horn != null ? horn.Position : new Vector3(0f, 0.6f, 1.8f), Sounds.ChirpReach);
+                Sounds.Muffle(source);
                 source.PlayOneShot(clip, 0.7f * Sounds.Volume());
                 return true;
             }

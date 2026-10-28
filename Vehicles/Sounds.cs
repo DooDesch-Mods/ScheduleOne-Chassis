@@ -92,12 +92,7 @@ namespace Chassis.Vehicles
         {
             Transform t = v.transform.Find(CabinName);
             AudioSource source = t != null ? t.GetComponent<AudioSource>() : null;
-            if (source == null)
-            {
-                source = On(v, CabinName, Vector3.zero);
-                source.minDistance = 0.6f;
-                source.maxDistance = 7f;
-            }
+            if (source == null) source = On(v, CabinName, Vector3.zero, CabinReach);
             source.transform.position = world;
             source.PlayOneShot(Get(null, clip), level * Volume());
         }
@@ -148,8 +143,24 @@ namespace Chassis.Vehicles
             return 1f;
         }
 
-        /// <summary>A 3D audio source on the vehicle, made once per name.</summary>
-        internal static AudioSource On(LandVehicle v, string name, Vector3 local)
+        /// <summary>How far a sound carries: full level up to <see cref="Near"/>, gone at <see cref="Far"/>, in metres.</summary>
+        internal readonly struct Reach
+        {
+            internal readonly float Near, Far;
+            internal Reach(float near, float far) { Near = near; Far = far; }
+        }
+
+        /// <summary>The horn: loud at the car, about half as loud with each doubling of the distance, gone at 80 m.</summary>
+        internal static readonly Reach HornReach = new Reach(4f, 80f);
+        /// <summary>The lock chirp: a quieter beep for whoever stands near the car.</summary>
+        internal static readonly Reach ChirpReach = new Reach(2f, 30f);
+        /// <summary>Switches and the indicator relay: inside the car and right next to it.</summary>
+        internal static readonly Reach CabinReach = new Reach(0.6f, 7f);
+
+        private static bool _noLowPass;
+
+        /// <summary>A 3D audio source on the vehicle, made once per name, with the falloff of <paramref name="reach"/>.</summary>
+        internal static AudioSource On(LandVehicle v, string name, Vector3 local, Reach reach)
         {
             Transform t = v.transform.Find(name);
             if (t != null)
@@ -162,13 +173,79 @@ namespace Chassis.Vehicles
             go.transform.localPosition = local;
             var source = go.AddComponent<AudioSource>();
             source.spatialBlend = 1f;
-            source.minDistance = 6f;
-            source.maxDistance = 120f;
-            source.rolloffMode = AudioRolloffMode.Linear;
             source.playOnAwake = false;
             source.dopplerLevel = 0f;
             source.outputAudioMixerGroup = Group();
+            Shape(source, reach);
             return source;
+        }
+
+        /// <summary>
+        /// Distance falloff as sound behaves in the open: the level halves with each doubling of the distance past
+        /// <c>Near</c> (the inverse distance law), and the last quarter before <c>Far</c> fades it to silence, so the
+        /// sound ends instead of hanging on at a low level the way Unity's logarithmic mode does. Far away the high
+        /// tones drop out first, as air absorbs them, through a low-pass filter on the same distance.
+        /// </summary>
+        private static void Shape(AudioSource source, Reach reach)
+        {
+            source.minDistance = reach.Near;
+            source.maxDistance = reach.Far;
+            source.rolloffMode = AudioRolloffMode.Custom;
+            source.SetCustomCurve(AudioSourceCurveType.CustomRolloff, Falloff(reach));
+            if (_noLowPass) return;
+            try { source.gameObject.AddComponent<AudioLowPassFilter>().cutoffFrequency = OpenCutoff; }
+            catch (Exception e)
+            {
+                _noLowPass = true;
+                Core.Log.Warning("[Sound] no low-pass filter on vehicle sounds - distant sounds keep their high tones: " + e.Message);
+            }
+        }
+
+        private const float OpenCutoff = 22000f, FarCutoff = 2500f;
+        private static AudioListener _listener;
+
+        /// <summary>
+        /// Sets the source's low-pass from the local listener's distance, before a sound starts and while a held one
+        /// plays: open up to <c>Near</c>, down to 2.5 kHz at <c>Far</c>, even in octaves, as air takes the high tones first.
+        /// </summary>
+        internal static void Muffle(AudioSource source)
+        {
+            if (source == null) return;
+            var filter = source.GetComponent<AudioLowPassFilter>();
+            if (filter == null) return;
+            if (_listener == null) _listener = UnityEngine.Object.FindObjectOfType<AudioListener>();
+            if (_listener == null) { filter.cutoffFrequency = OpenCutoff; return; }
+            float d = Vector3.Distance(_listener.transform.position, source.transform.position);
+            float t = Mathf.InverseLerp(source.minDistance, source.maxDistance, d);
+            filter.cutoffFrequency = OpenCutoff * Mathf.Pow(FarCutoff / OpenCutoff, t);
+        }
+
+        private static AnimationCurve Falloff(Reach reach)
+        {
+            const int Steps = 24;
+            var keys = new Keyframe[Steps + 1];
+            for (int i = 0; i <= Steps; i++)
+            {
+                // Denser keys close to the car, where the level changes fastest.
+                float x = Mathf.Pow((float)i / Steps, 2f);
+                keys[i] = new Keyframe(x, Gain(x * reach.Far, reach));
+            }
+            for (int i = 0; i <= Steps; i++)
+            {
+                float x0 = keys[Mathf.Max(0, i - 1)].time, x1 = keys[Mathf.Min(Steps, i + 1)].time;
+                float slope = x1 > x0 ? (keys[Mathf.Min(Steps, i + 1)].value - keys[Mathf.Max(0, i - 1)].value) / (x1 - x0) : 0f;
+                keys[i].inTangent = slope;
+                keys[i].outTangent = slope;
+            }
+            return new AnimationCurve(keys);
+        }
+
+        /// <summary>The level at a distance, 0 to 1.</summary>
+        internal static float Gain(float distance, Reach reach)
+        {
+            float level = distance <= reach.Near ? 1f : reach.Near / distance;
+            float fade = Mathf.InverseLerp(reach.Far, reach.Far * 0.75f, distance);
+            return level * fade * fade * (3f - 2f * fade);
         }
 
         /// <summary>The mixer group every in-world game sound plays through; it carries the pause menu's muting.</summary>
