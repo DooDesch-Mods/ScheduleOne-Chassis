@@ -4,6 +4,11 @@ All notable changes to Chassis are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.8.1] - 2026-10-28
+
+### Fixed
+- The horn no longer carries across the map: it fades with distance, sounds duller far away and is silent past 80 m.
+
 ## [1.8.0] - 2026-10-27
 
 ### Added
