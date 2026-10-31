@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using Chassis.Api;
 using Chassis.Vehicles;
 
@@ -81,6 +82,7 @@ namespace Chassis.Interior
 
         private static readonly Dictionary<int, Built> _built = new Dictionary<int, Built>();
         private static readonly Dictionary<string, Material> _materials = new Dictionary<string, Material>();
+        private static readonly Dictionary<string, Mesh> _kitMeshes = new Dictionary<string, Mesh>();
         private static readonly HashSet<string> _fitFailed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private static readonly List<int> _gone = new List<int>();
         private static readonly Dictionary<string, Func<LandVehicle, GameObject>> _factories = new Dictionary<string, Func<LandVehicle, GameObject>>(StringComparer.OrdinalIgnoreCase);
@@ -701,7 +703,44 @@ namespace Chassis.Interior
         /// <summary>Lowest height of a kit seat's cushion top above the lowest point of the body: a 4 cm cushion plus 1 cm.</summary>
         private const float SeatAboveUnderside = 0.05f;
 
-        /// <summary>The mesh of a kit part and where it stands in the frame (seats rise above the underside), or null for an unknown kind.</summary>
+        /// <summary>
+        /// In the low cabins the cushion sits just above the body's underside: it gets thinner, and the pedestal reaches
+        /// at most 0.32 m down and ends above the underside, so nothing shows under the car.
+        /// </summary>
+        private static void SeatShape(float underside, ref Vector3 at, out float thick, out float drop)
+        {
+            thick = 0.12f;
+            drop = 0.32f;
+            if (float.IsNaN(underside)) return;
+            at.y = Mathf.Max(at.y, underside + SeatAboveUnderside);
+            thick = Mathf.Clamp(at.y - underside - 0.01f, SeatAboveUnderside - 0.01f, 0.12f);
+            drop = Mathf.Clamp(at.y - underside - 0.08f, 0f, 0.32f);
+        }
+
+        /// <summary>
+        /// The mesh of a kit part for a car, shared by all parts of the same shape. These meshes outlive the scene, so one
+        /// per car would pile up with every load. Seat shapes compare to the millimetre, because the underside of two cars
+        /// of one model differs by rounding.
+        /// </summary>
+        private static Mesh SharedMeshOf(KitPart part, float underside, out Vector3 at)
+        {
+            string kind = (part.Kind ?? "").ToLowerInvariant();
+            at = part.Position;
+            var key = new System.Text.StringBuilder(kind);
+            foreach (float f in new[] { part.Size.x, part.Size.y, part.Size.z }) key.Append('|').Append(f.ToString("F4", CultureInfo.InvariantCulture));
+            if (kind == "seat" || kind == "bench")
+            {
+                SeatShape(underside, ref at, out float thick, out float drop);
+                key.Append('|').Append(thick.ToString("F3", CultureInfo.InvariantCulture)).Append('|').Append(drop.ToString("F3", CultureInfo.InvariantCulture));
+            }
+            string shape = key.ToString();
+            if (_kitMeshes.TryGetValue(shape, out var mesh) && mesh != null) return mesh;
+            mesh = MeshOf(part, underside, out at);
+            if (mesh != null) _kitMeshes[shape] = mesh;
+            return mesh;
+        }
+
+        /// <summary>A new mesh for a kit part and where it stands in the frame (seats rise above the underside), or null for an unknown kind.</summary>
         private static Mesh MeshOf(KitPart part, float underside, out Vector3 at)
         {
             Mesh mesh;
@@ -712,15 +751,7 @@ namespace Chassis.Interior
                 case "seat":
                 case "bench":
                 {
-                    // In the low cabins the cushion sits just above the body's underside: it gets thinner, and the
-                    // pedestal reaches at most 0.32 m down and ends above the underside, so nothing shows under the car.
-                    float thick = 0.12f, drop = 0.32f;
-                    if (!float.IsNaN(underside))
-                    {
-                        at.y = Mathf.Max(at.y, underside + SeatAboveUnderside);
-                        thick = Mathf.Clamp(at.y - underside - 0.01f, SeatAboveUnderside - 0.01f, 0.12f);
-                        drop = Mathf.Clamp(at.y - underside - 0.08f, 0f, 0.32f);
-                    }
+                    SeatShape(underside, ref at, out float thick, out float drop);
                     mesh = KitMesh.Seat(part.Size, drop, "Chassis_" + kind, thick);
                     break;
                 }
@@ -758,7 +789,7 @@ namespace Chassis.Interior
         private static Renderer Piece(Transform parent, KitPart part, string name, float underside)
         {
             string kind = (part.Kind ?? "").ToLowerInvariant();
-            Mesh mesh = MeshOf(part, underside, out Vector3 at);
+            Mesh mesh = SharedMeshOf(part, underside, out Vector3 at);
             if (mesh == null) return null;
             string objectName = !string.IsNullOrEmpty(part.Name) ? part.Name : kind == "wheel" ? WheelName : "Chassis_" + kind + "_" + name;
             var go = new GameObject(objectName);
@@ -945,7 +976,7 @@ namespace Chassis.Interior
             _fitFailed.Clear();
         }
 
-        internal static string Describe() => "interior " + (Enabled ? "on" : "off") + ", " + _built.Count + " car(s) built";
+        internal static string Describe() => "interior " + (Enabled ? "on" : "off") + ", " + _built.Count + " car(s) built, " + _kitMeshes.Count + " kit mesh(es)";
 
         // ---- materials ---------------------------------------------------------------------------------------------
 
