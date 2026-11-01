@@ -71,6 +71,8 @@ namespace Chassis.Interior
         {
             internal LandVehicle V;
             internal GameObject Root;
+            /// <summary>The kit is active, following the vehicle model.</summary>
+            internal bool Shown = true;
             internal readonly List<Renderer> Glazed = new List<Renderer>();
             /// <summary>Per glazed renderer: it only belongs to LODs past the first and has opaque panes.</summary>
             internal readonly List<bool> Far = new List<bool>();
@@ -199,7 +201,11 @@ namespace Chassis.Interior
             if (_built.Count > 0)
             {
                 _gone.Clear();
-                foreach (var kv in _built) if (kv.Value.V == null) _gone.Add(kv.Key);
+                foreach (var kv in _built)
+                {
+                    if (kv.Value.V == null) _gone.Add(kv.Key);
+                    else FollowModel(kv.Value);
+                }
                 foreach (int k in _gone) _built.Remove(k);
             }
             if (!Enabled) return;
@@ -212,6 +218,22 @@ namespace Chassis.Interior
                 if (profile?.Interior == null) continue;
                 Build(lv, profile);
             }
+        }
+
+        /// <summary>
+        /// The kit hangs under the vehicle's frame, outside the vanilla <c>vehicleModel</c>, so it stays drawn when vanilla
+        /// switches the model off (an NPC car parked on an invalid spot). It follows the model's active state instead.
+        /// </summary>
+        private static void FollowModel(Built b)
+        {
+            if (b.Root == null) return;
+            GameObject model = b.V.vehicleModel;
+            if (model == null) return;
+            bool shown = model.activeSelf;
+            if (shown == b.Shown) return;
+            b.Shown = shown;
+            b.Root.SetActive(shown);
+            Core.Log.Msg("[Interior] " + Registry.Name(b.V) + ": the car model is " + (shown ? "shown" : "hidden") + " - the interior follows.");
         }
 
         // ---- fitting a vanilla car ---------------------------------------------------------------------------------
