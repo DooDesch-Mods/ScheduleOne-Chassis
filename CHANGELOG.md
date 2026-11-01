@@ -4,6 +4,13 @@ All notable changes to Chassis are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.8.2] - 2026-11-01
+
+### Fixed
+- Less stutter with several chrome cars on Reflections Ultra: they share one refresh rate, and near cars refresh more often than far ones.
+- The speed display no longer stays on screen for co-op clients after they leave a vehicle.
+- Loading a save several times without restarting the game piles up far less memory for car interiors.
+
 ## [1.8.1] - 2026-10-28
 
 ### Fixed
