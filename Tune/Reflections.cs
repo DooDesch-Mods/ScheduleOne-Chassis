@@ -19,9 +19,9 @@ namespace Chassis.Tune
 
         /// <summary>Probe size in pixels, per level.</summary>
         private static readonly int[] Sizes = { 64, 128, 256, 512 };
-        /// <summary>Seconds between two renders of a standing car's probe, per level.</summary>
+        /// <summary>Seconds between two renders of standing cars' probes, shared by all of them, per level.</summary>
         private static readonly float[] Standing = { 4f, 2f, 1f, 0.5f };
-        /// <summary>Seconds between two renders of a moving car's probe, per level; 0 starts the next as soon as one is done.</summary>
+        /// <summary>Seconds between two renders of moving cars' probes, shared by all of them, per level; 0 starts the next as soon as one is done.</summary>
         private static readonly float[] Moving = { 0.25f, 0f, 0f, 0f };
         /// <summary>
         /// Low and Medium render one cube face per frame, High all six spread over frames, Ultra all six in one frame:

@@ -12,23 +12,33 @@ namespace Chassis.Tune
     /// small realtime reflection probe above its roof that sees the street around it, without the car's own layers. It renders
     /// one cube face per frame; while the car moves near the camera the next render starts as soon as the last one is
     /// done, so the mirror keeps up with the street. A standing car renders rarely, a car far away never.
+    /// All chrome cars share one render budget, the rate of a single car at the <see cref="Reflections"/> level, so more
+    /// chrome cars cost no more render time: the near ones refresh more often, the far ones less.
     /// </summary>
     internal static class Shine
     {
         private const string ProbeName = "Chassis_ChromeProbe";
         private const float FarAway = 60f, RoofGap = 0.5f, FarClip = 80f;
+        /// <summary>Closer than this every car counts as equally near, so a car right beside the camera cannot starve the rest.</summary>
+        private const float NearEnough = 5f;
 
         private sealed class Entry
         {
             internal LandVehicle V;
             internal ReflectionProbe P;
-            internal float Next;
+            internal float Started, Hold;
+            internal bool Rendered;
             internal Vector3 Last;
             internal int Render;
+#if DEBUG
+            internal int Renders;
+#endif
         }
 
         private static readonly Dictionary<int, Entry> _probes = new Dictionary<int, Entry>();
         private static readonly List<int> _gone = new List<int>();
+        /// <summary>When the shared budget allows the next render of a standing car and of a moving car.</summary>
+        private static float _nextStanding, _nextMoving;
 
         /// <summary>A chrome paint on the car (first or second): give it a probe; none: take it away.</summary>
         internal static void Set(Tune.Apply.Car c, bool chrome)
@@ -45,7 +55,7 @@ namespace Chassis.Tune
             }
             var p = Make(c.V, out string layers);
             if (p == null) return;
-            _probes[key] = new Entry { V = c.V, P = p, Next = 0f, Last = c.V.transform.position };
+            _probes[key] = new Entry { V = c.V, P = p, Last = c.V.transform.position };
             Core.Log.Msg("[Tuning] " + Registry.Name(c.V) + ": chrome reflections on (probe " + Reflections.Size + " px, " + p.size.x.ToString("F1") + " m, the car's layers " + layers + " left out).");
         }
 
@@ -106,14 +116,19 @@ namespace Chassis.Tune
             return p;
         }
 
-        /// <summary>Every frame: starts at most one probe, the one whose turn it is, and none while one is still rendering.</summary>
+        /// <summary>
+        /// Every frame: starts at most one probe and none while one is still rendering. A probe that never rendered goes
+        /// first, because its chrome is flat grey until then. After that the budget decides when the next render may start,
+        /// and of the cars whose turn it is the one with the longest wait for its distance goes, so a far car still gets its turn.
+        /// </summary>
         internal static void Tick()
         {
             if (_probes.Count == 0) return;
             var cam = Camera.main;
             float now = Time.unscaledTime;
             Entry due = null;
-            bool busy = false;
+            bool busy = false, dueMoving = false;
+            float best = -1f;
             _gone.Clear();
             foreach (var kv in _probes)
             {
@@ -124,25 +139,34 @@ namespace Chassis.Tune
                     if (!e.P.IsFinishedRendering(e.Render)) { busy = true; continue; }
                     e.Render = 0;
                 }
-                if (now < e.Next) continue;
-                if (cam != null && (cam.transform.position - e.V.transform.position).sqrMagnitude > FarAway * FarAway) { e.Next = now + Reflections.StandingEvery; continue; }
-                if (due == null || e.Next < due.Next) due = e;
+                if (now < e.Hold) continue;
+                var pos = e.V.transform.position;
+                float away = cam != null ? Vector3.Distance(cam.transform.position, pos) : 0f;
+                if (away > FarAway) continue;
+                bool moving = (pos - e.Last).sqrMagnitude > 0.01f;
+                if (e.Rendered && now < (moving ? _nextMoving : _nextStanding)) continue;
+                float score = e.Rendered ? (now - e.Started) / Mathf.Max(away, NearEnough) : float.MaxValue;
+                if (score > best) { best = score; due = e; dueMoving = moving; }
             }
             foreach (int k in _gone) _probes.Remove(k);
             if (due == null || busy) return;
-            var pos = due.V.transform.position;
-            bool moving = (pos - due.Last).sqrMagnitude > 0.01f;
-            due.Last = pos;
-            due.Next = now + (moving ? Reflections.MovingEvery : Reflections.StandingEvery);
+            due.Last = due.V.transform.position;
+            due.Started = now;
+            due.Rendered = true;
+            if (dueMoving) _nextMoving = now + Reflections.MovingEvery;
+            else _nextStanding = now + Reflections.StandingEvery;
             try
             {
                 due.P.backgroundColor = RenderSettings.fogColor;
                 due.Render = due.P.RenderProbe();
+#if DEBUG
+                due.Renders++;
+#endif
             }
             catch (Exception ex)
             {
                 Core.Log.Error("[Tuning] rendering the chrome reflections of " + Registry.Name(due.V) + " failed - they stay as they are: " + ex.Message);
-                due.Next = now + 30f;
+                due.Hold = now + 30f;
             }
         }
 
@@ -176,7 +200,11 @@ namespace Chassis.Tune
             }
             var parts = new List<string>();
             foreach (var kv in counts) parts.Add(kv.Key + " " + LayerMask.LayerToName(kv.Key) + " x" + kv.Value);
-            return "probe mask 0x" + first.P.cullingMask.ToString("X8") + "; layers within " + FarAway + " m: " + string.Join(", ", parts);
+            var renders = new List<string>();
+            var cam = Camera.main;
+            foreach (var e in _probes.Values)
+                if (e.P != null && e.V != null) renders.Add(Registry.Name(e.V) + " x" + e.Renders + (cam != null ? " at " + Vector3.Distance(cam.transform.position, e.V.transform.position).ToString("F0") + " m" : ""));
+            return "probe mask 0x" + first.P.cullingMask.ToString("X8") + "; layers within " + FarAway + " m: " + string.Join(", ", parts) + "; renders: " + string.Join(", ", renders);
         }
 #endif
 
@@ -192,7 +220,7 @@ namespace Chassis.Tune
                     e.P.resolution = Reflections.Size;
                     e.P.timeSlicingMode = Reflections.TimeSlicing;
                     e.Render = 0;
-                    e.Next = 0f;
+                    e.Rendered = false;
                     n++;
                 }
                 catch (Exception ex) { Core.Log.Error("[Tuning] restyling the chrome probe of " + Registry.Name(e.V) + " failed: " + ex.Message); }
@@ -204,6 +232,7 @@ namespace Chassis.Tune
         {
             foreach (var e in _probes.Values) if (e.P != null) UnityEngine.Object.Destroy(e.P.gameObject);
             _probes.Clear();
+            _nextStanding = _nextMoving = 0f;
         }
     }
 }
