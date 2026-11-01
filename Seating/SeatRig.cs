@@ -662,6 +662,8 @@ namespace Chassis.Seating
                 if (t != null) UnityEngine.Object.Destroy(t.gameObject);
             _anchor = null;
             Core.Log.Msg("[Seat] " + Name + " left " + Code + " seat " + SeatIndex + " (" + why + ").");
+            // The anchor is gone, so the NPC no longer counts as seated and vanilla's rule may hand the umbrella back.
+            if (Npc != null && why != "world reset") NpcRiders.RefreshUmbrella(Npc, why);
         }
 
         internal string Describe()

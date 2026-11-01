@@ -19,6 +19,7 @@ global using GameAvatar = ScheduleOne.AvatarFramework.Avatar;
 global using NPC = ScheduleOne.NPCs.NPC;
 global using GameNpcHealth = ScheduleOne.NPCs.NPCHealth;
 global using GameNpcMovement = ScheduleOne.NPCs.NPCMovement;
+global using GameNpcActions = ScheduleOne.NPCs.Actions.NPCActions;
 global using GameRangedWeapon = ScheduleOne.Equipping.Equippable_RangedWeapon;
 global using GameDeadBehaviour = ScheduleOne.NPCs.Behaviour.DeadBehaviour;
 global using GamePoliceOfficer = ScheduleOne.Police.PoliceOfficer;
