@@ -4,6 +4,17 @@ All notable changes to Chassis are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.8.3] - 2026-11-02
+
+### Fixed
+
+- Cars keep their windows and interior at a distance, and a hidden car no longer leaves its interior floating.
+- NPCs put their umbrella away while driving.
+
+### Changed
+
+- Thunderstore and Nexus Mods may now review the mod files: the license names their package review as an exception.
+
 ## [1.8.2] - 2026-11-01
 
 ### Fixed
