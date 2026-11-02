@@ -313,6 +313,7 @@ jobs:
           generate_release_notes: true
           files: |
             release/Chassis.dll
+            Chassis_${{ needs.build.outputs.version }}.zip
             Chassis_${{ needs.build.outputs.version }}_debug.zip
           body: |
             ## Changes in ${{ needs.build.outputs.version }}
