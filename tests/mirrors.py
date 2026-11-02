@@ -170,6 +170,9 @@ def main():
 
     first = r.wait_line(start, r"\[Mirror\] first mirror render \(rear\)", 10)
     r.check("mirror camera renders", first is not None, first or "no line within 10 s")
+    wide = re.search(r"widened x([\d.]+) to at least (\d+) deg", first or "")
+    r.check("rear mirror spans at least its minimum angle", wide is not None and float(wide.group(1)) >= 1.0,
+            wide.group(0) if wide else "no widening in the first render line")
     reach = r.lines(start, r"\[Mirror\] range \d+ m")
     metres = int(re.search(r"range (\d+) m", reach[-1]).group(1)) if reach else 0
     r.check("mirror sees as far as the main camera (over 100 m)", metres > 100, reach[-1] if reach else "no range line")
@@ -193,6 +196,12 @@ def main():
         time.sleep(1.5)
         first = r.wait_line(start, r"\[Mirror\] first mirror render \(%s\)" % side, 10)
         r.check("%s mirror camera renders" % side, first is not None, first or "no line within 10 s")
+        # The flat side glass spans 6 to 10 degrees from the seat; convex widening must at least double that.
+        wide = re.search(r"widened x([\d.]+) to at least (\d+) deg", first or "")
+        r.check("%s mirror widened like a convex mirror" % side, wide is not None and float(wide.group(1)) >= 2.0,
+                wide.group(0) if wide else "no widening in the first render line")
+        aim = r.wait_line(start, r"\[Mirror\] %s.*glass set like a driver would" % side, 5)
+        r.check("%s mirror aimed level to the rear" % side, aim is not None, aim or "no aim line within 5 s")
         mine = part(r.info(), side)
         r.check("info: %s rendering with glass" % side, mine.startswith(side + " rendering") and "glass yes" in mine, mine or "no %s part" % side)
         r.shot("mirror-" + side)

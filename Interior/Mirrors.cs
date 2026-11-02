@@ -9,7 +9,8 @@ namespace Chassis.Interior
     /// <summary>
     /// The live mirrors of the car the local player sits in: the rear-view mirror and the two side mirrors. Per mirror a
     /// second camera stands at the driver's eye mirrored in the glass and renders through the glass as a window (an
-    /// off-axis frustum after Kooima), so the picture moves with the head like a real mirror. The glass is a quad on the
+    /// off-axis frustum after Kooima), so the picture moves with the head like a real mirror. The frustum is widened to a
+    /// minimum angle, as a convex car mirror shows more than its flat size would. The glass is a quad on the
     /// back of the housing <see cref="BaseInterior"/> builds, showing that picture flipped left to right.
     /// A camera renders only while its mirror is on screen and faces the camera; when it stops, the glass keeps its last
     /// picture. Resolution and rate follow the <see cref="Tune.Reflections"/> level; the side mirrors take turns. The own
@@ -26,6 +27,11 @@ namespace Chassis.Interior
         internal static readonly Vector3 RearSize = new Vector3(0.24f, 0.07f, 0.025f);
         /// <summary>The glass inside the housing's back face, and how far it stands off it.</summary>
         private const float GlassInset = 0.008f, GlassGap = 0.001f;
+        /// <summary>Least horizontal angle a mirror shows, in degrees, like convex car mirrors.</summary>
+        private const float RearMinFov = 32f, SideMinFov = 34f;
+        /// <summary>Where a side mirror's centre looks, in degrees outwards and downwards from straight back; how near the
+        /// eye must be to the glass (metres) to count as the driver's.</summary>
+        private const float SideOutward = 15f, SideDown = 2f, AimMaxEye = 2.5f;
 
         /// <summary>Picture width per <see cref="Tune.Reflections"/> level; the height follows the housing.</summary>
         private static readonly int[] RearWidths = { 256, 384, 512, 768 };
@@ -47,6 +53,10 @@ namespace Chassis.Interior
             internal int Width, Level = -1, Renders;
             internal string State = "idle";
             internal bool First;
+            internal float Widen = 1f;
+            /// <summary>Side mirrors: the glass plane as a driver sets it, in housing space; set once from the seat.</summary>
+            internal bool Aimed;
+            internal Vector3 AimRight, AimUp, AimNormal;
 
             internal View(string name, string label, bool side, bool left) { Name = name; Label = label; Side = side; Left = left; }
             internal float GlassZ => -Size.z * 0.5f - GlassGap;
@@ -174,6 +184,7 @@ namespace Chassis.Interior
                 v.Housing = BaseInterior.Mirror(lv, v.Name);
                 v.Found = v.Housing != null;
                 v.Glass = null;
+                v.Aimed = false;
                 v.Size = SizeOf(v);
                 if (v.Found) { any = true; if (v.Side) sides++; }
             }
@@ -413,7 +424,7 @@ namespace Chassis.Interior
                     if (v.Side) { Hide(_kitRenderers); _kitHidden = true; }
                 }
                 v.Renders++;
-                if (!v.First) { v.First = true; Core.Log.Msg("[Mirror] first mirror render (" + v.Label + ") from " + cam.transform.position.ToString("F2") + ", picture " + v.Rt.width + "x" + v.Rt.height + "."); }
+                if (!v.First) { v.First = true; Core.Log.Msg("[Mirror] first mirror render (" + v.Label + ") from " + cam.transform.position.ToString("F2") + ", picture " + v.Rt.width + "x" + v.Rt.height + ", widened x" + v.Widen.ToString("F2") + " to at least " + (v.Side ? SideMinFov : RearMinFov) + " deg."); }
             }
             catch (Exception e)
             {
@@ -448,9 +459,16 @@ namespace Chassis.Interior
         {
             Transform housing = v.Housing;
             Vector3 vr = -housing.right, vu = housing.up;
-            Vector3 vn = -Vector3.Cross(vr, vu);
             Vector3 centre = housing.TransformPoint(0f, 0f, v.GlassZ);
             Vector3 normal = -housing.forward;
+            if (v.Side && _car != null)
+            {
+                if (!v.Aimed) Aim(v, eye, centre);
+                vr = housing.TransformDirection(v.AimRight);
+                vu = housing.TransformDirection(v.AimUp);
+                normal = housing.TransformDirection(v.AimNormal);
+            }
+            Vector3 vn = -Vector3.Cross(vr, vu);
             Vector3 pe = eye - 2f * Vector3.Dot(eye - centre, normal) * normal;
 
             float hw = v.Size.x * 0.5f - GlassInset, hh = v.Size.y * 0.5f - GlassInset;
@@ -462,9 +480,46 @@ namespace Chassis.Interior
             float l = Vector3.Dot(vr, va) * k, r = Vector3.Dot(vr, vb) * k;
             float b = Vector3.Dot(vu, va) * k, t = Vector3.Dot(vu, vc) * k;
 
+            // A flat glass seen from the seat spans only a few degrees (the right side mirror about 6). Real car mirrors
+            // are convex: widen the frustum around its centre until it spans the mirror's minimum horizontal angle.
+            float minHalf = Mathf.Tan((v.Side ? SideMinFov : RearMinFov) * 0.5f * Mathf.Deg2Rad) * n;
+            float widen = Mathf.Max(1f, minHalf / ((r - l) * 0.5f));
+            float cx = (l + r) * 0.5f, cy = (b + t) * 0.5f;
+            l = cx + (l - cx) * widen; r = cx + (r - cx) * widen;
+            b = cy + (b - cy) * widen; t = cy + (t - cy) * widen;
+            v.Widen = widen;
+
             v.Cam.transform.SetPositionAndRotation(pe, Quaternion.LookRotation(-vn, vu));
             v.Cam.nearClipPlane = n;
             v.Cam.projectionMatrix = Matrix4x4.Frustum(l, r, b, t, n, v.Cam.farClipPlane);
+        }
+
+        /// <summary>
+        /// Turns the side glass the way a driver sets it: the ray from the eye through the glass centre leaves level
+        /// backwards, a little outwards past the own flank. The vanilla face itself points the view at the road. The plane
+        /// is kept once the eye is near the seat (first person); from farther away (third person) it is only used for this frame.
+        /// </summary>
+        private static void Aim(View v, Vector3 eye, Vector3 centre)
+        {
+            Transform car = _car.transform, housing = v.Housing;
+            Vector3 toEye = (eye - centre).normalized;
+            Vector3 outward = v.Left ? -car.right : car.right;
+            Vector3 want = (-car.forward + outward * Mathf.Tan(SideOutward * Mathf.Deg2Rad) - car.up * Mathf.Tan(SideDown * Mathf.Deg2Rad)).normalized;
+            Vector3 n = (toEye + want).normalized;
+            Vector3 up = Vector3.ProjectOnPlane(car.up, n).normalized;
+            Vector3 right = Vector3.Cross(up, n);
+            v.AimNormal = housing.InverseTransformDirection(n);
+            v.AimUp = housing.InverseTransformDirection(up);
+            v.AimRight = housing.InverseTransformDirection(right);
+
+            float far = (eye - centre).magnitude;
+            if (far > AimMaxEye) return;
+            v.Aimed = true;
+            Vector3 before = Vector3.Reflect(-toEye, -housing.forward);
+            float beforeDown = -Mathf.Asin(Mathf.Clamp(Vector3.Dot(before, car.up), -1f, 1f)) * Mathf.Rad2Deg;
+            Core.Log.Msg("[Mirror] " + v.Label + " glass set like a driver would: " + SideOutward + " deg out, " + SideDown
+                + " deg down, turned " + Vector3.Angle(n, -housing.forward).ToString("F1") + " deg off the body face (that face looked "
+                + beforeDown.ToString("F1") + " deg down), eye " + far.ToString("F2") + " m away.");
         }
 
         internal static string Describe()
