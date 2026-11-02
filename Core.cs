@@ -29,6 +29,7 @@ namespace Chassis
             Net.ChassisNet.Apply(HarmonyInstance);
             Net.ChassisSync.Init();
             Tune.RepaintPatch.Apply(HarmonyInstance);
+            Seating.NpcRiders.ApplyUmbrellaPatch(HarmonyInstance);
             Interior.BaseInterior.LoadSetting();
             Instruments.Sources.LoadSetting();
             Vehicles.Steering.LoadSetting();

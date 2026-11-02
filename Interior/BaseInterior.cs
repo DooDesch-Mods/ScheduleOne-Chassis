@@ -71,7 +71,12 @@ namespace Chassis.Interior
         {
             internal LandVehicle V;
             internal GameObject Root;
+            /// <summary>The kit is active, following the vehicle model.</summary>
+            internal bool Shown = true;
             internal readonly List<Renderer> Glazed = new List<Renderer>();
+            /// <summary>Per glazed renderer: it only belongs to LODs past the first and has opaque panes.</summary>
+            internal readonly List<bool> Far = new List<bool>();
+            internal Color LiningColor;
             internal readonly List<Material[]> Original = new List<Material[]>();
             internal readonly List<GameObject> Linings = new List<GameObject>();
             internal GlassProfile Glass;
@@ -155,14 +160,14 @@ namespace Chassis.Interior
         {
             if (lv == null || !_built.TryGetValue(lv.GetInstanceID(), out var b) || b.Glass == null || b.Glazed.Count == 0) return false;
             Color tint = Chassis.Tune.Apply.TintOf(lv) ?? b.Glass.Tint;
-            Material outside = Glass(tint), inside = Glass(tint, true);
+            Material outside = Glass(tint), inside = Glass(tint, true), solid = FarGlass(tint, b.LiningColor);
             for (int i = 0; i < b.Glazed.Count; i++)
             {
                 var r = b.Glazed[i];
                 if (r == null) continue;
                 var mats = r.sharedMaterials;
                 var orig = b.Original[i];
-                for (int k = 0; k < mats.Length && k < orig.Length; k++) if (IsWindow(orig[k], b.Glass)) mats[k] = outside;
+                for (int k = 0; k < mats.Length && k < orig.Length; k++) if (IsWindow(orig[k], b.Glass)) mats[k] = b.Far[i] ? solid : outside;
                 r.sharedMaterials = mats;
             }
             foreach (var kv in b.LiningGlass)
@@ -196,7 +201,11 @@ namespace Chassis.Interior
             if (_built.Count > 0)
             {
                 _gone.Clear();
-                foreach (var kv in _built) if (kv.Value.V == null) _gone.Add(kv.Key);
+                foreach (var kv in _built)
+                {
+                    if (kv.Value.V == null) _gone.Add(kv.Key);
+                    else FollowModel(kv.Value);
+                }
                 foreach (int k in _gone) _built.Remove(k);
             }
             if (!Enabled) return;
@@ -209,6 +218,22 @@ namespace Chassis.Interior
                 if (profile?.Interior == null) continue;
                 Build(lv, profile);
             }
+        }
+
+        /// <summary>
+        /// The kit hangs under the vehicle's frame, outside the vanilla <c>vehicleModel</c>, so it stays drawn when vanilla
+        /// switches the model off (an NPC car parked on an invalid spot). It follows the model's active state instead.
+        /// </summary>
+        private static void FollowModel(Built b)
+        {
+            if (b.Root == null) return;
+            GameObject model = b.V.vehicleModel;
+            if (model == null) return;
+            bool shown = model.activeSelf;
+            if (shown == b.Shown) return;
+            b.Shown = shown;
+            b.Root.SetActive(shown);
+            Core.Log.Msg("[Interior] " + Registry.Name(b.V) + ": the car model is " + (shown ? "shown" : "hidden") + " - the interior follows.");
         }
 
         // ---- fitting a vanilla car ---------------------------------------------------------------------------------
@@ -649,6 +674,7 @@ namespace Chassis.Interior
                 if (ip.OpenLid && ip.Glass != null && WindowBand(lv, ip.Glass, out Bounds band))
                     opened = OpenShell(lv, ip.Glass, profile.Code, band, Lod0(lod), b);
                 b.Glass = ip.Glass;
+                b.LiningColor = ip.LiningColor;
                 int glazed = ip.Glass != null ? Glaze(lv, ip.Glass, b) : 0;
                 int lined = ip.Lining ? Line(lv, ip, b, kitRenderers, lod) : 0;
                 AddToLod(lod, kitRenderers, Registry.Name(lv));
@@ -840,27 +866,36 @@ namespace Chassis.Interior
             return opened;
         }
 
-        /// <summary>Puts the tinted glass into every window slot of the car's renderers.</summary>
+        /// <summary>
+        /// Puts the tinted glass into every window slot of the car's renderers. The kit and the lining only exist in the
+        /// first LOD, so the renderers that belong to the lower LODs only get an opaque pane in the glass colour instead;
+        /// seen through a clear one, the car would be hollow.
+        /// </summary>
         private static int Glaze(LandVehicle lv, GlassProfile glass, Built b)
         {
             int slots = 0;
-            Material tinted = Glass(Chassis.Tune.Apply.TintOf(lv) ?? glass.Tint);
+            Color tint = Chassis.Tune.Apply.TintOf(lv) ?? glass.Tint;
+            Material tinted = Glass(tint), solid = null;
+            var far = HigherLods(lv);
             foreach (var r in lv.GetComponentsInChildren<MeshRenderer>(true))
             {
                 if (r == null || r.gameObject.name == LiningName) continue;
                 var mats = r.sharedMaterials;
                 Material[] copy = null;
+                bool isFar = far.Contains(r.GetInstanceID());
                 for (int i = 0; i < mats.Length; i++)
                 {
                     if (!IsWindow(mats[i], glass)) continue;
                     if (copy == null) { copy = new Material[mats.Length]; for (int k = 0; k < mats.Length; k++) copy[k] = mats[k]; }
-                    copy[i] = tinted;
+                    if (isFar && solid == null) solid = FarGlass(tint, b.LiningColor);
+                    copy[i] = isFar ? solid : tinted;
                     slots++;
                 }
                 if (copy == null) continue;
                 var original = new Material[mats.Length];
                 for (int k = 0; k < mats.Length; k++) original[k] = mats[k];
                 b.Glazed.Add(r);
+                b.Far.Add(isFar);
                 b.Original.Add(original);
                 r.sharedMaterials = copy;
             }
@@ -916,6 +951,23 @@ namespace Chassis.Interior
                 return set;
             }
             catch (Exception e) { Core.Log.Warning("[Interior] reading the LOD group failed - every shell is lined: " + e.Message); return null; }
+        }
+
+        /// <summary>The renderers that only the lower LODs use; one that is in the first LOD as well is not among them.</summary>
+        private static HashSet<int> HigherLods(LandVehicle lv)
+        {
+            var set = new HashSet<int>();
+            var lod = lv.GetComponentInChildren<LODGroup>(true);
+            if (lod == null) return set;
+            try
+            {
+                var lods = lod.GetLODs();
+                for (int i = 1; i < lods.Length; i++)
+                    foreach (var r in lods[i].renderers) if (r != null) set.Add(r.GetInstanceID());
+                if (lods.Length > 0) foreach (var r in lods[0].renderers) if (r != null) set.Remove(r.GetInstanceID());
+            }
+            catch (Exception e) { Core.Log.Warning("[Interior] " + Registry.Name(lv) + ": reading the LOD group failed - the windows of the lower LODs stay clear: " + e.Message); }
+            return set;
         }
 
         /// <summary>The kit fades out with the car's most detailed LOD.</summary>
@@ -1092,6 +1144,14 @@ namespace Chassis.Interior
             Tune(mat, tint, inside);
             if (inside) mat.SetFloat("_Cull", 1f);
             return mat;
+        }
+
+        /// <summary>The tint laid over the lining colour as one opaque colour, for the panes of the lower LODs.</summary>
+        private static Material FarGlass(Color tint, Color lining)
+        {
+            Color c = Color.Lerp(lining, new Color(tint.r, tint.g, tint.b, 1f), tint.a);
+            c.a = 1f;
+            return Lit("far_glass_" + c, c);
         }
 
         private static void Tune(Material mat, Color tint, bool inside)

@@ -19,6 +19,7 @@ global using GameAvatar = Il2CppScheduleOne.AvatarFramework.Avatar;
 global using NPC = Il2CppScheduleOne.NPCs.NPC;
 global using GameNpcHealth = Il2CppScheduleOne.NPCs.NPCHealth;
 global using GameNpcMovement = Il2CppScheduleOne.NPCs.NPCMovement;
+global using GameNpcActions = Il2CppScheduleOne.NPCs.Actions.NPCActions;
 global using GameRangedWeapon = Il2CppScheduleOne.Equipping.Equippable_RangedWeapon;
 global using GameDeadBehaviour = Il2CppScheduleOne.NPCs.Behaviour.DeadBehaviour;
 global using GamePoliceOfficer = Il2CppScheduleOne.Police.PoliceOfficer;

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using Chassis.Api;
 using Chassis.Vehicles;
 
@@ -57,6 +58,7 @@ namespace Chassis.Seating
                     if (rig == null) { _failed.Add(key); continue; }
                     if (rig.Avatar.Animation != null) rig.Avatar.Animation.SetBool("Sitting", true);
                     _rigs[npc.GetInstanceID()] = rig;
+                    RefreshUmbrella(npc, "seated");
                 }
             }
         }
@@ -126,6 +128,57 @@ namespace Chassis.Seating
             _rigs.Remove(npc.GetInstanceID());
             try { rig.Detach(why); }
             catch (Exception e) { Core.Log.Error("[Seat] releasing " + rig.Name + " failed: " + e); }
+        }
+
+        // ---- umbrella ----------------------------------------------------------------------------------------------
+
+        /// <summary>True while Chassis shows this NPC in a seat.</summary>
+        internal static bool IsSeated(NPC npc) => npc != null && _rigs.TryGetValue(npc.GetInstanceID(), out var rig) && rig.Alive;
+
+        /// <summary>
+        /// Vanilla <c>NPCActions.UpdateUmbrellaUse</c> runs every game minute and has no vehicle check, so it hands an
+        /// umbrella to a seated NPC that is shown. A seated NPC holds none; vanilla's own rule gives it back on exit.
+        /// </summary>
+        internal static void ApplyUmbrellaPatch(HarmonyLib.Harmony h)
+        {
+            try
+            {
+                MethodInfo target = typeof(GameNpcActions).GetMethod("UpdateUmbrellaUse", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (target == null) { Core.Log.Error("[Seat] NPCActions.UpdateUmbrellaUse not found - seated NPCs keep their umbrella."); return; }
+                h.Patch(target, prefix: new HarmonyLib.HarmonyMethod(typeof(NpcRiders).GetMethod(nameof(UmbrellaPrefix), BindingFlags.NonPublic | BindingFlags.Static)));
+                Core.Log.Msg("[Seat] umbrella hook on " + target.DeclaringType.Name + "." + target.Name + ".");
+            }
+            catch (Exception e) { Core.Log.Error("[Seat] patching the umbrella rule failed - seated NPCs keep their umbrella: " + e.Message); }
+        }
+
+        private static bool UmbrellaPrefix(GameNpcActions __instance)
+        {
+            try
+            {
+                var npc = __instance.GetComponentInParent<NPC>();
+                if (!IsSeated(npc)) return true;
+                var umbrella = __instance._umbrellaAction;
+                if (umbrella != null && umbrella.IsActive)
+                {
+                    umbrella.End();
+                    Core.Log.Msg("[Seat] " + SeatRig.Who(npc) + " puts the umbrella away while seated.");
+                }
+                return false;
+            }
+            catch (Exception e) { Core.Log.Error("[Seat] the umbrella check failed, vanilla decides: " + e.Message); return true; }
+        }
+
+        /// <summary>Runs vanilla's umbrella rule once now: it ends the umbrella on seating and gives it back on leaving.</summary>
+        internal static void RefreshUmbrella(NPC npc, string why)
+        {
+            try
+            {
+                var actions = npc != null ? npc.Actions : null;
+                if (actions == null) { Core.Log.Warning("[Seat] " + SeatRig.Who(npc) + " has no NPCActions - the umbrella is not updated (" + why + ")."); return; }
+                actions.UpdateUmbrellaUse();
+                if (why != "seated") Core.Log.Msg("[Seat] " + SeatRig.Who(npc) + " umbrella " + (actions._umbrellaAction != null && actions._umbrellaAction.IsActive ? "held" : "not held") + " (" + why + ").");
+            }
+            catch (Exception e) { Core.Log.Error("[Seat] updating the umbrella of " + SeatRig.Who(npc) + " failed (" + why + "): " + e.Message); }
         }
 
         internal static string Describe() => "npc riders " + (Enabled ? "on" : "off") + ", " + _rigs.Count + " seated";
