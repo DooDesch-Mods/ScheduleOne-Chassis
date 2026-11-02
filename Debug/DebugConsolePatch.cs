@@ -87,6 +87,7 @@ namespace Chassis.Debugging
                         Say("car [enter|honk|blink|lock|part|side|rain|assign|owners] - horn, indicators, lock, lids (see 'chassis car help')");
                         Say("tune [part|remove|set|clear|stats|demo] - paint, parts, lights and driving of a car (see 'chassis tune help')");
                         Say("interior on|off|rebuild      - base interior and tinted glass in the vanilla cars");
+                        Say("mirror [on|off|look [left|right]|own on|off|level 0-3] - live mirrors of the car you sit in");
                         Say("interior fit on|off          - the kit gives way where it reaches out of the body (off = formula sizes)");
                         Say("interior probe [off]         - red cubes on kit corners outside the body of the car you sit in or the nearest");
                         Say("interior lift <m>            - lowest cushion top above the car's underside, fits the vanilla cars again");
@@ -314,6 +315,25 @@ namespace Chassis.Debugging
                     case "tune":
                         TuneCommands.Run(parts);
                         break;
+
+                    case "mirror":
+                    {
+                        // mirror [on|off|look [left|right]|own on|off|level n]: the live mirrors of the car you sit in.
+                        string op = parts.Length > 2 ? parts[2].ToLowerInvariant() : "";
+                        if (op == "on") Interior.Mirrors.Enabled = true;
+                        else if (op == "off") Interior.Mirrors.Enabled = false;
+                        else if (op == "look")
+                        {
+                            string which = parts.Length > 3 ? parts[3].ToLowerInvariant() : "rear";
+                            var c = Interior.Mirrors.GlassCentre(which);
+                            Say(c.HasValue ? Seating.FirstPersonView.LookAt(c.Value) : "no " + which + " mirror in this car");
+                        }
+                        else if (op == "own" && parts.Length > 3) Interior.Mirrors.SetShowOwnCar(parts[3] == "on" || parts[3] == "1");
+                        else if (op == "level" && parts.Length > 3 && int.TryParse(parts[3], out int ml)) Tune.Reflections.Set(ml);
+                        else if (op != "" && op != "info") Say("mirror [on|off|look [left|right]|own on|off|level 0-3]");
+                        Say(Interior.Mirrors.Describe());
+                        break;
+                    }
 
                     case "interior":
                     {

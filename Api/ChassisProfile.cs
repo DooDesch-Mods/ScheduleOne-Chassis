@@ -372,7 +372,8 @@ namespace Chassis.Api
         /// <summary>
         /// "seat" (cushion and backrest), "bench" (a seat across several places), "dash", "gauges" (the hood over the
         /// dials), "wheel", and the instrument pieces "needle", "rocker" (a switch that tips), "button" (a round push
-        /// button facing back), "stalk" (a lever pointing left) and "lamp" (a small block a lamp gauge lights).
+        /// button facing back), "stalk" (a lever pointing left), "lamp" (a small block a lamp gauge lights) and "mirror"
+        /// (the housing of a rear-view or side mirror, its centre; its back face, local -z, carries the glass).
         /// </summary>
         public string Kind = "seat";
 

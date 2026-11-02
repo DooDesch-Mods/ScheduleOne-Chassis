@@ -58,10 +58,11 @@ namespace Chassis.Tune
             level = Mathf.Clamp(level, 0, Names.Length - 1);
             if (_entry == null) { Core.Log.Warning("[Reflections] no preference entry - " + Names[level] + " is not kept."); return; }
             if (_entry.Value == level) return;
+            // Set, do not save: MelonPreferences.Save() fires the preference listeners of every installed mod from this
+            // callback; MelonLoader writes the value when the game closes.
             _entry.Value = level;
-            try { MelonPreferences.Save(); }
-            catch (Exception e) { Core.Log.Warning("[Reflections] saving the preference failed - " + Names[level] + " holds until the game closes: " + e.Message); }
             Shine.Restyle();
+            Interior.Mirrors.Restyle();
             Core.Log.Msg("[Reflections] set to " + Names[level] + ": probes " + Size + " px, " + TimeSlicing + ", standing every " + StandingEvery + " s.");
         }
 

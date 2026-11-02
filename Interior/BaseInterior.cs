@@ -404,6 +404,7 @@ namespace Chassis.Interior
                     }
                     parts.Add(new KitPart { Kind = "bench", Position = new Vector3((minX + maxX) * 0.5f, cushion, local[i].z), Size = new Vector3(maxX - minX + 0.55f, 0.62f, 0.48f) });
                 }
+                if (shell != null && Mirrors.Codes.Contains(code)) AddRearMirror(parts, shell, code, band, roof, new Vector3(d.x, eyes, seatZ));
                 if (shell != null)
                 {
                     foreach (var part in parts)
@@ -429,6 +430,8 @@ namespace Chassis.Interior
                     Core.Log.Msg("[Interior] " + code + " shell test (" + shellReport + "): " + (!FitToShell ? "fit off" : fitNotes.Count > 0 ? string.Join("; ", fitNotes) : "every part inside") + "." + (still.Count > 0 ? " Still outside: " + string.Join(", ", still) + "." : ""));
                     if (still.Count > 0) Core.Log.Warning("[Interior] " + code + ": " + still.Count + " kit part(s) still reach out of the body.");
                 }
+                // After the shell test: the side mirrors sit outside the body on purpose.
+                if (shell != null && Mirrors.Codes.Contains(code)) AddSideMirrors(parts, shell, code, band, belt, new Vector3(d.x, eyes, seatZ));
 
                 float feetRaised = 0f;
                 profile.Steering = new SteeringProfile { Path = WheelName, Axis = Vector3.forward, Ratio = 5f, Max = 170f };
@@ -538,6 +541,78 @@ namespace Chassis.Interior
 
         /// <summary>Steps and limits of the shell fit: the dashboard moves in 2 cm steps and drops at most 12 cm; seat backs shrink in 4 cm steps to 0.30 m.</summary>
         private const float DashStep = 0.02f, DashMaxDrop = 0.12f, BackStep = 0.04f, BackMin = 0.30f;
+
+        /// <summary>
+        /// The rear-view mirror housing, hung from the top of the windscreen in the middle of the car and turned so the
+        /// driver's eye sees straight back through the rear window. The windscreen is found by stepping forward from
+        /// the middle of the cabin just under the roof until the point leaves the shell. <see cref="Mirrors"/> puts the
+        /// glass on its back face.
+        /// </summary>
+        private static void AddRearMirror(List<KitPart> parts, ShellFit shell, string code, Bounds band, float roof, Vector3 eye)
+        {
+            float y = roof - 0.10f, x = band.center.x;
+            float z = band.center.z, limit = band.max.z + 0.5f;
+            while (z < limit && shell.Inside(new Vector3(x, y, z))) z += 0.01f;
+            if (z >= limit)
+            {
+                Core.Log.Warning("[Interior] " + code + ": no windscreen found ahead of z " + band.center.z.ToString("F2") + " at y " + y.ToString("F2") + " - no rear-view mirror.");
+                return;
+            }
+            var at = new Vector3(x, y, z - 0.06f);
+            var behind = new Vector3(band.center.x, eye.y, band.min.z - 10f);
+            Vector3 normal = ((eye - at).normalized + (behind - at).normalized).normalized;
+            Vector3 rotation = Quaternion.LookRotation(-normal, Vector3.up).eulerAngles;
+            parts.Add(new KitPart { Kind = "mirror", Name = Mirrors.RearName, Position = at, Rotation = rotation, Size = Mirrors.RearSize, Color = new Color(0.10f, 0.10f, 0.11f) });
+            Core.Log.Msg("[Interior] " + code + ": rear-view mirror at " + at.ToString("F2") + ", windscreen at z " + z.ToString("F2") + ", turned " + rotation.ToString("F1") + ".");
+        }
+
+        /// <summary>
+        /// An invisible plate on the face of each outside mirror of the body. The vanilla mirrors are part of the body
+        /// mesh, so they are found as the shell points ahead of the side windows that stand out further than the door;
+        /// their face is the flat part of them that looks back. The plate takes the face's size and angle, and
+        /// <see cref="Mirrors"/> puts the glass on it.
+        /// </summary>
+        private static void AddSideMirrors(List<KitPart> parts, ShellFit shell, string code, Bounds band, float belt, Vector3 eye)
+        {
+            for (int side = -1; side <= 1; side += 2)
+            {
+                bool left = side < 0;
+                string label = left ? "left" : "right";
+                if (!shell.SideExtent(band.max.z - 0.5f, band.max.z + 0.6f, belt - 0.15f, belt + 0.35f, left, out float door, out Vector3 min, out Vector3 max, out int count))
+                {
+                    Core.Log.Warning("[Interior] " + code + ": no " + label + " outside mirror found on the body (door reaches " + door.ToString("F2") + " m out) - no " + label + " side mirror.");
+                    continue;
+                }
+                if (!shell.MirrorFace(band.max.z - 0.5f, band.max.z + 0.6f, belt - 0.15f, belt + 0.35f, left, door, out Vector3 face, out Vector3 normal, out Vector2 extent, out int faces))
+                {
+                    Core.Log.Warning("[Interior] " + code + ": no " + label + " outside mirror face found on the body (mirror box " + min.ToString("F2") + " to " + max.ToString("F2") + ", " + count + " point(s), none facing back) - no " + label + " side mirror.");
+                    continue;
+                }
+                if (extent.x < 0.04f || extent.y < 0.03f || extent.x > 0.4f || extent.y > 0.3f)
+                {
+                    Core.Log.Warning("[Interior] " + code + ": the " + label + " outside mirror face is " + extent.x.ToString("F2") + " x " + extent.y.ToString("F2") + " m, not a mirror - no " + label + " side mirror.");
+                    continue;
+                }
+                // An invisible plate just behind the face: Mirrors lays the glass GlassGap in front of its back, so the
+                // picture lies on the vanilla mirror and the vanilla housing stays the only one.
+                const float depth = 0.004f;
+                Vector3 at = face - normal * (depth * 0.5f);
+                Quaternion turn = Quaternion.LookRotation(-normal, Vector3.up);
+                string name = left ? Mirrors.SideLName : Mirrors.SideRName;
+                parts.Add(new KitPart { Kind = "mirror", Name = name, Position = at, Rotation = turn.eulerAngles, Size = new Vector3(extent.x, extent.y, depth), Color = new Color(0.10f, 0.10f, 0.11f) });
+                float toEye = Vector3.Angle(normal, eye - face);
+                Core.Log.Msg("[Interior] " + code + ": " + label + " side mirror at " + at.ToString("F2") + ", " + extent.x.ToString("F2") + " x " + extent.y.ToString("F2") + " m, turned " + turn.eulerAngles.ToString("F1")
+                    + ", on the body mirror face (" + faces + " triangle(s), " + toEye.ToString("F0") + " deg off the driver's eye); mirror box " + min.ToString("F2") + " to " + max.ToString("F2") + " (" + count + " point(s)), door " + door.ToString("F2") + " m out.");
+            }
+        }
+
+        /// <summary>The built mirror housing <paramref name="name"/> of a car, or null when it has none or its kit is hidden.</summary>
+        internal static Transform Mirror(LandVehicle lv, string name)
+        {
+            if (lv == null || !_built.TryGetValue(lv.GetInstanceID(), out var b) || b.Root == null || !b.Shown) return null;
+            foreach (var t in b.Root.GetComponentsInChildren<Transform>(true)) if (t.name == name) return t;
+            return null;
+        }
 
         /// <summary>
         /// How many corners of a kit part lie outside the shell above <paramref name="minY"/>. Below the belt line the
@@ -805,6 +880,9 @@ namespace Chassis.Interior
                 case "lamp":
                     mesh = new KitMesh().Box(Vector3.zero, part.Size).Build("Chassis_lamp");
                     break;
+                case "mirror":
+                    mesh = new KitMesh().Box(Vector3.zero, part.Size).Build("Chassis_mirror");
+                    break;
                 default:
                     Core.Log.Warning("[Interior] unknown kit part '" + part.Kind + "' - skipped.");
                     return null;
@@ -828,6 +906,8 @@ namespace Chassis.Interior
             if (mesh.subMeshCount > 1) r.sharedMaterials = new[] { body, Flat(Accent(kind, part.Color)) };
             else r.sharedMaterial = body;
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            // A side mirror plate only carries the glass; the vanilla mirror around it is the housing.
+            if (objectName == Mirrors.SideLName || objectName == Mirrors.SideRName) r.enabled = false;
             return r;
         }
 
