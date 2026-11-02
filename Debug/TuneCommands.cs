@@ -30,6 +30,24 @@ namespace Chassis.Debugging
             Say("tune demo                    - register demo parts (wing, bumper, exhaust, rims) fitted to this car's code");
             Say("tune marco open|<colour>|close - Marco's repaint menu for the car; a colour is picked and bought through the menu's own buttons");
             Say("tune shine [hexmask]         - chrome probe layers nearby, or render the probes with this layer mask");
+            Say("tune mat                     - metal, gloss and reflection keywords of each paint slot's material");
+        }
+
+        /// <summary>One paint slot's material as the renderer draws it: colour, metal, gloss and the keywords that mute metal.</summary>
+        private static string Material(PaintTarget t)
+        {
+            if (t.Renderer == null) return "slot without renderer";
+            var mats = t.Renderer.sharedMaterials;
+            if (t.MaterialIndex < 0 || t.MaterialIndex >= mats.Length || mats[t.MaterialIndex] == null)
+                return t.Renderer.name + "[" + t.MaterialIndex + "]: no material";
+            var m = mats[t.MaterialIndex];
+            string F(string prop) => m.HasProperty(prop) ? m.GetFloat(prop).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) : "-";
+            return t.Renderer.name + "[" + t.MaterialIndex + "] " + m.name
+                + " colour=" + Tune.Values.Hex(m.color)
+                + " metallic=" + F("_Metallic") + " smooth=" + F("_Smoothness")
+                + " metalmap=" + (m.IsKeywordEnabled("_METALLICSPECGLOSSMAP") ? "on" : "off")
+                + " highlightsOff=" + (m.IsKeywordEnabled("_SPECULARHIGHLIGHTS_OFF") ? "yes" : "no")
+                + " reflectionsOff=" + (m.IsKeywordEnabled("_ENVIRONMENTREFLECTIONS_OFF") ? "yes" : "no");
         }
 
         internal static void Run(string[] p)
@@ -92,6 +110,9 @@ namespace Chassis.Debugging
                     break;
                 case "marco":
                     Say("tune marco: " + Marco(lv, a1));
+                    break;
+                case "mat":
+                    foreach (var t in Tune.Paint.TargetsOf(lv, out _)) Say("tune mat: " + Material(t));
                     break;
                 case "shine":
                     int? mask = null;
