@@ -1,10 +1,12 @@
 """
-Live mirrors in the sedan: spawns a shitbox at a fixed spot at noon, gets in, turns first person on,
+Live mirrors in a vanilla car: spawns one (the sedan, or `--vehicle <code>`) at a fixed spot at noon, gets in, turns first person on,
 looks at the rear-view mirror and both side mirrors and checks the `[Mirror]` log lines and `chassis mirror`
 answers. Takes screenshots of the player view (own car hidden and shown, each side mirror), steps through the
 Reflections levels and measures frame times with the mirrors on and off. Prints PASS or FAIL per check.
 
-    python mirrors.py --slot mptest4 --label main
+    python mirrors.py --slot mptest4 --label main --vehicle bruiser
+
+The car is removed at the end, so runs for several codes can follow each other in one game.
 
 Needs a Debug build of Chassis in the slot and a loaded save.
 """
@@ -137,29 +139,34 @@ def main():
     ap.add_argument("--slot", required=True)
     ap.add_argument("--label", default="run")
     ap.add_argument("--seconds", type=float, default=6.0, help="length of each frame-time sample")
+    ap.add_argument("--vehicle", default="shitbox", help="vanilla vehicle code")
     a = ap.parse_args()
-    r = Run(a.slot, a.label)
+    code = a.vehicle.lower()
+    r = Run(a.slot, a.label if code == "shitbox" else a.label + "-" + code)
     g = r.g
+    c = re.escape(code)
 
     start = r.mark()
     g.world("teleport", {"x": SPOT[0], "y": SPOT[1], "z": SPOT[2], "yaw": YAW}, timeout_ms=8000)
     g.world("set_time", {"time": 1200}, timeout_ms=8000)
     time.sleep(1.0)
-    g.run("spawnvehicle shitbox", settle_ms=3000, max_wait_ms=8000)
+    g.run("spawnvehicle " + code, settle_ms=3000, max_wait_ms=8000)
 
     # The interior is built once per vehicle model, often at save load before the mark: read the whole log.
     whole = (start[0], 0)
-    housing = r.lines(whole, r"\] shitbox: rear-view mirror at")
-    r.note("mirror placement: " + (housing[-1] if housing else "no line"))
+    housing = r.lines(whole, r"\] %s: rear-view mirror at" % c)
+    nowind = r.lines(whole, r"\] %s: no windscreen found" % c)
+    r.check("rear-view mirror placed under the windscreen", bool(housing) and not nowind,
+            (housing or nowind or ["no placement line"])[-1])
     for side in ("left", "right"):
-        placed = r.lines(whole, r"\] shitbox: %s side mirror at" % side)
-        missing = r.lines(whole, r"no %s outside mirror" % side)
+        placed = r.lines(whole, r"\] %s: %s side mirror at" % (c, side))
+        missing = r.lines(whole, r"\] %s: (no %s outside mirror|the %s outside mirror face is)" % (c, side, side))
         r.check("%s side mirror placed on the body mirror" % side, bool(placed) and not missing,
-                (placed or missing or ["no placement line"])[0])
+                (placed or missing or ["no placement line"])[-1])
 
-    entered = r.say("chassis car enter", "car enter", settle_ms=2500)
-    r.check("got into the sedan", any("driver" in l for l in entered), entered[-1] if entered else "no answer")
-    seated = r.wait_line(start, r"\[Mirror\] seated in shitbox.*mirror found", 10)
+    entered = r.say("chassis car enter " + code, "car enter", settle_ms=2500)
+    r.check("got into the " + code, any("driver" in l for l in entered), entered[-1] if entered else "no answer")
+    seated = r.wait_line(start, r"\[Mirror\] seated in %s net .*mirror found" % c, 10)
     r.check("mirror found in the seated car", seated is not None, seated or "no line within 10 s")
 
     view = r.say("chassis view 0", "view=")
@@ -245,6 +252,10 @@ def main():
 
     errors = r.lines(start, r"\[Chassis\].*(Exception|\[Error\]|ERROR)|Exception.*Chassis|\[Mirror\].*failed")
     r.check("no Chassis exception or mirror error", not errors, errors[0] if errors else "")
+
+    # The next run for another code starts at the same spot with no car left there.
+    gone = r.say("chassis car remove", "car remove", settle_ms=3500)
+    r.note("removed: " + (gone[-1] if gone else "no answer"))
     return r.summary()
 
 

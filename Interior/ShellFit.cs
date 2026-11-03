@@ -56,6 +56,10 @@ namespace Chassis.Interior
                 Matrix4x4 toRoot = root.worldToLocalMatrix * r.transform.localToWorldMatrix;
                 var got = ShellCut.Triangles(src, toRoot, lidBand, window, out string why);
                 if (got == null) { failed.Add(src.name + " (" + why + ")"); continue; }
+                // A part placed with a negative scale (the right mirror as a copy of the left) is drawn with its winding
+                // flipped; swap two corners so every front face in the shell points the way it is seen.
+                if (toRoot.determinant < 0f)
+                    for (int i = 0; i + 2 < got.Count; i += 3) { var b = got[i + 1]; got[i + 1] = got[i + 2]; got[i + 2] = b; }
                 tris.AddRange(got);
                 meshes++;
             }
@@ -94,6 +98,13 @@ namespace Chassis.Interior
         /// centre, measured in the same height band behind the length band. False when no point stands out.
         /// </summary>
         internal bool SideExtent(float zMin, float zMax, float yMin, float yMax, bool left, out float door, out Vector3 min, out Vector3 max, out int count)
+            => SideExtent(zMin, zMax, yMin, yMax, yMin, left, out door, out min, out max, out count);
+
+        /// <summary>
+        /// As above, with the door measured only from <paramref name="doorYMin"/> up: a body that bulges out below the
+        /// window line is wider there than the mirror on the door above it.
+        /// </summary>
+        internal bool SideExtent(float zMin, float zMax, float yMin, float yMax, float doorYMin, bool left, out float door, out Vector3 min, out Vector3 max, out int count)
         {
             float cx = _o[0];
             float[] t = _t;
@@ -102,7 +113,7 @@ namespace Chassis.Interior
             for (int i = 0; i + 2 < t.Length; i += 3)
             {
                 float y = t[i + 1], z = t[i + 2];
-                if (y < yMin || y > yMax || z < zMin - 0.9f || z >= zMin - 0.1f) continue;
+                if (y < doorYMin || y > yMax || z < zMin - 0.9f || z >= zMin - 0.1f) continue;
                 float dx = left ? cx - t[i] : t[i] - cx;
                 if (dx <= 0f) continue;
                 doorPoints++;
@@ -199,6 +210,47 @@ namespace Chassis.Interior
             return true;
         }
 
+        /// <summary>
+        /// How far along the segment from <paramref name="from"/> to <paramref name="from"/> + <paramref name="along"/> it
+        /// first leaves the shell, counted from <paramref name="from"/> as inside: the first crossing where the leaving
+        /// crossings outnumber the entering ones. A closed piece in between, or a wall behind the start, does not count.
+        /// NaN when the segment never leaves.
+        /// </summary>
+        internal float FirstExit(Vector3 from, Vector3 along)
+        {
+            float ox = from.x, oy = from.y, oz = from.z, dx = along.x, dy = along.y, dz = along.z;
+            float[] t = _t;
+            var hits = new List<KeyValuePair<float, int>>();
+            for (int i = 0; i + 8 < t.Length; i += 9)
+            {
+                float ax = t[i], ay = t[i + 1], az = t[i + 2];
+                float e1x = t[i + 3] - ax, e1y = t[i + 4] - ay, e1z = t[i + 5] - az;
+                float e2x = t[i + 6] - ax, e2y = t[i + 7] - ay, e2z = t[i + 8] - az;
+                float hx = dy * e2z - dz * e2y, hy = dz * e2x - dx * e2z, hz = dx * e2y - dy * e2x;
+                float det = e1x * hx + e1y * hy + e1z * hz;
+                if (det > -1e-9f && det < 1e-9f) continue;
+                float inv = 1f / det;
+                float sx = ox - ax, sy = oy - ay, sz = oz - az;
+                float u = inv * (sx * hx + sy * hy + sz * hz);
+                if (u < 0f || u > 1f) continue;
+                float qx = sy * e1z - sz * e1y, qy = sz * e1x - sx * e1z, qz = sx * e1y - sy * e1x;
+                float v = inv * (dx * qx + dy * qy + dz * qz);
+                if (v < 0f || u + v > 1f) continue;
+                float hit = inv * (e2x * qx + e2y * qy + e2z * qz);
+                if (hit <= 0f || hit >= 1f) continue;
+                float nx = e1y * e2z - e1z * e2y, ny = e1z * e2x - e1x * e2z, nz = e1x * e2y - e1y * e2x;
+                hits.Add(new KeyValuePair<float, int>(hit, nx * dx + ny * dy + nz * dz > 0f ? 1 : -1));
+            }
+            hits.Sort((a, b) => a.Key.CompareTo(b.Key));
+            int net = 0;
+            foreach (var h in hits)
+            {
+                net += h.Value;
+                if (net > 0) return h.Key;
+            }
+            return float.NaN;
+        }
+
         // The test runs on plain floats: every Vector3 operator is a call into the game under IL2CPP, and a fit makes
         // millions of them.
         private bool IsOutside(float px, float py, float pz)
@@ -231,5 +283,21 @@ namespace Chassis.Interior
             }
             return net > 0;
         }
+
+#if DEBUG
+        /// <summary>Writes the shell as a Wavefront OBJ in root space, to read a body's geometry outside the game.</summary>
+        internal void WriteObj(string path)
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            using (var w = new System.IO.StreamWriter(path))
+            {
+                w.WriteLine("# cabin centre " + _o[0].ToString("F4", inv) + " " + _o[1].ToString("F4", inv) + " " + _o[2].ToString("F4", inv));
+                for (int i = 0; i + 2 < _t.Length; i += 3)
+                    w.WriteLine("v " + _t[i].ToString("F4", inv) + " " + _t[i + 1].ToString("F4", inv) + " " + _t[i + 2].ToString("F4", inv));
+                for (int i = 0; i < _t.Length / 3; i += 3)
+                    w.WriteLine("f " + (i + 1) + " " + (i + 2) + " " + (i + 3));
+            }
+        }
+#endif
     }
 }

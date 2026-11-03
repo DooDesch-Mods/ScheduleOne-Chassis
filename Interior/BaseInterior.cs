@@ -404,7 +404,11 @@ namespace Chassis.Interior
                     }
                     parts.Add(new KitPart { Kind = "bench", Position = new Vector3((minX + maxX) * 0.5f, cushion, local[i].z), Size = new Vector3(maxX - minX + 0.55f, 0.62f, 0.48f) });
                 }
-                if (shell != null && Mirrors.Codes.Contains(code)) AddRearMirror(parts, shell, code, band, roof, new Vector3(d.x, eyes, seatZ));
+                if (shell != null && Mirrors.Codes.Contains(code))
+                {
+                    _eyes[code] = new Vector3(d.x, eyes, seatZ);
+                    AddRearMirror(parts, shell, code, band, roof, _eyes[code]);
+                }
                 if (shell != null)
                 {
                     foreach (var part in parts)
@@ -544,18 +548,22 @@ namespace Chassis.Interior
 
         /// <summary>
         /// The rear-view mirror housing, hung from the top of the windscreen in the middle of the car and turned so the
-        /// driver's eye sees straight back through the rear window. The windscreen is found by stepping forward from
-        /// the middle of the cabin just under the roof until the point leaves the shell. <see cref="Mirrors"/> puts the
-        /// glass on its back face.
+        /// driver's eye sees straight back through the rear window. The windscreen is where a line forward from above
+        /// the driver's eye, just under the roof, first leaves the shell; walls behind the driver, such as a van's
+        /// partition, do not count. <see cref="Mirrors"/> puts the glass on its back face.
         /// </summary>
         private static void AddRearMirror(List<KitPart> parts, ShellFit shell, string code, Bounds band, float roof, Vector3 eye)
         {
             float y = roof - 0.10f, x = band.center.x;
-            float z = band.center.z, limit = band.max.z + 0.5f;
-            while (z < limit && shell.Inside(new Vector3(x, y, z))) z += 0.01f;
-            if (z >= limit)
+            float from = eye.z, limit = band.max.z + 0.5f;
+            float exit = shell.FirstExit(new Vector3(x, y, from), new Vector3(0f, 0f, limit - from));
+            float z = from + exit * (limit - from);
+            if (float.IsNaN(exit))
             {
-                Core.Log.Warning("[Interior] " + code + ": no windscreen found ahead of z " + band.center.z.ToString("F2") + " at y " + y.ToString("F2") + " - no rear-view mirror.");
+                Core.Log.Warning("[Interior] " + code + ": no windscreen found ahead of z " + from.ToString("F2") + " at y " + y.ToString("F2") + " - no rear-view mirror.");
+#if DEBUG
+                DumpShell(shell, code, band, float.NaN);
+#endif
                 return;
             }
             var at = new Vector3(x, y, z - 0.06f);
@@ -574,36 +582,71 @@ namespace Chassis.Interior
         /// </summary>
         private static void AddSideMirrors(List<KitPart> parts, ShellFit shell, string code, Bounds band, float belt, Vector3 eye)
         {
+            int before = parts.Count;
             for (int side = -1; side <= 1; side += 2)
+                AddSideMirror(parts, shell, code, band, belt, eye, side < 0);
+#if DEBUG
+            if (parts.Count - before < 2) DumpShell(shell, code, band, belt);
+#endif
+        }
+
+#if DEBUG
+        /// <summary>Writes the shell of a car whose mirror search failed to UserData/Chassis/shell-&lt;code&gt;.obj.</summary>
+        private static void DumpShell(ShellFit shell, string code, Bounds band, float belt)
+        {
+            string path = System.IO.Path.Combine(Chassis.Api.ChassisApi.Folder, "shell-" + code + ".obj");
+            try
             {
-                bool left = side < 0;
-                string label = left ? "left" : "right";
-                if (!shell.SideExtent(band.max.z - 0.5f, band.max.z + 0.6f, belt - 0.15f, belt + 0.35f, left, out float door, out Vector3 min, out Vector3 max, out int count))
-                {
-                    Core.Log.Warning("[Interior] " + code + ": no " + label + " outside mirror found on the body (door reaches " + door.ToString("F2") + " m out) - no " + label + " side mirror.");
-                    continue;
-                }
-                if (!shell.MirrorFace(band.max.z - 0.5f, band.max.z + 0.6f, belt - 0.15f, belt + 0.35f, left, door, out Vector3 face, out Vector3 normal, out Vector2 extent, out int faces))
-                {
-                    Core.Log.Warning("[Interior] " + code + ": no " + label + " outside mirror face found on the body (mirror box " + min.ToString("F2") + " to " + max.ToString("F2") + ", " + count + " point(s), none facing back) - no " + label + " side mirror.");
-                    continue;
-                }
-                if (extent.x < 0.04f || extent.y < 0.03f || extent.x > 0.4f || extent.y > 0.3f)
-                {
-                    Core.Log.Warning("[Interior] " + code + ": the " + label + " outside mirror face is " + extent.x.ToString("F2") + " x " + extent.y.ToString("F2") + " m, not a mirror - no " + label + " side mirror.");
-                    continue;
-                }
-                // An invisible plate just behind the face: Mirrors lays the glass GlassGap in front of its back, so the
-                // picture lies on the vanilla mirror and the vanilla housing stays the only one.
-                const float depth = 0.004f;
-                Vector3 at = face - normal * (depth * 0.5f);
-                Quaternion turn = Quaternion.LookRotation(-normal, Vector3.up);
-                string name = left ? Mirrors.SideLName : Mirrors.SideRName;
-                parts.Add(new KitPart { Kind = "mirror", Name = name, Position = at, Rotation = turn.eulerAngles, Size = new Vector3(extent.x, extent.y, depth), Color = new Color(0.10f, 0.10f, 0.11f) });
-                float toEye = Vector3.Angle(normal, eye - face);
-                Core.Log.Msg("[Interior] " + code + ": " + label + " side mirror at " + at.ToString("F2") + ", " + extent.x.ToString("F2") + " x " + extent.y.ToString("F2") + " m, turned " + turn.eulerAngles.ToString("F1")
-                    + ", on the body mirror face (" + faces + " triangle(s), " + toEye.ToString("F0") + " deg off the driver's eye); mirror box " + min.ToString("F2") + " to " + max.ToString("F2") + " (" + count + " point(s)), door " + door.ToString("F2") + " m out.");
+                System.IO.Directory.CreateDirectory(Chassis.Api.ChassisApi.Folder);
+                shell.WriteObj(path);
+                Core.Log.Msg("[Interior] " + code + ": shell written to " + path + "; window band " + band.min.ToString("F2") + " to " + band.max.ToString("F2") + (float.IsNaN(belt) ? "" : ", belt " + belt.ToString("F2")) + ".");
             }
+            catch (Exception e) { Core.Log.Error("[Interior] " + code + ": writing the shell to " + path + " failed: " + e.Message); }
+        }
+#endif
+
+        /// <summary>How far behind the length band the face of a cut-off mirror housing is searched, in metres.</summary>
+        private const float FaceReach = 0.15f;
+
+        private static void AddSideMirror(List<KitPart> parts, ShellFit shell, string code, Bounds band, float belt, Vector3 eye, bool left)
+        {
+            string label = left ? "left" : "right";
+            // The door is measured first from just under the window line. A body that bulges out below the window
+            // line stands out as far as the mirror there, so the second try measures the door from the line up.
+            float door = 0f, yMin = belt - 0.15f, yMax = belt + 0.35f, zMin = band.max.z - 0.5f, zMax = band.max.z + 0.6f;
+            Vector3 min = Vector3.zero, max = Vector3.zero, face = Vector3.zero, normal = Vector3.zero;
+            Vector2 extent = Vector2.zero;
+            int count = 0, faces = 0;
+            string miss = null;
+            float[] doorFrom = { yMin, belt };
+            for (int k = 0; k < doorFrom.Length; k++)
+            {
+                if (k > 0) Core.Log.Msg("[Interior] " + code + ": " + miss + "; measuring the door from y " + doorFrom[k].ToString("F2") + " up instead.");
+                if (!shell.SideExtent(zMin, zMax, yMin, yMax, doorFrom[k], left, out door, out min, out max, out count))
+                    miss = "no " + label + " outside mirror found on the body (door reaches " + door.ToString("F2") + " m out)";
+                // A box that reaches the back end of the length band is a housing the band cuts off; its face lies
+                // further back, behind the cut.
+                else if (!shell.MirrorFace(min.z <= zMin + 0.01f ? zMin - FaceReach : zMin, zMax, yMin, yMax, left, door, out face, out normal, out extent, out faces))
+                    miss = "no " + label + " outside mirror face found on the body (mirror box " + min.ToString("F2") + " to " + max.ToString("F2") + ", " + count + " point(s), none facing back)";
+                else if (extent.x < 0.04f || extent.y < 0.03f || extent.x > 0.4f || extent.y > 0.3f)
+                    miss = "the " + label + " outside mirror face is " + extent.x.ToString("F2") + " x " + extent.y.ToString("F2") + " m, not a mirror";
+                else { miss = null; break; }
+            }
+            if (miss != null)
+            {
+                Core.Log.Warning("[Interior] " + code + ": " + miss + " - no " + label + " side mirror.");
+                return;
+            }
+            // An invisible plate just behind the face: Mirrors lays the glass GlassGap in front of its back, so the
+            // picture lies on the vanilla mirror and the vanilla housing stays the only one.
+            const float depth = 0.004f;
+            Vector3 at = face - normal * (depth * 0.5f);
+            Quaternion turn = Quaternion.LookRotation(-normal, Vector3.up);
+            string name = left ? Mirrors.SideLName : Mirrors.SideRName;
+            parts.Add(new KitPart { Kind = "mirror", Name = name, Position = at, Rotation = turn.eulerAngles, Size = new Vector3(extent.x, extent.y, depth), Color = new Color(0.10f, 0.10f, 0.11f) });
+            float toEye = Vector3.Angle(normal, eye - face);
+            Core.Log.Msg("[Interior] " + code + ": " + label + " side mirror at " + at.ToString("F2") + ", " + extent.x.ToString("F2") + " x " + extent.y.ToString("F2") + " m, turned " + turn.eulerAngles.ToString("F1")
+                + ", on the body mirror face (" + faces + " triangle(s), " + toEye.ToString("F0") + " deg off the driver's eye); mirror box " + min.ToString("F2") + " to " + max.ToString("F2") + " (" + count + " point(s)), door " + door.ToString("F2") + " m out.");
         }
 
         /// <summary>The built mirror housing <paramref name="name"/> of a car, or null when it has none or its kit is hidden.</summary>
@@ -612,6 +655,21 @@ namespace Chassis.Interior
             if (lv == null || !_built.TryGetValue(lv.GetInstanceID(), out var b) || b.Root == null || !b.Shown) return null;
             foreach (var t in b.Root.GetComponentsInChildren<Transform>(true)) if (t.name == name) return t;
             return null;
+        }
+
+        /// <summary>Driver's eye per vehicle code in kit space, where the mirrors were set for it.</summary>
+        private static readonly Dictionary<string, Vector3> _eyes = new Dictionary<string, Vector3>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Where a driver's eyes would be in a car, in world space, or null when its kit is not built or hidden. The kit
+        /// root sits on the car's frame without offset, so kit space is frame space.
+        /// </summary>
+        internal static Vector3? DriverEye(LandVehicle lv)
+        {
+            if (lv == null || !_built.TryGetValue(lv.GetInstanceID(), out var b) || b.Root == null || !b.Shown) return null;
+            string code = ChassisApi.CodeOf(lv);
+            if (code == null || !_eyes.TryGetValue(code, out var eye)) return null;
+            return b.Root.transform.TransformPoint(eye);
         }
 
         /// <summary>
