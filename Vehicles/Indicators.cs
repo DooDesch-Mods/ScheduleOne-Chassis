@@ -7,7 +7,7 @@ using Chassis.Net;
 namespace Chassis.Vehicles
 {
     /// <summary>
-    /// Turn signals for vehicles whose profile has <see cref="LampProfile"/>. The driver uses the left and right arrow
+    /// Turn signals for vanilla cars and for vehicles whose profile has <see cref="LampProfile"/>. The driver uses the left and right arrow
     /// keys (the same key again switches off; after the turn the signal cancels itself), mods call
     /// <see cref="ChassisApi.SetIndicator"/>. The side goes through the host to every peer; each peer flashes the lamps
     /// on its own clock, switching each lamp between its own materials and amber glowing copies of them.
@@ -48,6 +48,13 @@ namespace Chassis.Vehicles
 
         /// <summary>True in the lit half of every flash.</summary>
         internal static bool Phase => Time.time % Period < Period * 0.5f;
+
+        /// <summary>
+        /// True when the arrow keys signal on this vehicle: its profile names lamps, or it is a vanilla car, whose
+        /// lamps <see cref="VanillaLamps"/> draws. Other profiled vehicles (a wheelchair) have nothing to flash.
+        /// </summary>
+        internal static bool CanSignal(LandVehicle lv, ChassisProfile profile) =>
+            lv != null && (profile?.Lamps != null || Chassis.Interior.BaseInterior.VanillaCodes.Contains(lv.VehicleCode ?? string.Empty));
 
         internal static int SideOf(LandVehicle lv)
         {
@@ -128,15 +135,30 @@ namespace Chassis.Vehicles
         {
             bool left = Input.GetKeyDown(LeftKey), right = Input.GetKeyDown(RightKey);
             if ((!left && !right) || GameInput.IsTyping) return;
+            Arrow(left);
+        }
+
+        private static bool _onFootLogged;
+
+        /// <summary>One press of the left or right arrow key; the debug command <c>chassis car arrow</c> calls it as well.</summary>
+        internal static void Arrow(bool left)
+        {
             var lp = Player.Local;
             var lv = lp != null && lp.CurrentVehicle != null ? lp.CurrentVehicle.GetComponent<LandVehicle>() : null;
-            if (lv == null || !lv.LocalPlayerIsDriver) return;
-            if (lv.State != null && !lv.State.IsAcceptingInput) return;
-            if (ChassisApi.For(lv)?.Lamps == null)
+            if (lv == null)
             {
-                Core.Log.Msg("[Indicators] " + Registry.Name(lv) + " has no indicator lamps in its profile - the arrow key does nothing.");
+                if (!_onFootLogged) Core.Log.Msg("[Indicators] arrow key on foot - nothing to signal (logged once).");
+                _onFootLogged = true;
                 return;
             }
+            if (!lv.LocalPlayerIsDriver) { Core.Log.Msg("[Indicators] arrow key in " + Registry.Name(lv) + " ignored: not the driver."); return; }
+            if (lv.State != null && !lv.State.IsAcceptingInput) { Core.Log.Msg("[Indicators] arrow key in " + Registry.Name(lv) + " ignored: the vehicle takes no input."); return; }
+            if (!CanSignal(lv, ChassisApi.For(lv)))
+            {
+                Core.Log.Msg("[Indicators] " + Registry.Name(lv) + " is no vanilla car and has no indicator lamps in its profile - the arrow key does nothing.");
+                return;
+            }
+            Core.Log.Msg("[Indicators] arrow key " + (left ? "left" : "right") + " in " + Registry.Name(lv) + ".");
             int want = left ? -1 : 1;
             Request(lv, SideOf(lv) == want ? 0 : want, true);
         }
