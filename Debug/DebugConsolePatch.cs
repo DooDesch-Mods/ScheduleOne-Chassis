@@ -84,7 +84,7 @@ namespace Chassis.Debugging
                         Say("feet                         - ankle axes of every seated body (side x near -1 = sole down)");
                         Say("profile list|show|save|reload|set <field> <values> [code] [seat] - seat profiles (see 'chassis profile')");
                         Say("target seat|patrol|near|gun|shoot|keep|list - shots into cars (see 'chassis target')");
-                        Say("car [enter|honk|blink|lock|part|side|rain|assign|owners] - horn, indicators, lock, lids (see 'chassis car help')");
+                        Say("car [enter|honk|blink|arrow|lock|part|side|rain|assign|owners] - horn, indicators, lock, lids (see 'chassis car help')");
                         Say("tune [part|remove|set|clear|stats|demo] - paint, parts, lights and driving of a car (see 'chassis tune help')");
                         Say("interior on|off|rebuild      - base interior and tinted glass in the vanilla cars");
                         Say("mirror [on|off|look [left|right]|own on|off|level 0-3] - live mirrors of the car you sit in");

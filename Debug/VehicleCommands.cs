@@ -24,7 +24,8 @@ namespace Chassis.Debugging
             Say("car wheels                   - drift state, smoke and smoke colour per wheel");
             Say("car honk [flash]             - horn (key G)");
             Say("car hear [d1,d2,...]         - plays the horn from each distance and reports the level at the listener");
-            Say("car blink l|r|off            - indicator (arrow keys)");
+            Say("car blink l|r|off            - indicator, straight through the API");
+            Say("car arrow l|r                - one arrow key press, with the driver and profile checks");
             Say("car lock on|off              - lock or unlock (owner only)");
             Say("car part <name> open|close   - lid from the profile");
             Say("car side front|rear          - which end the storage is opened from");
@@ -118,6 +119,12 @@ namespace Chassis.Debugging
                 case "blink":
                     ChassisApi.SetIndicator(lv, arg == "l" || arg == "left" ? -1 : arg == "r" || arg == "right" ? 1 : 0);
                     Say("car blink: asked " + arg);
+                    break;
+                case "arrow":
+                    // The arrow key path itself, with its driver and profile checks, unlike blink.
+                    if (arg != "l" && arg != "left" && arg != "r" && arg != "right") { Say("car arrow: l or r"); break; }
+                    Vehicles.Indicators.Arrow(arg == "l" || arg == "left");
+                    Say("car arrow: pressed " + arg);
                     break;
                 case "lock":
                     ChassisApi.SetLocked(lv, arg != "off");

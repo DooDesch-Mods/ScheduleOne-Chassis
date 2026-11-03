@@ -49,7 +49,7 @@ namespace Chassis.Vehicles
                 Show = c => !c.Pushing && Occupants.Of(Player.Local) != null },
             new Entry { Id = "chassis.horn", Label = "Horn", Keys = () => new[] { Horn.Key }, Show = c => c.Driver },
             new Entry { Id = "chassis.indicators", Label = "Indicators", Keys = () => new[] { Indicators.LeftKey, Indicators.RightKey },
-                Show = c => c.Driver && c.Profile?.Lamps != null, Last = true },
+                Show = c => c.Driver && Indicators.CanSignal(c.Vehicle, c.Profile), Last = true },
             new Entry { Id = "chassis.push", Label = "Push", Show = c => c.Pushing, Buttons = new[] { "Motion" } },
             new Entry { Id = "chassis.letgo", Label = "Let Go", Show = c => c.Pushing, Buttons = new[] { "Interact" } },
         };
