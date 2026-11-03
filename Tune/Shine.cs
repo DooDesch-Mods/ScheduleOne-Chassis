@@ -14,11 +14,15 @@ namespace Chassis.Tune
     /// done, so the mirror keeps up with the street. A standing car renders rarely, a car far away never.
     /// All chrome cars share one render budget, the rate of a single car at the <see cref="Reflections"/> level, so more
     /// chrome cars cost no more render time: the near ones refresh more often, the far ones less.
+    /// The game's sky is one sphere of 1000 m radius around the map centre, far beyond what a probe sees. A copy of it,
+    /// small enough to sit inside the probe's far plane, moves to each chrome probe as it renders; every other camera skips it.
     /// </summary>
     internal static class Shine
     {
-        private const string ProbeName = "Chassis_ChromeProbe";
+        private const string ProbeName = "Chassis_ChromeProbe", SkyName = "Chassis_ChromeSky";
         private const float FarAway = 60f, RoofGap = 0.5f, FarClip = 80f;
+        /// <summary>Radius of the sky copy: inside <see cref="FarClip"/>, beyond the street the probe should show.</summary>
+        private const float SkyRadius = 70f;
         /// <summary>Closer than this every car counts as equally near, so a car right beside the camera cannot starve the rest.</summary>
         private const float NearEnough = 5f;
 
@@ -39,6 +43,15 @@ namespace Chassis.Tune
         private static readonly List<int> _gone = new List<int>();
         /// <summary>When the shared budget allows the next render of a standing car and of a moving car.</summary>
         private static float _nextStanding, _nextMoving;
+
+        private static GameObject _sky;
+        private static Transform _skySource;
+        private static MeshRenderer _skyRenderer;
+        private static bool _skyMissing, _hooked, _skySeen, _otherSeen, _skyFailed;
+#if IL2CPP
+        /// <summary>Held so the garbage collector keeps the delegate the game calls.</summary>
+        private static Il2CppSystem.Action<ScriptableRenderContext, Camera> _onBegin;
+#endif
 
         /// <summary>A chrome paint on the car (first or second): give it a probe; none: take it away.</summary>
         internal static void Set(Tune.Apply.Car c, bool chrome)
@@ -107,13 +120,103 @@ namespace Chassis.Tune
             p.cullingMask = mask;
             p.nearClipPlane = 0.3f;
             p.farClipPlane = FarClip;
-            // The game draws no skybox the probe could see; left alone the sky in the mirror is black and chrome
-            // turns dark. The fog colour is what the horizon shows, so it stands in for the sky (set again per render).
+            // The sky copy covers the background. Without it (no Skybox in the scene) the fog colour stands in, because
+            // it is what the horizon shows; left at black, chrome turns dark (set again per render).
             p.clearFlags = ReflectionProbeClearFlags.SolidColor;
             p.backgroundColor = RenderSettings.fogColor;
             foreach (var r in v.GetComponentsInChildren<MeshRenderer>(true))
                 if (r != null && r.reflectionProbeUsage == ReflectionProbeUsage.Off) r.reflectionProbeUsage = ReflectionProbeUsage.BlendProbes;
+            EnsureSky();
             return p;
+        }
+
+        /// <summary>Builds the sky copy from the game's <c>Skybox</c> sphere (same mesh and material), once per scene.</summary>
+        private static void EnsureSky()
+        {
+            if (_sky != null) return;
+            if (!_hooked) Hook();
+            Transform source = null;
+            if (NetworkSingleton<GameEnvironment>.InstanceExists && NetworkSingleton<GameEnvironment>.Instance != null)
+                source = NetworkSingleton<GameEnvironment>.Instance.transform.Find("Skybox");
+            if (source == null)
+            {
+                var go = GameObject.Find("Skybox");
+                if (go != null) source = go.transform;
+            }
+            var mf = source != null ? source.GetComponent<MeshFilter>() : null;
+            var mr = source != null ? source.GetComponent<MeshRenderer>() : null;
+            if (mf == null || mf.sharedMesh == null || mr == null || mr.sharedMaterial == null)
+            {
+                if (!_skyMissing)
+                {
+                    _skyMissing = true;
+                    Core.Log.Warning("[Tuning] chrome sky: " + (source == null ? "no Skybox object" : "the Skybox has no mesh or material") + " - chrome reflects the fog colour instead of the sky.");
+                }
+                return;
+            }
+            _skySource = source;
+            _sky = new GameObject(SkyName);
+            _sky.layer = source.gameObject.layer;
+            _sky.AddComponent<MeshFilter>().sharedMesh = mf.sharedMesh;
+            var r = _sky.AddComponent<MeshRenderer>();
+            r.sharedMaterial = mr.sharedMaterial;
+            r.shadowCastingMode = ShadowCastingMode.Off;
+            r.receiveShadows = false;
+            r.reflectionProbeUsage = ReflectionProbeUsage.Off;
+            r.lightProbeUsage = LightProbeUsage.Off;
+            r.forceRenderingOff = true;
+            float meshRadius = Mathf.Max(mf.sharedMesh.bounds.extents.x, 0.01f);
+            _sky.transform.localScale = Vector3.one * (SkyRadius / meshRadius);
+            _sky.transform.rotation = source.rotation;
+            _skyRenderer = r;
+            Core.Log.Msg("[Tuning] chrome sky: copy of the Skybox (layer " + _sky.layer + ", " + SkyRadius + " m) ready for the chrome probes.");
+        }
+
+        private static void Hook()
+        {
+            _hooked = true;
+            try
+            {
+#if IL2CPP
+                _onBegin = new System.Action<ScriptableRenderContext, Camera>(BeforeCamera);
+                RenderPipelineManager.add_beginCameraRendering(_onBegin);
+#else
+                RenderPipelineManager.beginCameraRendering += BeforeCamera;
+#endif
+                Core.Log.Msg("[Tuning] chrome sky: listening to camera renders.");
+            }
+            catch (Exception ex) { Core.Log.Error("[Tuning] chrome sky: hooking the camera renders failed - chrome reflects the fog colour: " + ex.Message); }
+        }
+
+        /// <summary>
+        /// Before every camera render: the sky copy shows only to the reflection camera of a chrome probe and sits where
+        /// it stands. The game's own probes and every other camera skip it.
+        /// </summary>
+        private static void BeforeCamera(ScriptableRenderContext context, Camera cam)
+        {
+            if (_skyRenderer == null) return;
+            try
+            {
+                bool show = false;
+                if (cam != null && cam.cameraType == CameraType.Reflection)
+                {
+                    var at = cam.transform.position;
+                    foreach (var e in _probes.Values)
+                        if (e.P != null && (e.P.transform.position - at).sqrMagnitude < 0.25f) { show = true; break; }
+                    if (show)
+                    {
+                        _sky.transform.position = at;
+                        if (_skySource != null) _sky.transform.rotation = _skySource.rotation;
+                        if (!_skySeen) { _skySeen = true; Core.Log.Msg("[Tuning] chrome sky: first chrome probe render with the sky at " + at.ToString("F1") + "."); }
+                    }
+                    else if (!_otherSeen) { _otherSeen = true; Core.Log.Msg("[Tuning] chrome sky: reflection camera at " + at.ToString("F1") + " is no chrome probe - no sky there."); }
+                }
+                _skyRenderer.forceRenderingOff = !show;
+            }
+            catch (Exception ex)
+            {
+                if (!_skyFailed) { _skyFailed = true; Core.Log.Error("[Tuning] chrome sky: placing the sky for a camera failed - logged once: " + ex.Message); }
+            }
         }
 
         /// <summary>
@@ -233,6 +336,11 @@ namespace Chassis.Tune
             foreach (var e in _probes.Values) if (e.P != null) UnityEngine.Object.Destroy(e.P.gameObject);
             _probes.Clear();
             _nextStanding = _nextMoving = 0f;
+            if (_sky != null) UnityEngine.Object.Destroy(_sky);
+            _sky = null;
+            _skyRenderer = null;
+            _skySource = null;
+            _skyMissing = _skySeen = _otherSeen = _skyFailed = false;
         }
     }
 }

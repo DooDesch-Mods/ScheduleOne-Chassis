@@ -242,6 +242,13 @@ namespace Chassis.Tune
         /// <summary>Sets a material's colour and finish, on URP/Lit and on the built-in names.</summary>
         internal static void Colour(Material m, Color colour, float metallic, float smooth)
         {
+            // On metal the base colour tints the reflection. A dark chrome reflected next to nothing and read as black
+            // plastic, so chrome keeps its hue but at least this brightness.
+            if (metallic >= 0.99f)
+            {
+                Color.RGBToHSV(colour, out float h, out float s, out float v);
+                if (v < ChromeBrightness) colour = Color.HSVToRGB(h, s, ChromeBrightness);
+            }
             m.color = colour;
             if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", colour);
             if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", metallic);
@@ -252,10 +259,25 @@ namespace Chassis.Tune
             // finishes switch the map off; the others keep it and the trim stays as vanilla made it.
             if (m.HasProperty("_MetallicGlossMap") && m.GetTexture("_MetallicGlossMap") != null)
             {
-                if (metallic >= 0.5f) m.DisableKeyword("_METALLICSPECGLOSSMAP");
+                if (metallic >= MetalFrom) m.DisableKeyword("_METALLICSPECGLOSSMAP");
                 else m.EnableKeyword("_METALLICSPECGLOSSMAP");
             }
+            // A metal without highlights and environment reflections shows only its base colour, so metal finishes
+            // switch both on, whatever the material came with.
+            if (metallic >= MetalFrom)
+            {
+                m.DisableKeyword("_SPECULARHIGHLIGHTS_OFF");
+                m.DisableKeyword("_ENVIRONMENTREFLECTIONS_OFF");
+                if (m.HasProperty("_SpecularHighlights")) m.SetFloat("_SpecularHighlights", 1f);
+                if (m.HasProperty("_EnvironmentReflections")) m.SetFloat("_EnvironmentReflections", 1f);
+            }
         }
+
+        /// <summary>Lowest HSV brightness of a chrome paint.</summary>
+        private const float ChromeBrightness = 0.75f;
+
+        /// <summary>From this metallic value on a paint is a metal finish (Metallic, Metal, Chrome); gloss and matte stay below.</summary>
+        private const float MetalFrom = 0.4f;
 
         private static void Put(Slot s)
         {

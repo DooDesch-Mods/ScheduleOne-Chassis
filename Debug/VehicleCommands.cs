@@ -103,9 +103,7 @@ namespace Chassis.Debugging
                 }
                 case "remove":
                     if (!InstanceFinder.IsServer) { Say("car remove: only the host despawns vehicles"); break; }
-                    if (Player.Local != null && Player.Local.CurrentVehicle != null) lv.ExitVehicle();
-                    Say("car remove: " + Registry.Name(lv));
-                    Compat.Interop.Despawn(lv.gameObject);
+                    MelonLoader.MelonCoroutines.Start(Remove(lv));
                     break;
                 case "honk":
                     ChassisApi.Honk(lv, arg == "flash");
@@ -241,6 +239,29 @@ namespace Chassis.Debugging
             }
             if (lv == null) { Core.Log.Warning("[Console] car slide ended: the vehicle is gone."); yield break; }
             Core.Log.Msg("[Console] car slide ended: drift smoke played in " + smokeFrames + " of " + frames + " frame(s).");
+        }
+
+        /// <summary>
+        /// Despawns <paramref name="lv"/>; a player in it gets out first and the despawn waits until the exit has run,
+        /// because a car taken away under a seated player leaves the avatar without a vehicle it still points at.
+        /// </summary>
+        private static System.Collections.IEnumerator Remove(LandVehicle lv)
+        {
+            if (Player.Local != null && Player.Local.CurrentVehicle != null)
+            {
+                lv.ExitVehicle();
+                float until = Time.realtimeSinceStartup + 2f;
+                while (Player.Local != null && Player.Local.CurrentVehicle != null && Time.realtimeSinceStartup < until) yield return null;
+                if (Player.Local != null && Player.Local.CurrentVehicle != null)
+                {
+                    Say("car remove: the player is still seated after 2 s, not despawned");
+                    yield break;
+                }
+                yield return null;
+            }
+            if (lv == null) { Say("car remove: the vehicle is already gone"); yield break; }
+            Say("car remove: " + Registry.Name(lv));
+            Compat.Interop.Despawn(lv.gameObject);
         }
 
 #if IL2CPP

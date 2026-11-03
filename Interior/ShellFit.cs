@@ -24,6 +24,9 @@ namespace Chassis.Interior
 
         internal Vector3 Centre => new Vector3(_o[0], _o[1], _o[2]);
 
+        /// <summary>A point in root space lies inside the shell.</summary>
+        internal bool Inside(Vector3 p) => !IsOutside(p.x, p.y, p.z);
+
         /// <summary>
         /// The shell of the most detailed LOD, without wheels, Chassis objects and the cabin lid of
         /// <paramref name="lidBand"/>; null with <paramref name="report"/> set when no body mesh can be read.
@@ -53,6 +56,10 @@ namespace Chassis.Interior
                 Matrix4x4 toRoot = root.worldToLocalMatrix * r.transform.localToWorldMatrix;
                 var got = ShellCut.Triangles(src, toRoot, lidBand, window, out string why);
                 if (got == null) { failed.Add(src.name + " (" + why + ")"); continue; }
+                // A part placed with a negative scale (the right mirror as a copy of the left) is drawn with its winding
+                // flipped; swap two corners so every front face in the shell points the way it is seen.
+                if (toRoot.determinant < 0f)
+                    for (int i = 0; i + 2 < got.Count; i += 3) { var b = got[i + 1]; got[i + 1] = got[i + 2]; got[i + 2] = b; }
                 tris.AddRange(got);
                 meshes++;
             }
@@ -82,6 +89,166 @@ namespace Chassis.Interior
                 found?.Add(p);
             }
             return n;
+        }
+
+        /// <summary>
+        /// The body's outside mirror on one side: the shell points in the height band <paramref name="yMin"/> to
+        /// <paramref name="yMax"/> and the length band <paramref name="zMin"/> to <paramref name="zMax"/> that stand more
+        /// than 3 cm further out than the door. <paramref name="door"/> is how far the door reaches out from the cabin
+        /// centre, measured in the same height band behind the length band. False when no point stands out.
+        /// </summary>
+        internal bool SideExtent(float zMin, float zMax, float yMin, float yMax, bool left, out float door, out Vector3 min, out Vector3 max, out int count)
+            => SideExtent(zMin, zMax, yMin, yMax, yMin, left, out door, out min, out max, out count);
+
+        /// <summary>
+        /// As above, with the door measured only from <paramref name="doorYMin"/> up: a body that bulges out below the
+        /// window line is wider there than the mirror on the door above it.
+        /// </summary>
+        internal bool SideExtent(float zMin, float zMax, float yMin, float yMax, float doorYMin, bool left, out float door, out Vector3 min, out Vector3 max, out int count)
+        {
+            float cx = _o[0];
+            float[] t = _t;
+            door = 0f;
+            int doorPoints = 0;
+            for (int i = 0; i + 2 < t.Length; i += 3)
+            {
+                float y = t[i + 1], z = t[i + 2];
+                if (y < doorYMin || y > yMax || z < zMin - 0.9f || z >= zMin - 0.1f) continue;
+                float dx = left ? cx - t[i] : t[i] - cx;
+                if (dx <= 0f) continue;
+                doorPoints++;
+                if (dx > door) door = dx;
+            }
+            min = max = Vector3.zero;
+            count = 0;
+            if (doorPoints == 0) return false;
+            float x0 = float.MaxValue, y0 = float.MaxValue, z0 = float.MaxValue, x1 = float.MinValue, y1 = float.MinValue, z1 = float.MinValue;
+            float outer = door + 0.03f;
+            for (int i = 0; i + 2 < t.Length; i += 3)
+            {
+                float x = t[i], y = t[i + 1], z = t[i + 2];
+                if (y < yMin || y > yMax || z < zMin || z > zMax) continue;
+                float dx = left ? cx - x : x - cx;
+                if (dx <= outer) continue;
+                count++;
+                if (x < x0) x0 = x; if (x > x1) x1 = x;
+                if (y < y0) y0 = y; if (y > y1) y1 = y;
+                if (z < z0) z0 = z; if (z > z1) z1 = z;
+            }
+            if (count == 0) return false;
+            min = new Vector3(x0, y0, z0);
+            max = new Vector3(x1, y1, z1);
+            return true;
+        }
+
+        /// <summary>
+        /// The face of the body's outside mirror: the triangles more than 3 cm further out than <paramref name="door"/>
+        /// in the same bands as <see cref="SideExtent"/> whose fronts face back, narrowed to those that lie in the
+        /// plane of their area-weighted mean. <paramref name="normal"/> points out of the face, <paramref name="centre"/>
+        /// is the middle of the face at its front-most point, <paramref name="size"/> its width and height across the
+        /// normal. False when no triangle faces back there.
+        /// </summary>
+        internal bool MirrorFace(float zMin, float zMax, float yMin, float yMax, bool left, float door, out Vector3 centre, out Vector3 normal, out Vector2 size, out int count)
+        {
+            float cx = _o[0];
+            float[] t = _t;
+            float outer = door + 0.03f;
+            centre = normal = Vector3.zero;
+            size = Vector2.zero;
+            count = 0;
+            var picked = new List<int>();
+            float sx = 0f, sy = 0f, sz = 0f;
+            for (int pass = 0; pass < 2; pass++)
+            {
+                float mx = sx, my = sy, mz = sz;
+                float ml = (float)Math.Sqrt(mx * mx + my * my + mz * mz);
+                if (pass == 1)
+                {
+                    if (ml < 1e-9f) return false;
+                    mx /= ml; my /= ml; mz /= ml;
+                }
+                picked.Clear();
+                sx = sy = sz = 0f;
+                for (int i = 0; i + 8 < t.Length; i += 9)
+                {
+                    float px = (t[i] + t[i + 3] + t[i + 6]) / 3f, py = (t[i + 1] + t[i + 4] + t[i + 7]) / 3f, pz = (t[i + 2] + t[i + 5] + t[i + 8]) / 3f;
+                    if (py < yMin || py > yMax || pz < zMin || pz > zMax) continue;
+                    if ((left ? cx - px : px - cx) <= outer) continue;
+                    float e1x = t[i + 3] - t[i], e1y = t[i + 4] - t[i + 1], e1z = t[i + 5] - t[i + 2];
+                    float e2x = t[i + 6] - t[i], e2y = t[i + 7] - t[i + 1], e2z = t[i + 8] - t[i + 2];
+                    // Unity's front face winds clockwise; Cross(e1, e2) points out of it, its length is twice the area.
+                    float nx = e1y * e2z - e1z * e2y, ny = e1z * e2x - e1x * e2z, nz = e1x * e2y - e1y * e2x;
+                    float nl = (float)Math.Sqrt(nx * nx + ny * ny + nz * nz);
+                    if (nl < 1e-9f) continue;
+                    // The face looks back towards the driver; the rim, the arm and the outer shell do not.
+                    if (nz / nl > -0.4f) continue;
+                    if (pass == 1 && (nx * mx + ny * my + nz * mz) / nl < 0.9f) continue;
+                    picked.Add(i);
+                    sx += nx; sy += ny; sz += nz;
+                }
+                if (picked.Count == 0) return false;
+            }
+            float l = (float)Math.Sqrt(sx * sx + sy * sy + sz * sz);
+            if (l < 1e-9f) return false;
+            normal = new Vector3(sx / l, sy / l, sz / l);
+            // The axes of a part turned by LookRotation(-normal, up): its local x and y span the face.
+            Vector3 ax = Vector3.Cross(Vector3.up, -normal).normalized;
+            Vector3 ay = Vector3.Cross(-normal, ax).normalized;
+            float x0 = float.MaxValue, x1 = float.MinValue, y0 = float.MaxValue, y1 = float.MinValue, d1 = float.MinValue;
+            foreach (int i in picked)
+                for (int k = 0; k < 9; k += 3)
+                {
+                    float px = t[i + k], py = t[i + k + 1], pz = t[i + k + 2];
+                    float u = px * ax.x + py * ax.y + pz * ax.z, v = px * ay.x + py * ay.y + pz * ay.z, d = px * normal.x + py * normal.y + pz * normal.z;
+                    if (u < x0) x0 = u; if (u > x1) x1 = u;
+                    if (v < y0) y0 = v; if (v > y1) y1 = v;
+                    if (d > d1) d1 = d;
+                }
+            count = picked.Count;
+            size = new Vector2(x1 - x0, y1 - y0);
+            centre = ax * ((x0 + x1) * 0.5f) + ay * ((y0 + y1) * 0.5f) + normal * d1;
+            return true;
+        }
+
+        /// <summary>
+        /// How far along the segment from <paramref name="from"/> to <paramref name="from"/> + <paramref name="along"/> it
+        /// first leaves the shell, counted from <paramref name="from"/> as inside: the first crossing where the leaving
+        /// crossings outnumber the entering ones. A closed piece in between, or a wall behind the start, does not count.
+        /// NaN when the segment never leaves.
+        /// </summary>
+        internal float FirstExit(Vector3 from, Vector3 along)
+        {
+            float ox = from.x, oy = from.y, oz = from.z, dx = along.x, dy = along.y, dz = along.z;
+            float[] t = _t;
+            var hits = new List<KeyValuePair<float, int>>();
+            for (int i = 0; i + 8 < t.Length; i += 9)
+            {
+                float ax = t[i], ay = t[i + 1], az = t[i + 2];
+                float e1x = t[i + 3] - ax, e1y = t[i + 4] - ay, e1z = t[i + 5] - az;
+                float e2x = t[i + 6] - ax, e2y = t[i + 7] - ay, e2z = t[i + 8] - az;
+                float hx = dy * e2z - dz * e2y, hy = dz * e2x - dx * e2z, hz = dx * e2y - dy * e2x;
+                float det = e1x * hx + e1y * hy + e1z * hz;
+                if (det > -1e-9f && det < 1e-9f) continue;
+                float inv = 1f / det;
+                float sx = ox - ax, sy = oy - ay, sz = oz - az;
+                float u = inv * (sx * hx + sy * hy + sz * hz);
+                if (u < 0f || u > 1f) continue;
+                float qx = sy * e1z - sz * e1y, qy = sz * e1x - sx * e1z, qz = sx * e1y - sy * e1x;
+                float v = inv * (dx * qx + dy * qy + dz * qz);
+                if (v < 0f || u + v > 1f) continue;
+                float hit = inv * (e2x * qx + e2y * qy + e2z * qz);
+                if (hit <= 0f || hit >= 1f) continue;
+                float nx = e1y * e2z - e1z * e2y, ny = e1z * e2x - e1x * e2z, nz = e1x * e2y - e1y * e2x;
+                hits.Add(new KeyValuePair<float, int>(hit, nx * dx + ny * dy + nz * dz > 0f ? 1 : -1));
+            }
+            hits.Sort((a, b) => a.Key.CompareTo(b.Key));
+            int net = 0;
+            foreach (var h in hits)
+            {
+                net += h.Value;
+                if (net > 0) return h.Key;
+            }
+            return float.NaN;
         }
 
         // The test runs on plain floats: every Vector3 operator is a call into the game under IL2CPP, and a fit makes
@@ -116,5 +283,21 @@ namespace Chassis.Interior
             }
             return net > 0;
         }
+
+#if DEBUG
+        /// <summary>Writes the shell as a Wavefront OBJ in root space, to read a body's geometry outside the game.</summary>
+        internal void WriteObj(string path)
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            using (var w = new System.IO.StreamWriter(path))
+            {
+                w.WriteLine("# cabin centre " + _o[0].ToString("F4", inv) + " " + _o[1].ToString("F4", inv) + " " + _o[2].ToString("F4", inv));
+                for (int i = 0; i + 2 < _t.Length; i += 3)
+                    w.WriteLine("v " + _t[i].ToString("F4", inv) + " " + _t[i + 1].ToString("F4", inv) + " " + _t[i + 2].ToString("F4", inv));
+                for (int i = 0; i < _t.Length / 3; i += 3)
+                    w.WriteLine("f " + (i + 1) + " " + (i + 2) + " " + (i + 3));
+            }
+        }
+#endif
     }
 }

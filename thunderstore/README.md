@@ -32,6 +32,9 @@
   through the API. Vehicles from older saves belong to the host.
 - The vanilla cars get a base interior: seats, a dashboard, a steering wheel and tinted glass,
   so you can see who sits inside.
+- Every vanilla car gets a live rear-view mirror and two side mirrors. The Mirrors row in the
+  graphics settings picks Off, Rear Only, Rear + Side (default) or + Nearby Cars, which also
+  renders the mirrors of up to three cars within 15 m. Reflections sets how sharp they are.
 - The speedometer and the rev counter move. In first person, look at a switch and left-click it:
   light switch, hazard lights, indicator stalk and the horn in the wheel centre.
 - The vanilla cars flash their own amber indicator lamps outside. A rear without one flashes part
@@ -75,6 +78,10 @@
 turns the base interior and the visible NPC drivers of the vanilla cars on or off.
 
 `SpeedUnit` (default `kmh`) sets `kmh` or `mph` for the speedometer and the odometer.
+
+`Mirrors` (default `2`) picks which mirrors render: `0` Off, `1` Rear Only, `2` Rear + Side,
+`3` + Nearby Cars. `Reflections` (default `1`, `0` Low to `3` Ultra) sets how sharp chrome and the
+mirrors reflect. Both are also in the game's graphics settings.
 
 ## For mod authors
 

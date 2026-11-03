@@ -431,7 +431,7 @@ namespace Chassis.Tune
         {
             switch (finish)
             {
-                case TuningFinish.Metallic: metallic = 0.6f; smoothness = 0.75f; break;
+                case TuningFinish.Metallic: metallic = 0.45f; smoothness = 0.85f; break;
                 case TuningFinish.Matte: metallic = 0f; smoothness = 0.15f; break;
                 case TuningFinish.Metal: metallic = 0.9f; smoothness = 0.45f; break;
                 case TuningFinish.Chrome: metallic = 1f; smoothness = 0.95f; break;
