@@ -4,6 +4,12 @@ All notable changes to Chassis are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.9.1] - 2026-11-03
+
+### Fixed
+
+- The left and right arrow keys switch the indicators in vanilla cars again, and the key hints bottom left list them.
+
 ## [1.9.0] - 2026-11-03
 
 ### Added
