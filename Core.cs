@@ -35,6 +35,7 @@ namespace Chassis
             Vehicles.Steering.LoadSetting();
             Tune.Reflections.LoadSetting();
             Interior.Mirrors.LoadSetting();
+            Tune.MirrorMode.LoadSetting();
             // A profile edited in place: gauges and switches look up their transforms again.
             Api.ChassisApi.Changed += code => { Instruments.Gauges.ForgetAll(); Instruments.Controls.ForgetAll(); };
 

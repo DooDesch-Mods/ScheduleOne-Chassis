@@ -318,7 +318,7 @@ namespace Chassis.Debugging
 
                     case "mirror":
                     {
-                        // mirror [on|off|look [left|right]|own on|off|level n]: the live mirrors of the car you sit in.
+                        // mirror [on|off|look [left|right]|own on|off|level n|mode n]: the live mirrors of the car you sit in.
                         string op = parts.Length > 2 ? parts[2].ToLowerInvariant() : "";
                         if (op == "on") Interior.Mirrors.Enabled = true;
                         else if (op == "off") Interior.Mirrors.Enabled = false;
@@ -330,7 +330,8 @@ namespace Chassis.Debugging
                         }
                         else if (op == "own" && parts.Length > 3) Interior.Mirrors.SetShowOwnCar(parts[3] == "on" || parts[3] == "1");
                         else if (op == "level" && parts.Length > 3 && int.TryParse(parts[3], out int ml)) Tune.Reflections.Set(ml);
-                        else if (op != "" && op != "info") Say("mirror [on|off|look [left|right]|own on|off|level 0-3]");
+                        else if (op == "mode" && parts.Length > 3 && int.TryParse(parts[3], out int mm)) Tune.MirrorMode.Set(mm);
+                        else if (op != "" && op != "info") Say("mirror [on|off|look [left|right]|own on|off|level 0-3|mode 0-3]");
                         Say(Interior.Mirrors.Describe());
                         break;
                     }

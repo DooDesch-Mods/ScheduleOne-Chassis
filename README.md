@@ -35,6 +35,10 @@
 - **Moving parts:** The steering wheel follows the front wheels.
 - **Base interior for the vanilla cars:** Seats, a dashboard, a steering wheel and tinted glass,
   so you can see who sits inside.
+- **Mirrors:** Every vanilla car gets a live rear-view mirror and two side mirrors. The graphics
+  settings have a Mirrors row below Reflections: Off, Rear Only, Rear + Side (default) or + Nearby
+  Cars, which also renders the mirrors of up to three cars within 15 m, on foot too. Reflections
+  sets how sharp the mirrors are.
 - **Working dashboard:** The speedometer and the rev counter move, and lamps show the indicators
   and the headlights. In first person, look at a switch and left-click it: light switch, hazard
   lights, indicator stalk (also with the mouse wheel) and the horn in the wheel centre.
@@ -100,6 +104,9 @@ Settings live in `UserData/MelonPreferences.cfg` under `Chassis`.
 |---|---|---|
 | `BaseInterior` | `true` | Seats, dashboard, steering wheel and tinted glass for the vanilla cars, and visible NPC drivers. |
 | `SpeedUnit` | `kmh` | `kmh` or `mph`: the speedometer and the odometer. |
+| `Mirrors` | `2` | Which mirrors render: `0` Off, `1` Rear Only, `2` Rear + Side, `3` + Nearby Cars. Also in the graphics settings. |
+| `Reflections` | `1` | How sharp chrome paint and the mirrors reflect: `0` Low to `3` Ultra. Also in the graphics settings. |
+| `MirrorShowsOwnCar` | `false` | `true` shows your own car's body in the mirrors. |
 
 ## For mod authors
 

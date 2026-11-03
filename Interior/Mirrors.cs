@@ -7,20 +7,22 @@ using UnityEngine.Rendering.Universal;
 namespace Chassis.Interior
 {
     /// <summary>
-    /// The live mirrors of the car the local player sits in: the rear-view mirror and the two side mirrors. Per mirror a
-    /// second camera stands at the driver's eye mirrored in the glass and renders through the glass as a window (an
-    /// off-axis frustum after Kooima), so the picture moves with the head like a real mirror. The frustum is widened to a
-    /// minimum angle, as a convex car mirror shows more than its flat size would. The glass is a quad on the
-    /// back of the housing <see cref="BaseInterior"/> builds, showing that picture flipped left to right.
-    /// A camera renders only while its mirror is on screen and faces the camera; when it stops, the glass keeps its last
-    /// picture. Resolution and rate follow the <see cref="Tune.Reflections"/> level; the side mirrors take turns. The own
-    /// car is hidden from the mirrors unless <c>[Chassis] MirrorShowsOwnCar</c> is on; the rear mirror keeps the kit inside
-    /// it, the side mirrors hide it with the body.
+    /// The live car mirrors: the rear-view mirror and the two side mirrors. Per mirror a second camera stands at the
+    /// viewer's eye mirrored in the glass and renders through the glass as a window (an off-axis frustum after Kooima), so
+    /// the picture moves with the head like a real mirror. The frustum is widened to a minimum angle, as a convex car
+    /// mirror shows more than its flat size would. The glass is a quad on the back of the housing <see cref="BaseInterior"/>
+    /// builds, showing that picture flipped left to right.
+    /// <see cref="Tune.MirrorMode"/> decides which mirrors render: none, the rear-view mirror of the car the player sits in,
+    /// its side mirrors too, or also the mirrors of up to three cars near the camera, on foot as well. Each car has its own
+    /// rig of cameras and pictures. A camera renders only while its mirror is on screen and faces the camera. Resolution
+    /// and rate follow the <see cref="Tune.Reflections"/> level; the side mirrors and the nearby cars take turns. Each rig
+    /// hides its own car from its mirrors unless <c>[Chassis] MirrorShowsOwnCar</c> is on; the rear mirror keeps the kit
+    /// inside it, the side mirrors hide it with the body.
     /// </summary>
     internal static class Mirrors
     {
-        /// <summary>Vehicle codes that get live mirrors.</summary>
-        internal static readonly HashSet<string> Codes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "shitbox" };
+        /// <summary>Vehicle codes that get live mirrors: every vanilla car the interior fits.</summary>
+        internal static HashSet<string> Codes => BaseInterior.VanillaCodes;
         internal const string RearName = "Chassis_RearMirror", SideLName = "Chassis_SideMirrorL", SideRName = "Chassis_SideMirrorR";
         private const string CameraName = "Chassis_MirrorCamera";
         /// <summary>The rear-view housing: width, height, depth in metres.</summary>
@@ -32,10 +34,17 @@ namespace Chassis.Interior
         /// <summary>Where a side mirror's centre looks, in degrees outwards and downwards from straight back; how near the
         /// eye must be to the glass (metres) to count as the driver's.</summary>
         private const float SideOutward = 15f, SideDown = 2f, AimMaxEye = 2.5f;
+        /// <summary>Nearby cars: how many, how far from the camera (metres), how often they are picked again (seconds).</summary>
+        private const int NearbyCars = 3;
+        private const float NearbyRange = 15f, NearbyEvery = 0.5f;
+        /// <summary>Car rigs kept with their cameras and pictures; beyond this the least recently used one is dropped.</summary>
+        private const int MaxRigs = 6;
 
         /// <summary>Picture width per <see cref="Tune.Reflections"/> level; the height follows the housing.</summary>
         private static readonly int[] RearWidths = { 256, 384, 512, 768 };
         private static readonly int[] SideWidths = { 128, 192, 256, 320 };
+        /// <summary>Mirror cameras of nearby cars that render in one frame, per <see cref="Tune.Reflections"/> level.</summary>
+        private static readonly int[] NearbyPerFrame = { 1, 2, 2, 3 };
 
         /// <summary>One mirror: its housing in the kit, its camera and picture.</summary>
         private sealed class View
@@ -63,21 +72,41 @@ namespace Chassis.Interior
             internal string GlassName => Name + "Glass";
         }
 
-        private static readonly List<View> _views = new List<View>
+        /// <summary>The mirrors of one car: three views and the car's renderers to hide from them.</summary>
+        private sealed class Rig
         {
-            new View(RearName, "rear", false, false),
-            new View(SideLName, "left", true, true),
-            new View(SideRName, "right", true, false),
-        };
+            internal readonly LandVehicle Car;
+            internal readonly int Id;
+            internal readonly string CarName;
+            internal readonly List<View> Views = new List<View>
+            {
+                new View(RearName, "rear", false, false),
+                new View(SideLName, "left", true, true),
+                new View(SideRName, "right", true, false),
+            };
+            /// <summary>The car's body renderers and the Chassis kit inside it, each with its own forceRenderingOff.</summary>
+            internal readonly List<KeyValuePair<Renderer, bool>> Body = new List<KeyValuePair<Renderer, bool>>();
+            internal readonly List<KeyValuePair<Renderer, bool>> Kit = new List<KeyValuePair<Renderer, bool>>();
+            internal bool Collected, Active;
+            internal float Used;
+
+            internal Rig(LandVehicle car) { Car = car; Id = car.GetInstanceID(); CarName = Vehicles.Registry.Name(car); }
+            internal View Rear => Views[0];
+        }
+
+        private static readonly Dictionary<int, Rig> _rigs = new Dictionary<int, Rig>();
+        private static readonly List<Rig> _nearby = new List<Rig>();
+        private static readonly List<Rig> _scratch = new List<Rig>();
+        private static readonly List<KeyValuePair<float, LandVehicle>> _near = new List<KeyValuePair<float, LandVehicle>>();
+        private static readonly List<KeyValuePair<Rig, View>> _turns = new List<KeyValuePair<Rig, View>>();
+        private static Rig _seated, _lastSeated, _hiddenRig;
+        private static string _seatWhy = "not seated", _nearbyNames = "";
+        private static float _nextPick;
+        private static int _turn;
 
         private static MelonPreferences_Entry<bool> _showOwnCar;
         private static bool _enabled = true;
-
-        private static LandVehicle _car;
-        /// <summary>The car's body renderers and the Chassis kit inside it, each with its own forceRenderingOff.</summary>
-        private static readonly List<KeyValuePair<Renderer, bool>> _carRenderers = new List<KeyValuePair<Renderer, bool>>();
-        private static readonly List<KeyValuePair<Renderer, bool>> _kitRenderers = new List<KeyValuePair<Renderer, bool>>();
-        private static bool _collected, _hooked, _carHidden, _kitHidden, _hookFailed, _noMirrorLogged, _setupFailed;
+        private static bool _hooked, _carHidden, _kitHidden, _hookFailed, _noMirrorLogged, _setupFailed;
 #if IL2CPP
         /// <summary>Held so the garbage collector keeps the delegates the game calls.</summary>
         private static Il2CppSystem.Action<ScriptableRenderContext, Camera> _onBegin, _onEnd;
@@ -107,38 +136,67 @@ namespace Chassis.Interior
         /// <summary>The <see cref="Tune.Reflections"/> level changed: the next frame builds the pictures at the new size.</summary>
         internal static void Restyle()
         {
-            foreach (var v in _views) v.Level = -1;
+            foreach (var rig in _rigs.Values) foreach (var v in rig.Views) v.Level = -1;
             Core.Log.Msg("[Mirror] restyled for Reflections " + Tune.Reflections.Names[Tune.Reflections.Level] + ".");
+        }
+
+        /// <summary>The <see cref="Tune.MirrorMode"/> changed: cameras the mode no longer allows stop now, the glass follows next frame.</summary>
+        internal static void ModeChanged()
+        {
+            int mode = Tune.MirrorMode.Mode;
+            if (mode == Tune.MirrorMode.Off) StopAll("mirrors off by mode");
+            if (mode != Tune.MirrorMode.Nearby && _nearby.Count > 0)
+            {
+                foreach (var rig in _nearby) StopRig(rig, "not nearby");
+                _nearby.Clear();
+                _nearbyNames = "";
+            }
+            _nextPick = 0f;
+            Core.Log.Msg("[Mirror] applying mode " + Tune.MirrorMode.Names[mode] + " to " + _rigs.Count + " car rig(s).");
         }
 
         internal static void Reset()
         {
             StopAll("world reset");
-            foreach (var v in _views)
-            {
-                if (v.Cam != null) UnityEngine.Object.Destroy(v.Cam.gameObject);
-                if (v.Rt != null) { v.Rt.Release(); UnityEngine.Object.Destroy(v.Rt); }
-                v.Cam = null; v.Data = null; v.Rt = null;
-                v.Housing = null; v.Found = false; v.Glass = null;
-                v.Level = -1; v.Width = 0;
-            }
-            _car = null;
-            _carRenderers.Clear(); _kitRenderers.Clear(); _collected = false;
+            _scratch.Clear();
+            _scratch.AddRange(_rigs.Values);
+            foreach (var rig in _scratch) Drop(rig, null);
+            _rigs.Clear();
+            _nearby.Clear();
+            _nearbyNames = "";
+            _seated = null; _lastSeated = null; _hiddenRig = null;
+            _carHidden = false; _kitHidden = false;
             _noMirrorLogged = false; _setupFailed = false;
+            _nextPick = 0f;
         }
+
+        // ---- per frame -------------------------------------------------------------------------------------------
 
         /// <summary>Every frame after the cars moved: decides which mirror cameras render this frame.</summary>
         internal static void LateTick()
         {
-            if (!_enabled || _setupFailed) return;
-            var player = Player.Local;
-            if (player == null) { StopAll("no local player"); return; }
-            var rig = Seating.Occupants.Of(player);
-            if (rig == null || rig.IsPusher || rig.Vehicle == null) { StopAll("not seated"); return; }
-            var lv = rig.Vehicle.GetComponent<LandVehicle>();
-            if (lv == null) { StopAll("seat without a car"); return; }
-            if (!FindHousings(lv)) return;
+            if (_setupFailed) return;
+            int mode = Tune.MirrorMode.Mode;
+            Prune();
+            foreach (var rig in _rigs.Values) rig.Active = false;
 
+            var seated = SeatedRig();
+            if (seated != _seated)
+            {
+                if (seated != null) Seat(seated);
+                _seated = seated;
+            }
+            if (seated != null) { seated.Active = true; seated.Used = Time.unscaledTime; }
+            if (mode == Tune.MirrorMode.Nearby) PickNearby(seated);
+            foreach (var rig in _nearby) { rig.Active = true; rig.Used = Time.unscaledTime; }
+
+            foreach (var rig in _rigs.Values) ShowGlass(rig, mode);
+            foreach (var rig in _rigs.Values)
+                if (!rig.Active) StopRig(rig, rig == _lastSeated ? _seatWhy : "not nearby");
+
+            if (!_enabled) return;
+            if (mode == Tune.MirrorMode.Off) { StopAll("mirrors off by mode"); return; }
+            if (seated == null && _nearby.Count == 0) return;
             var main = Camera.main;
             if (main == null) { StopAll("no main camera"); return; }
             try { Hook(); }
@@ -151,51 +209,231 @@ namespace Chassis.Interior
             }
 
             int level = Tune.Reflections.Level, frame = Time.frameCount;
-            foreach (var v in _views)
+            if (seated != null)
             {
-                if (v.Housing == null) { Stop(v, "no housing"); continue; }
-                if (!EnsureView(v, main, level)) return;
-                if (!Visible(v, main)) { Stop(v, "off screen"); continue; }
-                if (!Due(v, level, frame)) { Stop(v, "rendering, skips this frame"); continue; }
-                v.Cam.depth = main.depth - 1f;
-                v.Cam.cullingMask = main.cullingMask & ~InvisibleMask();
-                v.Cam.enabled = true;
-                v.State = "rendering";
+                foreach (var v in seated.Views)
+                {
+                    if (v.Side && mode < Tune.MirrorMode.RearSide) { Stop(v, "side mirrors off by mode"); continue; }
+                    if (!Ready(seated, v, main, level)) continue;
+                    if (!Due(v, level, frame)) { Stop(v, "rendering, skips this frame"); continue; }
+                    Start(v, main);
+                }
+            }
+            if (_nearby.Count > 0) RunNearby(main, level);
+        }
+
+        /// <summary>The rig of the car the local player sits in, or null with the reason in <see cref="_seatWhy"/>.</summary>
+        private static Rig SeatedRig()
+        {
+            var player = Player.Local;
+            if (player == null) { _seatWhy = "no local player"; return null; }
+            var occ = Seating.Occupants.Of(player);
+            if (occ == null || occ.IsPusher || occ.Vehicle == null) { _seatWhy = "not seated"; return null; }
+            var lv = occ.Vehicle.GetComponent<LandVehicle>();
+            if (lv == null) { _seatWhy = "seat without a car"; return null; }
+            if (!HasMirror(lv))
+            {
+                if (!_noMirrorLogged) { _noMirrorLogged = true; Core.Log.Msg("[Mirror] " + Vehicles.Registry.Name(lv) + " has no mirror built - nothing to render."); }
+                _seatWhy = "car without a mirror";
+                return null;
+            }
+            _noMirrorLogged = false;
+            var rig = RigOf(lv);
+            if (!Find(rig)) { _seatWhy = "car without a mirror"; return null; }
+            return rig;
+        }
+
+        /// <summary>The player sat down in this car: its mirrors are aimed, sized and logged again from the seat.</summary>
+        private static void Seat(Rig rig)
+        {
+            _lastSeated = rig;
+            _nearby.Remove(rig);
+            int sides = 0;
+            foreach (var v in rig.Views)
+            {
+                v.Aimed = false;
+                v.Level = -1;
+                v.First = false;
+                if (v.Side && v.Found) sides++;
+            }
+            rig.Collected = false;
+            Core.Log.Msg("[Mirror] seated in " + rig.CarName + ": rear-view mirror " + (rig.Rear.Found ? "found" : "missing") + ", " + sides + " side mirror(s).");
+        }
+
+        /// <summary>Every <see cref="NearbyEvery"/> seconds: the cars with mirrors nearest the camera, without the seated one.</summary>
+        private static void PickNearby(Rig seated)
+        {
+            float now = Time.unscaledTime;
+            if (now < _nextPick) return;
+            _nextPick = now + NearbyEvery;
+            _nearby.Clear();
+            var main = Camera.main;
+            if (main == null) return;
+            Vector3 eye = main.transform.position;
+            _near.Clear();
+            foreach (var lv in Vehicles.Registry.All)
+            {
+                if (lv == null || (seated != null && lv == seated.Car)) continue;
+                float d = (lv.transform.position - eye).sqrMagnitude;
+                if (d > NearbyRange * NearbyRange) continue;
+                _near.Add(new KeyValuePair<float, LandVehicle>(d, lv));
+            }
+            _near.Sort((a, b) => a.Key.CompareTo(b.Key));
+            string names = "";
+            foreach (var kv in _near)
+            {
+                if (_nearby.Count >= NearbyCars) break;
+                if (!HasMirror(kv.Value)) continue;
+                var rig = RigOf(kv.Value);
+                if (!Find(rig)) continue;
+                _nearby.Add(rig);
+                names += (names.Length > 0 ? ", " : "") + rig.CarName + " " + Mathf.Sqrt(kv.Key).ToString("F1") + " m";
+            }
+            string set = "";
+            foreach (var rig in _nearby) set += rig.Id + ";";
+            if (set != _nearbyNames)
+            {
+                _nearbyNames = set;
+                Core.Log.Msg("[Mirror] nearby cars with mirrors: " + (names.Length > 0 ? names : "none") + ".");
             }
         }
 
-        /// <summary>The housings of the seated car; false when it has none.</summary>
-        private static bool FindHousings(LandVehicle lv)
+        /// <summary>The views of nearby cars that are on screen take turns, a few per frame by the Reflections level.</summary>
+        private static void RunNearby(Camera main, int level)
+        {
+            _turns.Clear();
+            foreach (var rig in _nearby)
+                foreach (var v in rig.Views)
+                    if (Ready(rig, v, main, level)) _turns.Add(new KeyValuePair<Rig, View>(rig, v));
+            if (_turns.Count == 0) return;
+            int budget = NearbyPerFrame[level];
+            _turn %= _turns.Count;
+            for (int i = 0; i < _turns.Count; i++)
+            {
+                var v = _turns[(_turn + i) % _turns.Count].Value;
+                if (i < budget) Start(v, main);
+                else Stop(v, "rendering, waits its turn");
+            }
+            _turn = (_turn + budget) % _turns.Count;
+        }
+
+        /// <summary>The view has a housing on screen and its camera, picture and glass; stopped with the reason otherwise.</summary>
+        private static bool Ready(Rig rig, View v, Camera main, int level)
+        {
+            if (v.Housing == null) { Stop(v, "no housing"); return false; }
+            if (!v.Housing.gameObject.activeInHierarchy) { Stop(v, "housing hidden"); return false; }
+            if (!EnsureView(rig, v, main, level)) return false;
+            if (!Visible(v, main)) { Stop(v, "off screen"); return false; }
+            return true;
+        }
+
+        private static void Start(View v, Camera main)
+        {
+            v.Cam.depth = main.depth - 1f;
+            v.Cam.cullingMask = main.cullingMask & ~InvisibleMask();
+            v.Cam.enabled = true;
+            v.State = "rendering";
+        }
+
+        /// <summary>
+        /// The glass shows a picture only where the mode lets the mirror render and once it has rendered: the seated car's
+        /// rear mirror from Rear Only on, its side mirrors from Rear + Side on, nearby cars' mirrors with + Nearby Cars.
+        /// </summary>
+        private static void ShowGlass(Rig rig, int mode)
+        {
+            foreach (var v in rig.Views)
+            {
+                if (v.Glass == null) continue;
+                bool allowed = rig == _seated
+                    ? mode >= (v.Side ? Tune.MirrorMode.RearSide : Tune.MirrorMode.RearOnly)
+                    : mode == Tune.MirrorMode.Nearby && rig.Active;
+                bool on = allowed && v.Renders > 0;
+                if (v.Glass.enabled != on) v.Glass.enabled = on;
+            }
+        }
+
+        // ---- rigs ------------------------------------------------------------------------------------------------
+
+        private static bool HasMirror(LandVehicle lv) =>
+            BaseInterior.Mirror(lv, RearName) != null || BaseInterior.Mirror(lv, SideLName) != null || BaseInterior.Mirror(lv, SideRName) != null;
+
+        private static Rig RigOf(LandVehicle lv)
+        {
+            int id = lv.GetInstanceID();
+            if (_rigs.TryGetValue(id, out var rig)) return rig;
+            if (_rigs.Count >= MaxRigs)
+            {
+                Rig oldest = null;
+                foreach (var r in _rigs.Values)
+                    if (r != _seated && !_nearby.Contains(r) && (oldest == null || r.Used < oldest.Used)) oldest = r;
+                if (oldest != null) Drop(oldest, "least recently used");
+            }
+            rig = new Rig(lv) { Used = Time.unscaledTime };
+            _rigs[id] = rig;
+            Core.Log.Msg("[Mirror] mirror rig made for " + rig.CarName + " (" + _rigs.Count + " car rig(s)).");
+            return rig;
+        }
+
+        /// <summary>Rigs of cars that are gone are dropped with their cameras and pictures.</summary>
+        private static void Prune()
+        {
+            _scratch.Clear();
+            foreach (var rig in _rigs.Values) if (rig.Car == null) _scratch.Add(rig);
+            foreach (var rig in _scratch) Drop(rig, "the car is gone");
+        }
+
+        /// <summary>Destroys a rig's cameras, pictures and glass; <paramref name="why"/> null drops it without a log line.</summary>
+        private static void Drop(Rig rig, string why)
+        {
+            StopRig(rig, "dropped");
+            if (_hiddenRig == rig) { AfterCamera(default, null); }
+            foreach (var v in rig.Views)
+            {
+                if (v.Cam != null) UnityEngine.Object.Destroy(v.Cam.gameObject);
+                if (v.Rt != null) { v.Rt.Release(); UnityEngine.Object.Destroy(v.Rt); }
+                if (v.Glass != null) UnityEngine.Object.Destroy(v.Glass.gameObject);
+                if (v.Mat != null) UnityEngine.Object.Destroy(v.Mat);
+                v.Cam = null; v.Data = null; v.Rt = null; v.Glass = null; v.Mat = null;
+            }
+            _rigs.Remove(rig.Id);
+            _nearby.Remove(rig);
+            if (_seated == rig) _seated = null;
+            if (_lastSeated == rig) _lastSeated = null;
+            if (why != null) Core.Log.Msg("[Mirror] dropped the mirror rig of " + rig.CarName + " (" + why + ").");
+        }
+
+        /// <summary>The housings of the rig's car; false when it has none.</summary>
+        private static bool Find(Rig rig)
         {
             bool lost = false, any = false;
-            foreach (var v in _views)
+            foreach (var v in rig.Views)
             {
                 if (v.Found && v.Housing == null) lost = true;
                 if (v.Found) any = true;
             }
-            if (lv == _car && any && !lost) return true;
+            if (any && !lost) return true;
 
-            _car = lv;
-            _carRenderers.Clear(); _kitRenderers.Clear(); _collected = false;
+            rig.Body.Clear(); rig.Kit.Clear(); rig.Collected = false;
             int sides = 0;
             any = false;
-            foreach (var v in _views)
+            foreach (var v in rig.Views)
             {
-                v.Housing = BaseInterior.Mirror(lv, v.Name);
+                v.Housing = BaseInterior.Mirror(rig.Car, v.Name);
                 v.Found = v.Housing != null;
                 v.Glass = null;
                 v.Aimed = false;
                 v.Size = SizeOf(v);
+                // Other glass: the picture is sized again and its first render is logged again.
+                v.Level = -1;
+                v.First = false;
                 if (v.Found) { any = true; if (v.Side) sides++; }
             }
             if (!any)
             {
-                if (!_noMirrorLogged) { _noMirrorLogged = true; Core.Log.Msg("[Mirror] " + Vehicles.Registry.Name(lv) + " has no mirror built - nothing to render."); }
-                StopAll("car without a mirror");
+                StopRig(rig, "car without a mirror");
                 return false;
             }
-            _noMirrorLogged = false;
-            Core.Log.Msg("[Mirror] seated in " + Vehicles.Registry.Name(lv) + ": rear-view mirror " + (_views[0].Found ? "found" : "missing") + ", " + sides + " side mirror(s).");
+            Core.Log.Msg("[Mirror] housings of " + rig.CarName + ": rear-view mirror " + (rig.Rear.Found ? "found" : "missing") + ", " + sides + " side mirror(s).");
             return true;
         }
 
@@ -214,8 +452,9 @@ namespace Chassis.Interior
         }
 
         /// <summary>
-        /// Whether a mirror renders this frame. The rear mirror renders every frame, on Low every second one. The side
-        /// mirrors take turns: on Low each every fourth frame, on Medium and High each every second, on Ultra both every frame.
+        /// Whether a seated car's mirror renders this frame. The rear mirror renders every frame, on Low every second one.
+        /// The side mirrors take turns: on Low each every fourth frame, on Medium and High each every second, on Ultra both
+        /// every frame.
         /// </summary>
         private static bool Due(View v, int level, int frame)
         {
@@ -235,9 +474,14 @@ namespace Chassis.Interior
             v.State = why;
         }
 
+        private static void StopRig(Rig rig, string why)
+        {
+            foreach (var v in rig.Views) Stop(v, why);
+        }
+
         private static void StopAll(string why)
         {
-            foreach (var v in _views) Stop(v, why);
+            foreach (var rig in _rigs.Values) StopRig(rig, why);
         }
 
         private static int InvisibleMask()
@@ -262,14 +506,14 @@ namespace Chassis.Interior
             return false;
         }
 
-        /// <summary>Camera, texture and glass of one mirror for the current car and level; false when one cannot be made.</summary>
-        private static bool EnsureView(View v, Camera main, int level)
+        /// <summary>Camera, texture and glass of one mirror for its car and the level; false when one cannot be made.</summary>
+        private static bool EnsureView(Rig rig, View v, Camera main, int level)
         {
             try
             {
                 if (v.Cam == null)
                 {
-                    var go = new GameObject(CameraName + "_" + v.Label);
+                    var go = new GameObject(CameraName + "_" + v.Label + "_" + rig.Id);
                     UnityEngine.Object.DontDestroyOnLoad(go);
                     v.Cam = go.AddComponent<Camera>();
                     v.Cam.enabled = false;
@@ -285,17 +529,17 @@ namespace Chassis.Interior
                     v.Data.antialiasing = AntialiasingMode.None;
                     v.Data.volumeLayerMask = 0;
                     v.Level = -1;
-                    Core.Log.Msg("[Mirror] mirror camera made (" + v.Label + ").");
+                    Core.Log.Msg("[Mirror] mirror camera made (" + v.Label + ", " + rig.CarName + ").");
                 }
                 if (level != v.Level || v.Rt == null)
                 {
                     int w = (v.Side ? SideWidths : RearWidths)[level];
-                    if (v.Rt == null || v.Width != w)
+                    int h = Mathf.Max(16, Mathf.RoundToInt(w * v.Size.y / v.Size.x));
+                    if (v.Rt == null || v.Width != w || v.Rt.height != h)
                     {
                         if (v.Rt != null) { v.Rt.Release(); UnityEngine.Object.Destroy(v.Rt); }
                         var format = SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.RGB111110Float) ? RenderTextureFormat.RGB111110Float : RenderTextureFormat.ARGB32;
-                        int h = Mathf.Max(16, Mathf.RoundToInt(w * v.Size.y / v.Size.x));
-                        v.Rt = new RenderTexture(w, h, 24, format) { name = "Chassis_MirrorRT_" + v.Label, antiAliasing = 1 };
+                        v.Rt = new RenderTexture(w, h, 24, format) { name = "Chassis_MirrorRT_" + v.Label + "_" + rig.Id, antiAliasing = 1 };
                         v.Rt.Create();
                         v.Width = w;
                         Core.Log.Msg("[Mirror] picture " + v.Rt.width + "x" + v.Rt.height + " " + format + " (" + v.Label + ").");
@@ -311,15 +555,15 @@ namespace Chassis.Interior
                     v.Level = level;
                     Core.Log.Msg("[Mirror] level " + Tune.Reflections.Names[level] + " (" + v.Label + "): " + v.Rt.width + "x" + v.Rt.height + (level == 3 ? ", with shadows" : "") + ".");
                 }
-                if (v.Glass == null) v.Glass = Glass(v);
-                if (!_collected) CollectCar(_car);
+                if (v.Glass == null) v.Glass = Glass(rig, v);
+                if (!rig.Collected) CollectCar(rig);
                 return true;
             }
             catch (Exception e)
             {
                 _setupFailed = true;
                 StopAll("setup failed");
-                Core.Log.Error("[Mirror] setting up the " + v.Label + " mirror failed - the mirrors stay off until the next world: " + e);
+                Core.Log.Error("[Mirror] setting up the " + v.Label + " mirror of " + rig.CarName + " failed - the mirrors stay off until the next world: " + e);
                 return false;
             }
         }
@@ -331,10 +575,16 @@ namespace Chassis.Interior
         }
 
         /// <summary>The glass quad on the back of the housing, facing the driver (local -z), flipped left to right.</summary>
-        private static MeshRenderer Glass(View v)
+        private static MeshRenderer Glass(Rig rig, View v)
         {
             var old = v.Housing.Find(v.GlassName);
-            if (old != null) return old.GetComponent<MeshRenderer>();
+            if (old != null)
+            {
+                var kept = old.GetComponent<MeshRenderer>();
+                if (kept != null && v.Mat != null) kept.sharedMaterial = v.Mat;
+                if (kept != null) return kept;
+                UnityEngine.Object.Destroy(old.gameObject);
+            }
             float hw = v.Size.x * 0.5f - GlassInset, hh = v.Size.y * 0.5f - GlassInset, z = v.GlassZ;
             var mesh = new Mesh { name = v.GlassName };
             mesh.vertices = new[] { new Vector3(-hw, -hh, z), new Vector3(hw, -hh, z), new Vector3(-hw, hh, z), new Vector3(hw, hh, z) };
@@ -351,37 +601,41 @@ namespace Chassis.Interior
             var r = go.AddComponent<MeshRenderer>();
             r.shadowCastingMode = ShadowCastingMode.Off;
             r.receiveShadows = false;
+            // Hidden until the camera has drawn a picture into it; ShowGlass turns it on.
+            r.enabled = false;
             if (v.Mat == null)
             {
                 var shader = Shader.Find("Universal Render Pipeline/Unlit");
                 if (shader == null) throw new InvalidOperationException("URP/Unlit shader not found");
-                v.Mat = new Material(shader) { name = "Chassis_MirrorGlass_" + v.Label };
+                v.Mat = new Material(shader) { name = "Chassis_MirrorGlass_" + v.Label + "_" + rig.Id };
                 v.Mat.hideFlags |= HideFlags.DontUnloadUnusedAsset;
                 v.Mat.SetColor("_BaseColor", new Color(0.92f, 0.92f, 0.92f));
                 SetPicture(v);
             }
             r.sharedMaterial = v.Mat;
-            Core.Log.Msg("[Mirror] glass added to the " + v.Label + " mirror of " + Vehicles.Registry.Name(_car) + ", " + (hw * 2f).ToString("F2") + " x " + (hh * 2f).ToString("F2") + " m.");
+            Core.Log.Msg("[Mirror] glass added to the " + v.Label + " mirror of " + rig.CarName + ", " + (hw * 2f).ToString("F2") + " x " + (hh * 2f).ToString("F2") + " m.");
             return r;
         }
 
-        /// <summary>The car's own renderers and the Chassis kit inside it, to hide from the mirrors.</summary>
-        private static void CollectCar(LandVehicle lv)
+        /// <summary>The car's own renderers and the Chassis kit inside it, to hide from its mirrors.</summary>
+        private static void CollectCar(Rig rig)
         {
-            _carRenderers.Clear(); _kitRenderers.Clear();
-            _collected = true;
-            Transform root = lv.transform;
-            foreach (var r in lv.GetComponentsInChildren<Renderer>(true))
+            rig.Body.Clear(); rig.Kit.Clear();
+            rig.Collected = true;
+            Transform root = rig.Car.transform;
+            foreach (var r in rig.Car.GetComponentsInChildren<Renderer>(true))
             {
                 if (r == null) continue;
                 bool kit = false;
                 for (Transform t = r.transform; t != null && t != root; t = t.parent)
                     if (t.name.StartsWith("Chassis_")) { kit = true; break; }
-                (kit ? _kitRenderers : _carRenderers).Add(new KeyValuePair<Renderer, bool>(r, r.forceRenderingOff));
+                (kit ? rig.Kit : rig.Body).Add(new KeyValuePair<Renderer, bool>(r, r.forceRenderingOff));
             }
-            Core.Log.Msg("[Mirror] " + _carRenderers.Count + " body renderer(s) of " + Vehicles.Registry.Name(lv) + " hide from the mirrors unless MirrorShowsOwnCar is on; "
-                + _kitRenderers.Count + " kit renderer(s) hide from the side mirrors with them.");
+            Core.Log.Msg("[Mirror] " + rig.Body.Count + " body renderer(s) of " + rig.CarName + " hide from its mirrors unless MirrorShowsOwnCar is on; "
+                + rig.Kit.Count + " kit renderer(s) hide from the side mirrors with them.");
         }
+
+        // ---- rendering -------------------------------------------------------------------------------------------
 
         private static void Hook()
         {
@@ -399,45 +653,53 @@ namespace Chassis.Interior
             Core.Log.Msg("[Mirror] listening to camera renders.");
         }
 
-        private static View ViewOf(Camera cam)
+        private static View ViewOf(Camera cam, out Rig owner)
         {
+            owner = null;
             if (cam == null) return null;
-            foreach (var v in _views) if (v.Cam != null && v.Cam == cam) return v;
+            foreach (var rig in _rigs.Values)
+                foreach (var v in rig.Views)
+                    if (v.Cam != null && v.Cam == cam) { owner = rig; return v; }
             return null;
         }
 
-        /// <summary>Before a mirror camera renders: place it at the mirrored eye, frame the glass, hide the own car.</summary>
+        /// <summary>Before a mirror camera renders: place it at the mirrored eye, frame the glass, hide its own car.</summary>
         private static void BeforeCamera(ScriptableRenderContext context, Camera cam)
         {
-            var v = ViewOf(cam);
+            var v = ViewOf(cam, out var rig);
             if (v == null) return;
             try
             {
                 var main = Camera.main;
                 if (main == null || v.Housing == null) return;
-                Frame(v, main.transform.position);
+                Frame(rig, v, main.transform.position);
                 if (!ShowsOwnCar)
                 {
-                    Hide(_carRenderers);
+                    Hide(rig.Body);
                     _carHidden = true;
+                    _hiddenRig = rig;
                     // Without the body the seats and the dashboard would float in the side mirrors.
-                    if (v.Side) { Hide(_kitRenderers); _kitHidden = true; }
+                    if (v.Side) { Hide(rig.Kit); _kitHidden = true; }
                 }
                 v.Renders++;
-                if (!v.First) { v.First = true; Core.Log.Msg("[Mirror] first mirror render (" + v.Label + ") from " + cam.transform.position.ToString("F2") + ", picture " + v.Rt.width + "x" + v.Rt.height + ", widened x" + v.Widen.ToString("F2") + " to at least " + (v.Side ? SideMinFov : RearMinFov) + " deg."); }
+                if (!v.First) { v.First = true; Core.Log.Msg("[Mirror] first mirror render (" + v.Label + ") from " + cam.transform.position.ToString("F2") + ", picture " + v.Rt.width + "x" + v.Rt.height + ", widened x" + v.Widen.ToString("F2") + " to at least " + (v.Side ? SideMinFov : RearMinFov) + " deg" + (rig == _seated ? "" : ", " + rig.CarName) + "."); }
             }
             catch (Exception e)
             {
-                if (!_hookFailed) { _hookFailed = true; Core.Log.Error("[Mirror] placing the " + v.Label + " mirror camera failed - logged once: " + e.Message); }
+                if (!_hookFailed) { _hookFailed = true; Core.Log.Error("[Mirror] placing the " + v.Label + " mirror camera of " + rig.CarName + " failed - logged once: " + e.Message); }
             }
         }
 
         private static void AfterCamera(ScriptableRenderContext context, Camera cam)
         {
             if (!_carHidden && !_kitHidden) return;
-            if (ViewOf(cam) == null) return;
-            if (_carHidden) { Restore(_carRenderers); _carHidden = false; }
-            if (_kitHidden) { Restore(_kitRenderers); _kitHidden = false; }
+            var rig = _hiddenRig;
+            if (rig == null) { _carHidden = false; _kitHidden = false; return; }
+            // A null camera comes from Drop: the rig goes away while its car is hidden.
+            if (cam != null && ViewOf(cam, out _) == null) return;
+            if (_carHidden) { Restore(rig.Body); _carHidden = false; }
+            if (_kitHidden) { Restore(rig.Kit); _kitHidden = false; }
+            _hiddenRig = null;
         }
 
         private static void Hide(List<KeyValuePair<Renderer, bool>> list)
@@ -452,18 +714,19 @@ namespace Chassis.Interior
 
         /// <summary>
         /// Off-axis projection through the glass as seen from the eye mirrored in it (Kooima, "Generalized Perspective
-        /// Projection"). The camera looks out of the glass away from the driver; its near plane lies in the glass, so the
+        /// Projection"). The camera looks out of the glass away from the viewer; its near plane lies in the glass, so the
         /// housing and whatever stands behind it never show.
         /// </summary>
-        private static void Frame(View v, Vector3 eye)
+        private static void Frame(Rig rig, View v, Vector3 eye)
         {
             Transform housing = v.Housing;
             Vector3 vr = -housing.right, vu = housing.up;
             Vector3 centre = housing.TransformPoint(0f, 0f, v.GlassZ);
             Vector3 normal = -housing.forward;
-            if (v.Side && _car != null)
+            if (v.Side)
             {
-                if (!v.Aimed) Aim(v, eye, centre);
+                // A nearby car's glass is set from its own driver's seat, not from where the player stands.
+                if (!v.Aimed) Aim(rig, v, rig == _seated ? eye : BaseInterior.DriverEye(rig.Car) ?? eye, centre);
                 vr = housing.TransformDirection(v.AimRight);
                 vu = housing.TransformDirection(v.AimUp);
                 normal = housing.TransformDirection(v.AimNormal);
@@ -499,9 +762,9 @@ namespace Chassis.Interior
         /// backwards, a little outwards past the own flank. The vanilla face itself points the view at the road. The plane
         /// is kept once the eye is near the seat (first person); from farther away (third person) it is only used for this frame.
         /// </summary>
-        private static void Aim(View v, Vector3 eye, Vector3 centre)
+        private static void Aim(Rig rig, View v, Vector3 eye, Vector3 centre)
         {
-            Transform car = _car.transform, housing = v.Housing;
+            Transform car = rig.Car.transform, housing = v.Housing;
             Vector3 toEye = (eye - centre).normalized;
             Vector3 outward = v.Left ? -car.right : car.right;
             Vector3 want = (-car.forward + outward * Mathf.Tan(SideOutward * Mathf.Deg2Rad) - car.up * Mathf.Tan(SideDown * Mathf.Deg2Rad)).normalized;
@@ -519,40 +782,60 @@ namespace Chassis.Interior
             float beforeDown = -Mathf.Asin(Mathf.Clamp(Vector3.Dot(before, car.up), -1f, 1f)) * Mathf.Rad2Deg;
             Core.Log.Msg("[Mirror] " + v.Label + " glass set like a driver would: " + SideOutward + " deg out, " + SideDown
                 + " deg down, turned " + Vector3.Angle(n, -housing.forward).ToString("F1") + " deg off the body face (that face looked "
-                + beforeDown.ToString("F1") + " deg down), eye " + far.ToString("F2") + " m away.");
+                + beforeDown.ToString("F1") + " deg down), eye " + far.ToString("F2") + " m away, " + rig.CarName + ".");
         }
+
+        // ---- queries ---------------------------------------------------------------------------------------------
+
+        /// <summary>The rig the queries describe: the seated car, else the last one sat in, else the nearest nearby car.</summary>
+        private static Rig Focus => _seated ?? _lastSeated ?? (_nearby.Count > 0 ? _nearby[0] : null);
+
+        private static string GlassState(View v) => v.Glass == null ? "no" : v.Glass.enabled ? "yes" : "hidden";
 
         internal static string Describe()
         {
-            var rear = _views[0];
-            string s = "mirror " + (_enabled ? "on" : "off") + ", " + rear.State
+            var rig = Focus;
+            var rear = rig?.Rear;
+            string s = "mirror " + (_enabled ? "on" : "off") + ", " + (rear != null ? rear.State : _seatWhy)
                 + ", level " + Tune.Reflections.Names[Tune.Reflections.Level]
                 + ", own car " + (ShowsOwnCar ? "shown" : "hidden")
-                + ", car " + (_car != null ? Vehicles.Registry.Name(_car) : "-")
-                + ", housing " + (rear.Housing != null ? rear.Housing.position.ToString("F2") : "-")
-                + ", glass " + (rear.Glass != null ? "yes" : "no")
-                + ", picture " + (rear.Rt != null ? rear.Rt.width + "x" + rear.Rt.height : "-");
+                + ", car " + (rig != null && rig.Car != null ? rig.CarName : "-")
+                + ", housing " + (rear?.Housing != null ? rear.Housing.position.ToString("F2") : "-")
+                + ", glass " + (rear != null ? GlassState(rear) : "no")
+                + ", picture " + (rear?.Rt != null ? rear.Rt.width + "x" + rear.Rt.height : "-");
 #if DEBUG
-            s += ", renders " + rear.Renders;
+            s += ", renders " + (rear != null ? rear.Renders : 0);
 #endif
-            if (rear.Cam != null) s += ", camera at " + rear.Cam.transform.position.ToString("F2");
-            for (int i = 1; i < _views.Count; i++)
+            if (rear?.Cam != null) s += ", camera at " + rear.Cam.transform.position.ToString("F2");
+            s += ", mode " + Tune.MirrorMode.Names[Tune.MirrorMode.Mode] + ", nearby " + _nearby.Count;
+            if (rig != null)
             {
-                var v = _views[i];
-                s += "; " + v.Label + " " + v.State
-                    + ", glass " + (v.Glass != null ? "yes" : "no")
-                    + ", picture " + (v.Rt != null ? v.Rt.width + "x" + v.Rt.height : "-");
+                for (int i = 1; i < rig.Views.Count; i++)
+                {
+                    var v = rig.Views[i];
+                    s += "; " + v.Label + " " + v.State
+                        + ", glass " + GlassState(v)
+                        + ", picture " + (v.Rt != null ? v.Rt.width + "x" + v.Rt.height : "-");
 #if DEBUG
-                s += ", renders " + v.Renders;
+                    s += ", renders " + v.Renders;
 #endif
+                }
+            }
+            foreach (var near in _nearby)
+            {
+                s += "; nearby " + near.CarName;
+                foreach (var v in near.Views)
+                    s += (v == near.Rear ? " " : ", ") + v.Label + " " + v.State + " glass " + GlassState(v) + " renders " + v.Renders;
             }
             return s;
         }
 
-        /// <summary>The middle of a mirror's glass in world space (rear, left or right), or null without that mirror.</summary>
+        /// <summary>The middle of a mirror's glass in world space (rear, left or right) of the focus car, or null without that mirror.</summary>
         internal static Vector3? GlassCentre(string which)
         {
-            foreach (var v in _views)
+            var rig = Focus;
+            if (rig == null) return null;
+            foreach (var v in rig.Views)
                 if (string.Equals(v.Label, which, StringComparison.OrdinalIgnoreCase))
                     return v.Housing != null ? v.Housing.TransformPoint(0f, 0f, v.GlassZ) : (Vector3?)null;
             return null;
