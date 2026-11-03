@@ -4,6 +4,12 @@ All notable changes to Chassis are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.9.2] - 2026-11-03
+
+### Fixed
+
+- With `MirrorShowsOwnCar` on, the side mirrors no longer show the edge of their own housing in the middle of the picture.
+
 ## [1.9.1] - 2026-11-03
 
 ### Fixed
