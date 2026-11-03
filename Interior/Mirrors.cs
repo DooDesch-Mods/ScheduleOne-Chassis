@@ -34,6 +34,9 @@ namespace Chassis.Interior
         /// <summary>Where a side mirror's centre looks, in degrees outwards and downwards from straight back; how near the
         /// eye must be to the glass (metres) to count as the driver's.</summary>
         private const float SideOutward = 15f, SideDown = 2f, AimMaxEye = 2.5f;
+        /// <summary>How far past a side mirror's glass its near plane lies, in metres: the turned glass leaves the housing
+        /// rim standing in front of it.</summary>
+        private const float SideClear = 0.08f;
         /// <summary>Nearby cars: how many, how far from the camera (metres), how often they are picked again (seconds).</summary>
         private const int NearbyCars = 3;
         private const float NearbyRange = 15f, NearbyEvery = 0.5f;
@@ -682,7 +685,7 @@ namespace Chassis.Interior
                     if (v.Side) { Hide(rig.Kit); _kitHidden = true; }
                 }
                 v.Renders++;
-                if (!v.First) { v.First = true; Core.Log.Msg("[Mirror] first mirror render (" + v.Label + ") from " + cam.transform.position.ToString("F2") + ", picture " + v.Rt.width + "x" + v.Rt.height + ", widened x" + v.Widen.ToString("F2") + " to at least " + (v.Side ? SideMinFov : RearMinFov) + " deg" + (rig == _seated ? "" : ", " + rig.CarName) + "."); }
+                if (!v.First) { v.First = true; Core.Log.Msg("[Mirror] first mirror render (" + v.Label + ") from " + cam.transform.position.ToString("F2") + ", picture " + v.Rt.width + "x" + v.Rt.height + ", widened x" + v.Widen.ToString("F2") + " to at least " + (v.Side ? SideMinFov : RearMinFov) + " deg" + (v.Side ? ", near plane " + SideClear.ToString("F2") + " m past the glass" : "") + (rig == _seated ? "" : ", " + rig.CarName) + "."); }
             }
             catch (Exception e)
             {
@@ -715,7 +718,8 @@ namespace Chassis.Interior
         /// <summary>
         /// Off-axis projection through the glass as seen from the eye mirrored in it (Kooima, "Generalized Perspective
         /// Projection"). The camera looks out of the glass away from the viewer; its near plane lies in the glass, so the
-        /// housing and whatever stands behind it never show.
+        /// housing and whatever stands behind it never show. A side glass is turned off the housing face, so one edge of the
+        /// housing rim stands in front of it; the side mirrors move their near plane <see cref="SideClear"/> past the glass.
         /// </summary>
         private static void Frame(Rig rig, View v, Vector3 eye)
         {
@@ -739,7 +743,7 @@ namespace Chassis.Interior
             Vector3 va = pa - pe, vb = pb - pe, vc = pc - pe;
             float d = -Vector3.Dot(va, vn);
             if (d < 0.01f) return;
-            float n = Mathf.Max(0.01f, d - 0.002f), k = n / d;
+            float n = v.Side ? d + SideClear : Mathf.Max(0.01f, d - 0.002f), k = n / d;
             float l = Vector3.Dot(vr, va) * k, r = Vector3.Dot(vr, vb) * k;
             float b = Vector3.Dot(vu, va) * k, t = Vector3.Dot(vu, vc) * k;
 
