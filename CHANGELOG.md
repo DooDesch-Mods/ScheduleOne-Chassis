@@ -4,6 +4,22 @@ All notable changes to Chassis are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.9.0] - 2026-11-03
+
+### Added
+
+- Every vanilla car has a live rear-view mirror and two side mirrors.
+- A Mirrors row in the graphics settings, below Reflections: Off, Rear Only, Rear + Side (default) or + Nearby Cars.
+  - + Nearby Cars also shows the mirrors of up to three cars within 15 m, on foot too. Setting: `Mirrors`.
+
+### Changed
+
+- Reflections also sets how sharp the mirrors are.
+
+### Fixed
+
+- Chrome paint now reflects the sky and looks brighter.
+
 ## [1.8.3] - 2026-11-02
 
 ### Fixed
