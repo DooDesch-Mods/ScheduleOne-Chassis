@@ -2,8 +2,6 @@
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/chassis](https://support.doodesch.de/chassis).
 
-[![Discord](https://mods.doodesch.de/img/badge.svg)](https://mods.doodesch.de)
-
 📖 **API documentation:** [docs.doodesch.de/mods/chassis/api/](https://docs.doodesch.de/mods/chassis/api/)
 
 > Drivers and passengers sit in the car where you can see them, with their hands on a steering
@@ -13,7 +11,7 @@
 ![Version](https://img.shields.io/badge/version-1.9.2-blue)
 ![Game](https://img.shields.io/badge/game-Schedule%20I-purple)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
-[![Polyfill](https://polyfill.doomods.com/badge/chassis.svg)](https://polyfill.doomods.com/mod/chassis)
+[![Discord](https://mods.doodesch.de/img/badge.svg)](https://mods.doodesch.de) [![Polyfill](https://polyfill.doomods.com/badge/chassis.svg)](https://polyfill.doomods.com/mod/chassis)
 
 [![MLVScan Chassis.dll](https://mlvscan.com/attestations/att_OR8UGBEPpDxtR8wBWFCYH-wY/badge.svg)](https://mlvscan.com/attestations/att_OR8UGBEPpDxtR8wBWFCYH-wY)
 

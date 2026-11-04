@@ -4,8 +4,6 @@
 
 **Download:** [Nexus Mods](https://www.nexusmods.com/schedule1/mods/2918) · [Thunderstore](https://thunderstore.io/c/schedule-i/p/DooDesch/Chassis/) · [GitHub Releases](https://github.com/DooDesch-Mods/ScheduleOne-Chassis/releases)
 
-[![Discord](https://mods.doodesch.de/img/badge.svg)](https://mods.doodesch.de)
-
 📖 **API documentation:** [docs.doodesch.de/mods/chassis/api/](https://docs.doodesch.de/mods/chassis/api/)
 
 > Drivers and passengers sit in the car where you can see them, with their hands on a steering
@@ -16,7 +14,7 @@
 ![Game](https://img.shields.io/badge/game-Schedule%20I-purple)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 ![Status](https://img.shields.io/badge/status-working-brightgreen)
-[![Polyfill](https://polyfill.doomods.com/badge/chassis.svg)](https://polyfill.doomods.com/mod/chassis)
+[![Discord](https://mods.doodesch.de/img/badge.svg)](https://mods.doodesch.de) [![Polyfill](https://polyfill.doomods.com/badge/chassis.svg)](https://polyfill.doomods.com/mod/chassis)
 
 [![MLVScan Chassis.dll](https://mlvscan.com/attestations/att_OR8UGBEPpDxtR8wBWFCYH-wY/badge.svg)](https://mlvscan.com/attestations/att_OR8UGBEPpDxtR8wBWFCYH-wY)
 
