@@ -4,6 +4,8 @@
 
 **Download:** [Nexus Mods](https://www.nexusmods.com/schedule1/mods/2918) · [Thunderstore](https://thunderstore.io/c/schedule-i/p/DooDesch/Chassis/) · [GitHub Releases](https://github.com/DooDesch-Mods/ScheduleOne-Chassis/releases)
 
+[![Discord](https://mods.doodesch.de/img/badge.svg)](https://mods.doodesch.de)
+
 📖 **API documentation:** [docs.doodesch.de/mods/chassis/api/](https://docs.doodesch.de/mods/chassis/api/)
 
 > Drivers and passengers sit in the car where you can see them, with their hands on a steering
@@ -212,6 +214,12 @@ dotnet build Chassis.csproj -c Release -p:WorkspaceLibPath=/path/to/lib
 
 The IL2CPP build is at `bin/Release/net6.0/Chassis.dll`. Debug builds add console commands
 (`chassis help`).
+
+## Community
+
+[![DooDesch Mods on Discord](https://mods.doodesch.de/img/card.svg)](https://mods.doodesch.de)
+
+Join the DooDesch Mods Discord: update pings, polls on what comes next, and playtests of new mods.
 
 ## Credits
 

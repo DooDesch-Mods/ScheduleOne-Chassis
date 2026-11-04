@@ -2,6 +2,8 @@
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/chassis](https://support.doodesch.de/chassis).
 
+[![Discord](https://mods.doodesch.de/img/badge.svg)](https://mods.doodesch.de)
+
 📖 **API documentation:** [docs.doodesch.de/mods/chassis/api/](https://docs.doodesch.de/mods/chassis/api/)
 
 > Drivers and passengers sit in the car where you can see them, with their hands on a steering
@@ -95,6 +97,12 @@ tint, tyre smoke and horn, synced in co-op and saved with the vehicle. Profiles 
 and a file there wins over a profile from code. Every type and member:
 [API reference](https://docs.doodesch.de/mods/chassis/api/). Source:
 [GitHub](https://github.com/DooDesch-Mods/ScheduleOne-Chassis).
+
+## Community
+
+[![DooDesch Mods on Discord](https://mods.doodesch.de/img/card.svg)](https://mods.doodesch.de)
+
+Join the DooDesch Mods Discord: update pings, polls on what comes next, and playtests of new mods.
 
 ## License
 
