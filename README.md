@@ -2,6 +2,8 @@
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/chassis](https://support.doodesch.de/chassis).
 
+**Download:** [Nexus Mods](https://www.nexusmods.com/schedule1/mods/2918) · [Thunderstore](https://thunderstore.io/c/schedule-i/p/DooDesch/Chassis/) · [GitHub Releases](https://github.com/DooDesch-Mods/ScheduleOne-Chassis/releases)
+
 📖 **API documentation:** [docs.doodesch.de/mods/chassis/api/](https://docs.doodesch.de/mods/chassis/api/)
 
 > Drivers and passengers sit in the car where you can see them, with their hands on a steering
@@ -86,10 +88,16 @@ Every player in a co-op session needs Chassis.
 
 ## Installation
 
-### Recommended: a Thunderstore mod manager
+### Recommended: Nexus Mods
+
+1. Install **MelonLoader 0.7.3** for Schedule I ([melonwiki.xyz](https://melonwiki.xyz/)).
+2. Download Chassis from [Nexus Mods](https://www.nexusmods.com/schedule1/mods/2918) and install it with Vortex,
+   or put **`Chassis.dll`** into your Schedule I `Mods/` folder.
+
+### Thunderstore mod manager
 
 Install with a mod manager (r2modman / Gale) from the Schedule I community. MelonLoader comes in
-as a dependency.
+as a dependency. The [Thunderstore page](https://thunderstore.io/c/schedule-i/p/DooDesch/Chassis/) has the package.
 
 ### Manual
 
