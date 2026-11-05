@@ -742,13 +742,13 @@ namespace Chassis.Interior
         {
             var parts = profile.Interior.Parts;
             // A dark housing flush with the headliner and, set into it, a smaller milky lens that sits a few millimetres
-            // proud of the housing and hangs below it, so a click presses both up into the roof. CabinLight fades the
-            // lens itself; a lamp gauge only knows lit or dark.
+            // proud of it. The lens is the switch: a click presses it up into the housing, which stays put. CabinLight
+            // fades the lens itself; a lamp gauge only knows lit or dark.
             var domeAt = new Vector3(band.center.x, roof, seatZ + 0.12f);
             parts.Add(new KitPart { Kind = "panel", Name = DomeHousing, Position = domeAt + new Vector3(0f, -0.009f, 0f), Size = new Vector3(0.2f, 0.018f, 0.12f), Color = new Color(0.11f, 0.11f, 0.12f) });
-            parts.Add(new KitPart { Kind = "panel", Name = Vehicles.CabinLight.DomeName, Parent = DomeHousing, Position = domeAt + new Vector3(0f, -0.02f, 0f), Size = new Vector3(0.14f, 0.01f, 0.07f), Color = new Color(0.86f, 0.84f, 0.78f) });
+            parts.Add(new KitPart { Kind = "panel", Name = Vehicles.CabinLight.DomeName, Position = domeAt + new Vector3(0f, -0.02f, 0f), Size = new Vector3(0.14f, 0.01f, 0.07f), Color = new Color(0.86f, 0.84f, 0.78f) });
             // Three positions (Auto, On, Off); a click steps through them, the wheel too.
-            profile.Controls.Add(new ControlProfile { Name = Vehicles.CabinLight.ControlName, Label = "Cabin light", Kind = "knob", Min = Vehicles.CabinLight.Auto, Max = Vehicles.CabinLight.Off, Step = 1f, Default = Vehicles.CabinLight.Auto, Path = DomeHousing, Angle = 0f, Axis = Vector3.up, Press = 0.006f });
+            profile.Controls.Add(new ControlProfile { Name = Vehicles.CabinLight.ControlName, Label = "Cabin light", Kind = "knob", Min = Vehicles.CabinLight.Auto, Max = Vehicles.CabinLight.Off, Step = 1f, Default = Vehicles.CabinLight.Auto, Path = Vehicles.CabinLight.DomeName, Angle = 0f, Axis = Vector3.up, Press = 0.006f });
 
             // The passenger side mirrors the driver across the middle of the cabin.
             float passengerX = 2f * band.center.x - driverX;

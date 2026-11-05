@@ -10,6 +10,7 @@ Spawns a car next to the player, takes the driver seat and checks:
   label-auto  - the label under the dot names the switch position
   click-on, click-off, click-auto - clicks step the switch Auto -> On -> Off -> Auto (aim + click, as the mouse)
   dome-press  - every click presses the lamp in (its press counter rises by 3)
+  dome-lens   - the switch is the lens alone (box 0.14 x 0.07), so the housing around it stays put
   lid-open, lid-shut - the glovebox lid swings open while the glovebox is open and shuts after
   glove-own   - a click on the glovebox lid opens the own glovebox with its slots
   glove-keep  - an item put into the glovebox is still there after close and open
@@ -106,14 +107,15 @@ def main():
     results.append(("fade-in", bool(took) and took[-1] >= 0.4, "the light swells in (took %s s)" % took[-1:]))
 
     # Driving ends the door light at once; it fades out over a second and comes back after 3 s of standing.
-    run(s, "chassis coast 40 3", max_wait=3000)
+    # The car keeps driving through the dark-moving check (about 4.5 s in), then stands 3 s for stand-on.
+    run(s, "chassis coast 40 7", max_wait=3000)
     time.sleep(0.4)
     levels = [level(light(s)) for _ in range(4)]
     results.append(("drive-off", levels[-1] < 1.0, "driving ends the door light (levels %s)" % levels))
     results.append(("fade", any(0.0 < v < 1.0 for v in levels), "the light fades instead of a hard off (levels %s)" % levels))
     time.sleep(2.5)
     results.append(("dark-moving", "cabin light off" in light(s), "the light stays off while the car drives"))
-    time.sleep(5)
+    time.sleep(8)
     results.append(("stand-on", "cabin light on (switch Auto, standing" in light(s), "the light comes back after 3 s standing"))
 
     # A click steps the switch Auto -> On -> Off -> Auto; the label under the dot names the position.
@@ -121,7 +123,9 @@ def main():
     run(s, "chassis aim dome")
     time.sleep(0.3)
     results.append(("label-auto", "Cabin light: Auto" in label(s), "the label names the position Auto"))
-    pressed_before = presses(switch(s, "dome"))
+    dome = switch(s, "dome")
+    pressed_before = presses(dome)
+    results.append(("dome-lens", re.search(r"box \(0\.140, 0\.0\d\d, 0\.070\)", dome) is not None, "only the lens presses in, the housing stays (%s)" % dome[:90]))
     run(s, "chassis click", until=r"click:")
     time.sleep(0.5)
     on = light(s)
