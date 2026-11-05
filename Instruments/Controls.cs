@@ -22,6 +22,11 @@ namespace Chassis.Instruments
     {
         /// <summary>A switch is in reach this far along the view from the eyes, in metres.</summary>
         internal const float Reach = 0.9f;
+        /// <summary>The glovebox sits across the cabin from the driver, who reaches it this far.</summary>
+        internal const float GloveboxReach = 1.25f;
+
+        internal static float ReachOf(ControlProfile c) =>
+            string.Equals(c.Action, Vehicles.Glovebox.ControlName, StringComparison.OrdinalIgnoreCase) ? GloveboxReach : Reach;
         /// <summary>Switches are not animated beyond this distance from the camera.</summary>
         private const float Range = 30f;
         private const float PressSeconds = 0.18f, MoveSeconds = 0.06f, QuietSeconds = 1f;
@@ -29,7 +34,7 @@ namespace Chassis.Instruments
 
         internal static readonly HashSet<string> BuiltIn = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            "lights", "hazard", "indicator", "indicator_left", "indicator_right", "horn", "trip_reset",
+            "lights", "hazard", "indicator", "indicator_left", "indicator_right", "horn", "trip_reset", Vehicles.Glovebox.ControlName,
         };
 
         private static readonly Dictionary<string, Action<ControlUse>> _actions = new Dictionary<string, Action<ControlUse>>(StringComparer.OrdinalIgnoreCase);
@@ -368,6 +373,8 @@ namespace Chassis.Instruments
             var by = player >= 0 ? Ids.PlayerById(player) : null;
             Core.Log.Msg("[Controls] " + Registry.Name(lv) + ": switch '" + c.Name + "' (" + kind + (string.IsNullOrEmpty(c.Action) ? "" : ", " + c.Action) + ") = "
                 + value.ToString("0.##", CultureInfo.InvariantCulture) + " by " + (by != null ? by.PlayerName : player >= 0 ? "player net " + player : "a mod") + ".");
+            // The glovebox opens on the peer of the player who clicked it; the host already checked that the player sits inside.
+            if (string.Equals(c.Action, Vehicles.Glovebox.ControlName, StringComparison.OrdinalIgnoreCase) && by != null && by == Player.Local) Vehicles.Glovebox.Open(lv);
             var use = new ControlUse { Vehicle = lv, Control = c, Action = c.Action ?? string.Empty, Value = value, By = by, IsHost = ChassisNet.IsHost };
             if (!string.IsNullOrEmpty(c.Action) && !BuiltIn.Contains(c.Action))
             {

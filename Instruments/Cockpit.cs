@@ -43,15 +43,17 @@ namespace Chassis.Instruments
             _aimFrame = Time.frameCount;
             Vector3 origin = view.position, dir = view.forward;
             Controls.Bound best = null;
-            float bestT = Controls.Reach;
+            float bestT = float.MaxValue;
             foreach (var b in Controls.Of(lv))
             {
                 float t = Controls.Hit(b, origin, dir);
-                if (t < 0f || t > bestT) continue;
+                if (t < 0f || t > bestT || t > Controls.ReachOf(b.P)) continue;
                 bestT = t;
                 best = b;
             }
             Hover(best, best != null || !ThroughWindscreen(rig, lv, origin, dir));
+            // A menu that frees the cursor (the glovebox's storage menu) sits where the label would; the name waits.
+            if (_label != null && best != null) _label.gameObject.SetActive(Cursor.lockState == CursorLockMode.Locked && LabelOf(best.P).Length > 0);
             if (best != null) Fit(best, dir);
             if (ShowZones) { Zones(lv); Reach(rig); }
         }

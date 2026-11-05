@@ -44,6 +44,12 @@
 - **Working dashboard:** The speedometer and the rev counter move, and lamps show the indicators
   and the headlights. In first person, look at a switch and left-click it: light switch, hazard
   lights, indicator stalk (also with the mouse wheel) and the horn in the wheel centre.
+- **Cabin light:** The dome lamp lights up for 8 seconds when someone gets in or out, and goes
+  off when the car drives off. Click the lamp to keep it on until you get out.
+- **Glovebox:** Click the lid right of the centre console to open it, from the driver or the
+  passenger seat. It holds 2 to 4 items, by car size, and is saved with the car. With
+  `GloveboxOwnStorage = false` the lid opens the vanilla trunk instead. Items in the own glovebox
+  stay there and are out of reach until the setting is back on.
 - **Indicators outside:** The vanilla cars flash their own amber indicator lamps. A rear without
   one flashes part of the brake light in red.
 - **Shots into cars:** Guns hit NPCs that sit in a car. A driver who goes down falls out next to
@@ -55,7 +61,8 @@
 - **Key hints:** The keys of the vehicle show at the bottom left, next to the game's own: First
   Person, Horn, and Indicators on vehicles with indicator lamps. While you push a vehicle (Rollin's
   wheelchair) they show Push and Let Go with your own key bindings.
-- **Co-op:** Seats, horn, indicators, locks and owners sync through the host.
+- **Co-op:** Seats, horn, indicators, locks, owners, the cabin light and the glovebox sync through
+  the host. One player at a time can have the glovebox open.
 
 ## Controls
 
@@ -115,6 +122,7 @@ Settings live in `UserData/MelonPreferences.cfg` under `Chassis`.
 | `Mirrors` | `2` | Which mirrors render: `0` Off, `1` Rear Only, `2` Rear + Side, `3` + Nearby Cars. Also in the graphics settings. |
 | `Reflections` | `1` | How sharp chrome paint and the mirrors reflect: `0` Low to `3` Ultra. Also in the graphics settings. |
 | `MirrorShowsOwnCar` | `false` | `true` shows your own car's body in the mirrors. |
+| `GloveboxOwnStorage` | `true` | `true`: the glovebox has its own slots, saved in `Chassis.glovebox`. `false`: the lid opens the vanilla trunk, and saves stay vanilla. |
 
 ## For mod authors
 

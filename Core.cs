@@ -36,6 +36,7 @@ namespace Chassis
             Tune.Reflections.LoadSetting();
             Interior.Mirrors.LoadSetting();
             Tune.MirrorMode.LoadSetting();
+            Vehicles.Glovebox.LoadSetting();
             // A profile edited in place: gauges and switches look up their transforms again.
             Api.ChassisApi.Changed += code => { Instruments.Gauges.ForgetAll(); Instruments.Controls.ForgetAll(); };
 
@@ -69,6 +70,8 @@ namespace Chassis
             Vehicles.KeyHints.Reset();
             Vehicles.Parts.Reset();
             Vehicles.AutoLights.Reset();
+            Vehicles.CabinLight.Reset();
+            Vehicles.Glovebox.Reset();
             Interior.BaseInterior.Reset();
             Interior.Mirrors.Reset();
             Seating.NpcRiders.Reset();
@@ -107,6 +110,8 @@ namespace Chassis
             Guard("horn", Vehicles.Horn.Tick);
             Guard("indicators", Vehicles.Indicators.Tick);
             Guard("auto lights", Vehicles.AutoLights.Tick);
+            Guard("cabin light", Vehicles.CabinLight.Tick);
+            Guard("glovebox", Vehicles.Glovebox.Tick);
             Guard("showroom", Rideables.Showroom.Tick);
             Guard("view", Seating.FirstPersonView.Tick);
             Guard("key hints", Vehicles.KeyHints.Tick);

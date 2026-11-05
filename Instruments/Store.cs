@@ -135,6 +135,8 @@ namespace Chassis.Instruments
             bool first = true;
             foreach (var kv in c.Controls)
             {
+                // The cabin light's switch holds only for the ride it was clicked in.
+                if (string.Equals(kv.Key, Vehicles.CabinLight.ControlName, StringComparison.OrdinalIgnoreCase)) continue;
                 if (!first) sb.Append(',');
                 first = false;
                 sb.Append(kv.Key).Append('=').Append(kv.Value.ToString("R", CultureInfo.InvariantCulture));
