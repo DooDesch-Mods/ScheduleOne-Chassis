@@ -4,6 +4,15 @@ All notable changes to Chassis are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.10.0] - 2026-11-05
+
+### Added
+
+- Cabin light in the vanilla cars: it fades on when someone gets in or out and while the car stands, and off when you drive.
+  - Click the dome lamp to switch between Auto, On and Off.
+- Glovebox right of the centre console, reachable from both front seats, also while driving. 2 to 4 slots by car size, saved with the car.
+  - `GloveboxOwnStorage = false` makes the lid open the trunk instead, so saves stay vanilla.
+
 ## [1.9.2] - 2026-11-03
 
 ### Fixed
