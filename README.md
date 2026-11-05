@@ -16,7 +16,7 @@
 ![Status](https://img.shields.io/badge/status-working-brightgreen)
 [![Discord](https://mods.doodesch.de/img/badge.svg)](https://mods.doodesch.de) [![Polyfill](https://polyfill.doomods.com/badge/chassis.svg)](https://polyfill.doomods.com/mod/chassis)
 
-[![MLVScan Chassis.dll](https://mlvscan.com/attestations/att_OR8UGBEPpDxtR8wBWFCYH-wY/badge.svg)](https://mlvscan.com/attestations/att_OR8UGBEPpDxtR8wBWFCYH-wY)
+[![MLVScan Chassis.dll](https://mlvscan.com/attestations/att_o05_s2nGwqb1gg-6e8lHWShk/badge.svg)](https://mlvscan.com/attestations/att_o05_s2nGwqb1gg-6e8lHWShk)
 
 ![Chassis](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/header.jpg)
 
