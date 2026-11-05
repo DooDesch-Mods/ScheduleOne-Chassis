@@ -147,9 +147,11 @@ namespace Chassis.Interior
         /// plane of their area-weighted mean, then grown by the face triangles in that plane they touch
         /// (<see cref="Grow"/>). <paramref name="normal"/> points out of the face, <paramref name="centre"/>
         /// is the middle of the face at its front-most point, <paramref name="size"/> its width and height across the
-        /// normal. False when no triangle faces back there.
+        /// normal. <paramref name="outline"/> fills the convex hull of the face flat in that plane with triangles, three
+        /// corners each, as x and y from <paramref name="centre"/> along the axes of a part turned by
+        /// LookRotation(-normal, up): the shape of the vanilla mirror, rounded corners and all. False when no triangle faces back there.
         /// </summary>
-        internal bool MirrorFace(float zMin, float zMax, float yMin, float yMax, bool left, float door, out Vector3 centre, out Vector3 normal, out Vector2 size, out int count)
+        internal bool MirrorFace(float zMin, float zMax, float yMin, float yMax, bool left, float door, out Vector3 centre, out Vector3 normal, out Vector2 size, out int count, out Vector2[] outline)
         {
             float cx = _o[0];
             float[] t = _t;
@@ -157,6 +159,7 @@ namespace Chassis.Interior
             centre = normal = Vector3.zero;
             size = Vector2.zero;
             count = 0;
+            outline = null;
             var picked = new List<int>();
             float sx = 0f, sy = 0f, sz = 0f;
             for (int pass = 0; pass < 2; pass++)
@@ -209,7 +212,53 @@ namespace Chassis.Interior
             count = picked.Count;
             size = new Vector2(x1 - x0, y1 - y0);
             centre = ax * ((x0 + x1) * 0.5f) + ay * ((y0 + y1) * 0.5f) + normal * d1;
+            float u0 = (x0 + x1) * 0.5f, v0 = (y0 + y1) * 0.5f;
+            var flat = new List<Vector2>(picked.Count * 3);
+            foreach (int p in picked)
+                for (int k = 0; k < 9; k += 3)
+                {
+                    int i = p + k;
+                    flat.Add(new Vector2(t[i] * ax.x + t[i + 1] * ax.y + t[i + 2] * ax.z - u0, t[i] * ay.x + t[i + 1] * ay.y + t[i + 2] * ay.z - v0));
+                }
+            // The hull, not the triangles themselves: some faces are a rim around a glass set deeper into the
+            // housing (Hounddog), and the triangles alone would leave that middle open.
+            List<Vector2> hull = Hull(flat);
+            if (hull.Count >= 3)
+            {
+                outline = new Vector2[(hull.Count - 2) * 3];
+                for (int k = 1; k + 1 < hull.Count; k++)
+                {
+                    outline[(k - 1) * 3] = hull[0];
+                    outline[(k - 1) * 3 + 1] = hull[k];
+                    outline[(k - 1) * 3 + 2] = hull[k + 1];
+                }
+            }
             return true;
+        }
+
+        /// <summary>The convex hull of <paramref name="points"/>, counter-clockwise, collinear points dropped (monotone chain).</summary>
+        private static List<Vector2> Hull(List<Vector2> points)
+        {
+            var p = new List<Vector2>(points);
+            p.Sort((a, b) => a.x != b.x ? a.x.CompareTo(b.x) : a.y.CompareTo(b.y));
+            var h = new List<Vector2>(p.Count + 1);
+            for (int pass = 0; pass < 2; pass++)
+            {
+                int start = h.Count;
+                for (int n = 0; n < p.Count; n++)
+                {
+                    Vector2 c = pass == 0 ? p[n] : p[p.Count - 1 - n];
+                    while (h.Count >= start + 2)
+                    {
+                        Vector2 a = h[h.Count - 2], b = h[h.Count - 1];
+                        if ((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x) > 1e-9f) break;
+                        h.RemoveAt(h.Count - 1);
+                    }
+                    h.Add(c);
+                }
+                h.RemoveAt(h.Count - 1);
+            }
+            return h;
         }
 
         /// <summary>How far a face triangle may lie in front of or behind the face's mean plane, in metres.</summary>

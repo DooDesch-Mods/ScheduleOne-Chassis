@@ -577,7 +577,12 @@ namespace Chassis.Interior
             v.Mat.mainTexture = v.Rt;
         }
 
-        /// <summary>The glass quad on the back of the housing, facing the driver (local -z), flipped left to right.</summary>
+        /// <summary>
+        /// The glass on the back of the housing, facing the driver (local -z), flipped left to right. A side mirror takes
+        /// the shape of the vanilla mirror face behind it, drawn in by <see cref="GlassInset"/>; the rear-view mirror, or a
+        /// side mirror without that face, is a quad. The picture spans the same rectangle either way, so the shape only
+        /// trims it.
+        /// </summary>
         private static MeshRenderer Glass(Rig rig, View v)
         {
             var old = v.Housing.Find(v.GlassName);
@@ -590,10 +595,44 @@ namespace Chassis.Interior
             }
             float hw = v.Size.x * 0.5f - GlassInset, hh = v.Size.y * 0.5f - GlassInset, z = v.GlassZ;
             var mesh = new Mesh { name = v.GlassName };
-            mesh.vertices = new[] { new Vector3(-hw, -hh, z), new Vector3(hw, -hh, z), new Vector3(-hw, hh, z), new Vector3(hw, hh, z) };
-            // The vertex on the housing's +x side shows the left edge of the camera picture: the mirror flip.
-            mesh.uv = new[] { new Vector2(1f, 0f), new Vector2(0f, 0f), new Vector2(1f, 1f), new Vector2(0f, 1f) };
-            mesh.triangles = new[] { 0, 2, 3, 0, 3, 1 };
+            Vector2[] outline = v.Side ? BaseInterior.MirrorOutline(rig.Car, v.Name) : null;
+            string shape;
+            if (outline != null && hw > 0f && hh > 0f && v.Size.x > 0f && v.Size.y > 0f)
+            {
+                float sx = hw / (v.Size.x * 0.5f), sy = hh / (v.Size.y * 0.5f);
+                var verts = new Vector3[outline.Length];
+                var uvs = new Vector2[outline.Length];
+                var tris = new int[outline.Length];
+                for (int i = 0; i + 2 < outline.Length; i += 3)
+                {
+                    Vector2 a = outline[i], b = outline[i + 1], c = outline[i + 2];
+                    // Wound like the quad below, so every triangle faces the driver whatever way the body mesh wound it.
+                    if ((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x) > 0f) { var s = b; b = c; c = s; }
+                    Vector2[] corner = { a, b, c };
+                    for (int k = 0; k < 3; k++)
+                    {
+                        float x = corner[k].x * sx, y = corner[k].y * sy;
+                        verts[i + k] = new Vector3(x, y, z);
+                        // The vertex on the housing's +x side shows the left edge of the camera picture: the mirror flip.
+                        uvs[i + k] = new Vector2(0.5f - x / (2f * hw), 0.5f + y / (2f * hh));
+                        tris[i + k] = i + k;
+                    }
+                }
+                mesh.vertices = verts;
+                mesh.uv = uvs;
+                mesh.triangles = tris;
+                Vector2 uMin = uvs[0], uMax = uvs[0];
+                foreach (var uv in uvs) { uMin = Vector2.Min(uMin, uv); uMax = Vector2.Max(uMax, uv); }
+                shape = "shaped like the vanilla mirror (" + outline.Length / 3 + " triangle(s), picture " + uMin.ToString("F2") + " to " + uMax.ToString("F2") + ")";
+            }
+            else
+            {
+                mesh.vertices = new[] { new Vector3(-hw, -hh, z), new Vector3(hw, -hh, z), new Vector3(-hw, hh, z), new Vector3(hw, hh, z) };
+                // The vertex on the housing's +x side shows the left edge of the camera picture: the mirror flip.
+                mesh.uv = new[] { new Vector2(1f, 0f), new Vector2(0f, 0f), new Vector2(1f, 1f), new Vector2(0f, 1f) };
+                mesh.triangles = new[] { 0, 2, 3, 0, 3, 1 };
+                shape = v.Side ? "a rectangle, no vanilla mirror face outline" : "a rectangle";
+            }
             mesh.RecalculateNormals();
             mesh.RecalculateBounds();
 
@@ -616,7 +655,7 @@ namespace Chassis.Interior
                 SetPicture(v);
             }
             r.sharedMaterial = v.Mat;
-            Core.Log.Msg("[Mirror] glass added to the " + v.Label + " mirror of " + rig.CarName + ", " + (hw * 2f).ToString("F2") + " x " + (hh * 2f).ToString("F2") + " m.");
+            Core.Log.Msg("[Mirror] glass added to the " + v.Label + " mirror of " + rig.CarName + ", " + (hw * 2f).ToString("F2") + " x " + (hh * 2f).ToString("F2") + " m, " + shape + ".");
             return r;
         }
 
