@@ -4,6 +4,14 @@ All notable changes to Chassis are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.10.1] - 2026-11-05
+
+### Fixed
+
+- Side mirrors of the Cheetah and the Hounddog show the whole mirror instead of a grey face with a thin strip.
+  Reported by MR.Monkey.
+- The Veeper's side mirror glass fills its whole mirror.
+
 ## [1.10.0] - 2026-11-05
 
 ### Added
