@@ -523,6 +523,20 @@ namespace Chassis.Interior
             return code + ": " + report + ", " + found.Count + " kit corner(s) outside above the belt line" + (per.Count > 0 ? " - " + string.Join(", ", per) : "") + (mark ? " (red cubes)" : "");
         }
 
+#if DEBUG
+        /// <summary>Writes the shell the mirror search reads of <paramref name="lv"/> to UserData/Chassis/shell-&lt;code&gt;.obj.</summary>
+        internal static string WriteShell(LandVehicle lv)
+        {
+            if (lv == null) return "not in a car";
+            string code = ChassisApi.CodeOf(lv);
+            if (!_bands.TryGetValue(code, out var band)) return code + ": not fitted in this session, no window band";
+            var shell = ShellFit.Of(lv, Lod0(lv.GetComponentInChildren<LODGroup>(true)), CabinCentre(band), LiddedCodes.Contains(code) ? band : (Bounds?)null, m => false, out string report);
+            if (shell == null) return code + ": shell cannot be read (" + report + ")";
+            DumpShell(shell, code, band, float.NaN);
+            return code + ": " + report + ", written to " + System.IO.Path.Combine(ChassisApi.Folder, "shell-" + code + ".obj");
+        }
+#endif
+
         /// <summary>Drops the points from <paramref name="from"/> on that lie at or below <paramref name="minY"/>; returns how many stay.</summary>
         private static int Keep(List<Vector3> points, int from, float minY)
         {

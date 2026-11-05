@@ -144,7 +144,8 @@ namespace Chassis.Interior
         /// <summary>
         /// The face of the body's outside mirror: the triangles more than 3 cm further out than <paramref name="door"/>
         /// in the same bands as <see cref="SideExtent"/> whose fronts face back, narrowed to those that lie in the
-        /// plane of their area-weighted mean. <paramref name="normal"/> points out of the face, <paramref name="centre"/>
+        /// plane of their area-weighted mean, then grown by the face triangles in that plane they touch
+        /// (<see cref="Grow"/>). <paramref name="normal"/> points out of the face, <paramref name="centre"/>
         /// is the middle of the face at its front-most point, <paramref name="size"/> its width and height across the
         /// normal. False when no triangle faces back there.
         /// </summary>
@@ -191,6 +192,7 @@ namespace Chassis.Interior
             float l = (float)Math.Sqrt(sx * sx + sy * sy + sz * sz);
             if (l < 1e-9f) return false;
             normal = new Vector3(sx / l, sy / l, sz / l);
+            Grow(picked, zMin, zMax, yMin, yMax, left, normal);
             // The axes of a part turned by LookRotation(-normal, up): its local x and y span the face.
             Vector3 ax = Vector3.Cross(Vector3.up, -normal).normalized;
             Vector3 ay = Vector3.Cross(-normal, ax).normalized;
@@ -208,6 +210,82 @@ namespace Chassis.Interior
             size = new Vector2(x1 - x0, y1 - y0);
             centre = ax * ((x0 + x1) * 0.5f) + ay * ((y0 + y1) * 0.5f) + normal * d1;
             return true;
+        }
+
+        /// <summary>How far a face triangle may lie in front of or behind the face's mean plane, in metres.</summary>
+        private const float FacePlane = 0.015f;
+        /// <summary>Corners closer than this, in metres, count as shared: a face triangle touching another one.</summary>
+        private const float FaceTouch = 0.004f;
+
+        /// <summary>
+        /// Adds to <paramref name="picked"/> the rest of the mirror face: triangles in the same bands and on the same side
+        /// that face back like it, lie in its plane and touch it, also those not standing out past the door. A face that
+        /// the body meshes cut into many small triangles otherwise keeps only its outer edge (Cheetah, Hounddog), and the
+        /// glass on it shrinks to a sliver.
+        /// </summary>
+        private void Grow(List<int> picked, float zMin, float zMax, float yMin, float yMax, bool left, Vector3 normal)
+        {
+            float cx = _o[0];
+            float[] t = _t;
+            double plane = 0.0, weight = 0.0;
+            foreach (int i in picked)
+            {
+                Vector3 c = Mid(t, i);
+                float a = Area(t, i);
+                plane += Vector3.Dot(c, normal) * a;
+                weight += a;
+            }
+            if (weight <= 0.0) return;
+            float d = (float)(plane / weight);
+
+            var taken = new HashSet<int>(picked);
+            var open = new List<int>();
+            for (int i = 0; i + 8 < t.Length; i += 9)
+            {
+                if (taken.Contains(i)) continue;
+                Vector3 c = Mid(t, i);
+                if (c.y < yMin || c.y > yMax || c.z < zMin || c.z > zMax) continue;
+                if ((left ? cx - c.x : c.x - cx) <= 0f) continue;
+                if (Mathf.Abs(Vector3.Dot(c, normal) - d) > FacePlane) continue;
+                Vector3 n = Vector3.Cross(new Vector3(t[i + 3] - t[i], t[i + 4] - t[i + 1], t[i + 5] - t[i + 2]),
+                                          new Vector3(t[i + 6] - t[i], t[i + 7] - t[i + 1], t[i + 8] - t[i + 2]));
+                if (n.sqrMagnitude < 1e-18f || Vector3.Dot(n.normalized, normal) < 0.9f) continue;
+                open.Add(i);
+            }
+            bool more = true;
+            while (more && open.Count > 0)
+            {
+                more = false;
+                for (int k = open.Count - 1; k >= 0; k--)
+                {
+                    int i = open[k];
+                    bool touches = false;
+                    foreach (int j in picked) if (Touch(t, i, j)) { touches = true; break; }
+                    if (!touches) continue;
+                    picked.Add(i);
+                    open.RemoveAt(k);
+                    more = true;
+                }
+            }
+        }
+
+        private static Vector3 Mid(float[] t, int i) =>
+            new Vector3((t[i] + t[i + 3] + t[i + 6]) / 3f, (t[i + 1] + t[i + 4] + t[i + 7]) / 3f, (t[i + 2] + t[i + 5] + t[i + 8]) / 3f);
+
+        private static float Area(float[] t, int i) =>
+            Vector3.Cross(new Vector3(t[i + 3] - t[i], t[i + 4] - t[i + 1], t[i + 5] - t[i + 2]),
+                          new Vector3(t[i + 6] - t[i], t[i + 7] - t[i + 1], t[i + 8] - t[i + 2])).magnitude * 0.5f;
+
+        /// <summary>Whether triangles <paramref name="i"/> and <paramref name="j"/> share a corner.</summary>
+        private static bool Touch(float[] t, int i, int j)
+        {
+            for (int a = 0; a < 9; a += 3)
+                for (int b = 0; b < 9; b += 3)
+                {
+                    float dx = t[i + a] - t[j + b], dy = t[i + a + 1] - t[j + b + 1], dz = t[i + a + 2] - t[j + b + 2];
+                    if (dx * dx + dy * dy + dz * dz < FaceTouch * FaceTouch) return true;
+                }
+            return false;
         }
 
         /// <summary>
