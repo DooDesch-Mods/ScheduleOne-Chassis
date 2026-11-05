@@ -3,6 +3,7 @@
 Spawns a car next to the player, takes the driver seat and checks:
   auto-in     - getting in turns the cabin light on (automatic)
   auto-off    - the automatic light is off again after its 8 s
+  drive-off   - rolling at 40 km/h ends the automatic light early
   click-on    - a click on the lamp (aim + click, as the mouse) holds it on
   click-off   - a second click lets it go back to automatic
   glove-own   - a click on the glovebox lid opens the own glovebox with its slots
@@ -39,6 +40,11 @@ def light(slot):
     return run(slot, "chassis cabin", until=r"cabin light (on|off)")
 
 
+def count(text):
+    m = re.findall(r"(\d+) items?", text)
+    return int(m[-1]) if m else -1
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--slot", required=True)
@@ -58,6 +64,15 @@ def main():
     time.sleep(9)
     results.append(("auto-off", "cabin light off" in light(s), "the automatic light is off after 8 s"))
 
+    # Out and in again starts a new 8 s window; rolling at 40 km/h ends it early.
+    run(s, "chassis exit", max_wait=3000)
+    time.sleep(1)
+    run(s, "chassis car enter " + args.code)
+    run(s, "chassis coast 40 3", max_wait=3000)
+    time.sleep(4)
+    results.append(("drive-off", "cabin light off" in light(s), "driving off ends the automatic light before its 8 s"))
+    time.sleep(2)
+
     run(s, "chassis view 10")
     run(s, "chassis aim dome")
     run(s, "chassis click", until=r"click:")
@@ -74,10 +89,17 @@ def main():
     results.append(("glove-own", re.search(r"own glovebox, \d slots, open", info) is not None, "the lid opens the own glovebox"))
 
     run(s, "chassis cabin close")
+    before = count(run(s, "chassis cabin", until=r"glovebox"))
+    if before > 0:
+        # A glovebox left full by an earlier run: empty one slot, so the put has room.
+        run(s, "chassis cabin open", until=r"glovebox")
+        run(s, "chassis cabin take", until=r"take")
+        run(s, "chassis cabin close")
+        before = count(run(s, "chassis cabin", until=r"glovebox"))
     put = run(s, "chassis cabin put", until=r"put")
     run(s, "chassis cabin open", until=r"glovebox")
-    kept = run(s, "chassis cabin", until=r"glovebox")
-    results.append(("glove-keep", "put:" in put and re.search(r"1 item", kept) is not None, "an item stays in the glovebox"))
+    kept = count(run(s, "chassis cabin", until=r"glovebox"))
+    results.append(("glove-keep", "put:" in put and kept == before + 1, "an item stays in the glovebox (%d -> %d)" % (before, kept)))
     run(s, "chassis cabin close")
 
     run(s, "chassis cabin mode trunk")

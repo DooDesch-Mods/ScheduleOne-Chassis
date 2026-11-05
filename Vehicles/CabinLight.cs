@@ -22,6 +22,8 @@ namespace Chassis.Vehicles
         internal const float AutoSeconds = 8f;
         /// <summary>Above this shown speed the automatic light goes off: the car drives off.</summary>
         private const float DriveOffKmh = 8f;
+        /// <summary>The speed stays above <see cref="DriveOffKmh"/> this long before the car counts as driving off.</summary>
+        private const float DriveOffSeconds = 1f;
         /// <summary>Lights farther than this from the camera are not lit.</summary>
         private const float Range = 40f;
 
@@ -32,6 +34,7 @@ namespace Chassis.Vehicles
             internal LandVehicle V;
             internal int Riders = -1;
             internal float AutoUntil;
+            internal float FastSince = -1f;
             internal Light Light;
             internal Transform Dome;
             internal ChassisProfile Profile;
@@ -83,7 +86,11 @@ namespace Chassis.Vehicles
                     }
                 }
                 s.Riders = riders;
-                if (s.AutoUntil > now && Sources.Kmh(lv) > DriveOffKmh)
+                // A car that bounces on its springs (just placed, someone climbing in) is not driving off: the speed
+                // has to stay above the limit for a moment.
+                if (Sources.Kmh(lv) <= DriveOffKmh) s.FastSince = -1f;
+                else if (s.FastSince < 0f) s.FastSince = now;
+                if (s.AutoUntil > now && s.FastSince >= 0f && now - s.FastSince >= DriveOffSeconds)
                 {
                     s.AutoUntil = 0f;
                     Core.Log.Msg("[CabinLight] " + Registry.Name(lv) + " drives off - the automatic light goes off.");

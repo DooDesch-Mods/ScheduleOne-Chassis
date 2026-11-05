@@ -168,13 +168,23 @@ namespace Chassis.Vehicles
             ChassisNet.ToAll("glove.open", vehicle.ToString(CultureInfo.InvariantCulture), player.ToString(CultureInfo.InvariantCulture), "1");
         }
 
+        internal const string BusyHint = "Someone else has the glovebox open.";
+
         internal static void OnOpen(int vehicle, int player, bool granted)
         {
             var me = Player.Local;
             if (me == null || Ids.Of(me) != player) return;
             var lv = Registry.ById(vehicle);
             if (lv == null) { Core.Log.Warning("[Glovebox] the host granted the glovebox of net " + vehicle + ", which is not here."); ReleaseRemote(vehicle); return; }
-            if (!granted) { Core.Log.Msg("[Glovebox] the glovebox of " + Registry.Name(lv) + " is open for another player - not opened."); return; }
+            if (!granted)
+            {
+                Core.Log.Msg("[Glovebox] the glovebox of " + Registry.Name(lv) + " is open for another player - not opened.");
+                var hints = Singleton<HintDisplay>.Instance;
+                if (hints == null) { Core.Log.Warning("[Glovebox] no hint display - the refusal shows only in this log."); return; }
+                hints.ShowHint(BusyHint, 3f, null);
+                Core.Log.Msg("[Glovebox] hint shown: " + BusyHint);
+                return;
+            }
             ShowMenu(lv, vehicle);
         }
 

@@ -96,6 +96,10 @@ def main():
 
     refused = run(h, "chassis cabin open", until=r"glovebox")
     results.append(("lock", "someone else has it open" in refused, "the host is refused while the client holds it"))
+    log = subprocess.run([sys.executable, "-I", S1, "--slot", h, "log", "--grep", "hint shown", "-n", "5"], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
+    results.append(("lock-hint", "Someone else has the glovebox open." in log, "the refused host sees the busy hint"))
+    shot = subprocess.run([sys.executable, "-I", S1, "--slot", h, "shot"], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.strip()
+    print("  hint screenshot:", shot.splitlines()[-1] if shot else "none")
 
     host_before = items(cabin(h))
     run(c, "chassis cabin take", until=r"take")
