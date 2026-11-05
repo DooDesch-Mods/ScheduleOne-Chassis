@@ -4,6 +4,13 @@ All notable changes to Chassis are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.10.3] - 2026-11-05
+
+### Fixed
+
+- Cabin light and rear-view mirror no longer poke through the windscreen. Most visible on the Cheetah, the mirror
+  corner also showed on every car except the Hotbox.
+
 ## [1.10.2] - 2026-11-05
 
 ### Fixed
