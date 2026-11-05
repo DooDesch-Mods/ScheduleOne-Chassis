@@ -65,8 +65,10 @@ namespace Chassis.Debugging
 #if DEBUG
                         Say("aim <switch>                 - turn the first-person view to a switch of your car");
                         Say("click | scroll <n>           - click or turn the switch in view, as the mouse would");
+                        Say("label                        - the text under the dot right now");
                         Say("outline                      - where the highlight copies of the switch in view sit");
                         Say("ctl <switch> [value]         - use a switch of your car through the API");
+                        Say("cabin [open|close|put|take|mode own|trunk] - cabin light and glovebox of your car or the nearest one");
                         Say("coast [km/h] [s]             - hold your car at that speed along its facing (default 40 km/h, 5 s)");
                         Say("creator                      - finish an open character creator with the default looks (test clients)");
                         Say("notice                       - close the offense notice after an arrest");
@@ -149,6 +151,9 @@ namespace Chassis.Debugging
                         Say("coast: " + Vehicles.Registry.Name(lv) + " held at " + kmh.ToString("0", CultureInfo.InvariantCulture) + " km/h for " + sec.ToString("0.#", CultureInfo.InvariantCulture) + " s");
                         break;
                     }
+                    case "label":
+                        Say("label: " + Instruments.Cockpit.LabelShown);
+                        break;
                     case "click":
                     {
                         var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -186,6 +191,21 @@ namespace Chassis.Debugging
                         float? val = parts.Length > 3 ? F(parts, 3, 0f) : (float?)null;
                         Api.ChassisApi.UseControl(lv, parts[2], val);
                         Say("ctl: used '" + parts[2] + "'" + (val.HasValue ? " with " + val.Value.ToString(CultureInfo.InvariantCulture) : "") + ", value now " + Api.ChassisApi.ControlValue(lv, parts[2]).ToString("0.##", CultureInfo.InvariantCulture));
+                        break;
+                    }
+
+                    case "cabin":
+                    {
+                        var lv = Target(null);
+                        if (lv == null) { Say("cabin: no vehicle"); break; }
+                        string act = parts.Length > 2 ? parts[2].ToLowerInvariant() : "";
+                        if (act == "open") Say("cabin: " + Vehicles.Glovebox.Open(lv));
+                        else if (act == "close") Say("cabin: " + Vehicles.Glovebox.Close());
+                        else if (act == "put") Say("cabin: " + Vehicles.Glovebox.DebugPut(lv));
+                        else if (act == "take") Say("cabin: " + Vehicles.Glovebox.DebugTake());
+                        else if (act == "mode" && parts.Length > 3) Say("cabin: " + Vehicles.Glovebox.SetMode(parts[3].ToLowerInvariant() != "trunk"));
+                        Say("cabin: " + Vehicles.Registry.Name(lv) + " - " + Vehicles.CabinLight.Describe(lv));
+                        Say("cabin: " + Vehicles.Glovebox.Describe(lv));
                         break;
                     }
 

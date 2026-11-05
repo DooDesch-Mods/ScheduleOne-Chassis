@@ -382,6 +382,7 @@ namespace Chassis.Interior
                 Vector3 gaugesAt = new Vector3(d.x, dashTop - 0.06f, dashBack);
                 parts.Add(new KitPart { Kind = "gauges", Position = gaugesAt, Size = new Vector3(0.3f, 0.1f, 0.05f), Color = new Color(0.16f, 0.16f, 0.17f) });
                 AddInstruments(profile, gaugesAt, wheelAt, new Vector3(band.center.x, dashTop, dashBack));
+                AddCabin(profile, band, roof, seatZ, d.x, dash);
 
                 // Seats: the front row one each, a row behind it as one bench.
                 var done = new bool[seats.Length];
@@ -733,6 +734,31 @@ namespace Chassis.Interior
             profile.Controls.Add(new ControlProfile { Name = "horn", Label = "Horn", Kind = "button", Path = HornButton, Action = "horn", Axis = Vector3.forward, Press = 0.006f });
         }
 
+        /// <summary>
+        /// The cabin light in the middle of the roof, just behind the front seats' eyes, and the glovebox lid on the
+        /// passenger's side of the dashboard face. Both are switches: the lamp presses in, the lid swings open.
+        /// </summary>
+        private static void AddCabin(ChassisProfile profile, Bounds band, float roof, float seatZ, float driverX, KitPart dash)
+        {
+            var parts = profile.Interior.Parts;
+            // A dark housing flush with the headliner and, set into it, a smaller milky lens that sits a few millimetres
+            // proud of it. The lens is the switch: a click presses it up into the housing, which stays put. CabinLight
+            // fades the lens itself; a lamp gauge only knows lit or dark.
+            var domeAt = new Vector3(band.center.x, roof, seatZ + 0.12f);
+            parts.Add(new KitPart { Kind = "panel", Name = DomeHousing, Position = domeAt + new Vector3(0f, -0.009f, 0f), Size = new Vector3(0.2f, 0.018f, 0.12f), Color = new Color(0.11f, 0.11f, 0.12f) });
+            parts.Add(new KitPart { Kind = "panel", Name = Vehicles.CabinLight.DomeName, Position = domeAt + new Vector3(0f, -0.02f, 0f), Size = new Vector3(0.14f, 0.01f, 0.07f), Color = new Color(0.86f, 0.84f, 0.78f) });
+            // Three positions (Auto, On, Off); a click steps through them, the wheel too.
+            profile.Controls.Add(new ControlProfile { Name = Vehicles.CabinLight.ControlName, Label = "Cabin light", Kind = "knob", Min = Vehicles.CabinLight.Auto, Max = Vehicles.CabinLight.Off, Step = 1f, Default = Vehicles.CabinLight.Auto, Path = Vehicles.CabinLight.DomeName, Angle = 0f, Axis = Vector3.up, Press = 0.006f });
+
+            // The passenger side mirrors the driver across the middle of the cabin.
+            float passengerX = 2f * band.center.x - driverX;
+            float faceZ = dash.Position.z - dash.Size.z - 0.004f;
+            float y = dash.Position.y - Mathf.Min(0.12f, dash.Size.y * 0.5f);
+            parts.Add(new KitPart { Kind = "panel", Name = GloveboxLid, Position = new Vector3(passengerX, y, faceZ), Size = new Vector3(0.3f, 0.11f, 0.012f), Color = new Color(0.19f, 0.19f, 0.2f) });
+            profile.Controls.Add(new ControlProfile { Name = Vehicles.Glovebox.ControlName, Label = "Glovebox", Kind = "button", Path = GloveboxLid, Action = Vehicles.Glovebox.ControlName, Axis = Vector3.forward, Press = 0.004f });
+        }
+
+        internal const string GloveboxLid = "Chassis_GloveboxLid", DomeHousing = "Chassis_DomeHousing";
         internal const string SpeedNeedle = "Chassis_SpeedNeedle", RpmNeedle = "Chassis_RpmNeedle";
         internal const string LightSwitch = "Chassis_LightSwitch", HazardSwitch = "Chassis_HazardSwitch", IndicatorStalk = "Chassis_IndicatorStalk", HornButton = "Chassis_HornButton";
 
@@ -937,6 +963,9 @@ namespace Chassis.Interior
                     break;
                 case "lamp":
                     mesh = new KitMesh().Box(Vector3.zero, part.Size).Build("Chassis_lamp");
+                    break;
+                case "panel":
+                    mesh = new KitMesh().Box(Vector3.zero, part.Size).Build("Chassis_panel");
                     break;
                 case "mirror":
                     mesh = new KitMesh().Box(Vector3.zero, part.Size).Build("Chassis_mirror");

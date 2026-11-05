@@ -36,6 +36,7 @@ namespace Chassis
             Tune.Reflections.LoadSetting();
             Interior.Mirrors.LoadSetting();
             Tune.MirrorMode.LoadSetting();
+            Vehicles.Glovebox.LoadSetting();
             // A profile edited in place: gauges and switches look up their transforms again.
             Api.ChassisApi.Changed += code => { Instruments.Gauges.ForgetAll(); Instruments.Controls.ForgetAll(); };
 
@@ -69,6 +70,8 @@ namespace Chassis
             Vehicles.KeyHints.Reset();
             Vehicles.Parts.Reset();
             Vehicles.AutoLights.Reset();
+            Vehicles.CabinLight.Reset();
+            Vehicles.Glovebox.Reset();
             Interior.BaseInterior.Reset();
             Interior.Mirrors.Reset();
             Seating.NpcRiders.Reset();
@@ -107,6 +110,8 @@ namespace Chassis
             Guard("horn", Vehicles.Horn.Tick);
             Guard("indicators", Vehicles.Indicators.Tick);
             Guard("auto lights", Vehicles.AutoLights.Tick);
+            Guard("cabin light", Vehicles.CabinLight.Tick);
+            Guard("glovebox", Vehicles.Glovebox.Tick);
             Guard("showroom", Rideables.Showroom.Tick);
             Guard("view", Seating.FirstPersonView.Tick);
             Guard("key hints", Vehicles.KeyHints.Tick);
@@ -127,8 +132,17 @@ namespace Chassis
         private static readonly System.Collections.Generic.Dictionary<string, float> _lastError = new System.Collections.Generic.Dictionary<string, float>();
         private static readonly System.Collections.Generic.Dictionary<string, int> _muted = new System.Collections.Generic.Dictionary<string, int>();
 
+#if SNITCH
+        // One Snitch section per subsystem ("Chassis.cabin light"), so the profiler shows which tick costs the frame.
+        private static readonly System.Collections.Generic.Dictionary<string, string> _labels = new System.Collections.Generic.Dictionary<string, string>();
+#endif
+
         private static void Guard(string what, System.Action a)
         {
+#if SNITCH
+            if (!_labels.TryGetValue(what, out string label)) _labels[what] = label = "Chassis." + what;
+            using (global::Snitch.Api.Profiler.Sample(label))
+#endif
             try { a(); }
             catch (System.Exception e)
             {

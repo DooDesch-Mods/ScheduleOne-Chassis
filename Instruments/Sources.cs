@@ -60,6 +60,7 @@ namespace Chassis.Instruments
             Add("trip_km", "km", v => Odometer.Read(v, true, false));
             Add("occupied", "0 or 1, anyone aboard (players or NPCs)", v => Ok(v.IsOccupied ? 1f : 0f));
             Add("driver", "0 or 1, someone at the wheel (a player or an NPC)", v => Ok(HasDriver(v) ? 1f : 0f));
+            Add("dome", "0 to 1, the cabin light's brightness (between while it fades out)", v => Ok(CabinLight.Level(v)));
         }
 
         private static void Add(string name, string unit, Func<LandVehicle, GaugeReading> read) =>

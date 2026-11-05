@@ -8,7 +8,7 @@ namespace Chassis.Vehicles
     /// <summary>
     /// Keeps Chassis' files in the save folder. At the end of a save, vanilla deletes every file in the folder that no
     /// saveable claimed (<c>ClearBaseLevelOutdatedSaves</c>), which took <c>Chassis.vehicles</c> and
-    /// <c>Chassis.instruments</c> with it (and now <c>Chassis.tuning</c>). The prefix reads both files before that can happen, the postfix claims
+    /// <c>Chassis.instruments</c> with it (and now <c>Chassis.tuning</c> and <c>Chassis.glovebox</c>). The prefix reads both files before that can happen, the postfix claims
     /// their names and writes them again.
     /// </summary>
     [HarmonyPatch(typeof(GameSaveManager), nameof(GameSaveManager.Save), new Type[] { typeof(string) })]
@@ -17,7 +17,7 @@ namespace Chassis.Vehicles
         private static void Prefix()
         {
             if (!ChassisNet.IsHost) return;
-            try { Fleet.EnsureLoaded(); Store.EnsureLoaded(); Tune.State.EnsureLoaded(); }
+            try { Fleet.EnsureLoaded(); Store.EnsureLoaded(); Tune.State.EnsureLoaded(); Glovebox.EnsureLoaded(); }
             catch (Exception e) { Core.Log.Error("[Save] reading Chassis' files before the save failed: " + e); }
         }
 
@@ -33,6 +33,7 @@ namespace Chassis.Vehicles
                     if (!approved.Contains(Fleet.FileName)) approved.Add(Fleet.FileName);
                     if (!approved.Contains(Store.FileName)) approved.Add(Store.FileName);
                     if (!approved.Contains(Tune.State.FileName)) approved.Add(Tune.State.FileName);
+                    if (!approved.Contains(Glovebox.FileName)) approved.Add(Glovebox.FileName);
                 }
             }
             catch (Exception e) { Core.Log.Error("[Save] could not mark Chassis' files as kept: " + e); }
@@ -42,6 +43,8 @@ namespace Chassis.Vehicles
             catch (Exception e) { Core.Log.Error("[Save] saving the cockpits failed: " + e); }
             try { Tune.State.Save(); }
             catch (Exception e) { Core.Log.Error("[Save] saving the tuning failed: " + e); }
+            try { Glovebox.Save(); }
+            catch (Exception e) { Core.Log.Error("[Save] saving the gloveboxes failed: " + e); }
         }
     }
 }

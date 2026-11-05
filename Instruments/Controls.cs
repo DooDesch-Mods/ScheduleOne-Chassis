@@ -22,6 +22,11 @@ namespace Chassis.Instruments
     {
         /// <summary>A switch is in reach this far along the view from the eyes, in metres.</summary>
         internal const float Reach = 0.9f;
+        /// <summary>The glovebox sits across the cabin from the driver, who reaches it this far.</summary>
+        internal const float GloveboxReach = 1.25f;
+
+        internal static float ReachOf(ControlProfile c) =>
+            string.Equals(c.Action, Vehicles.Glovebox.ControlName, StringComparison.OrdinalIgnoreCase) ? GloveboxReach : Reach;
         /// <summary>Switches are not animated beyond this distance from the camera.</summary>
         private const float Range = 30f;
         private const float PressSeconds = 0.18f, MoveSeconds = 0.06f, QuietSeconds = 1f;
@@ -29,7 +34,7 @@ namespace Chassis.Instruments
 
         internal static readonly HashSet<string> BuiltIn = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            "lights", "hazard", "indicator", "indicator_left", "indicator_right", "horn", "trip_reset",
+            "lights", "hazard", "indicator", "indicator_left", "indicator_right", "horn", "trip_reset", Vehicles.Glovebox.ControlName,
         };
 
         private static readonly Dictionary<string, Action<ControlUse>> _actions = new Dictionary<string, Action<ControlUse>>(StringComparer.OrdinalIgnoreCase);
@@ -45,6 +50,10 @@ namespace Chassis.Instruments
             internal Vector3 RestPos;
             internal Vector3 BoxCenter, BoxSize;
             internal float Angle, Pressed;
+            /// <summary>0 shut to 1 open: the glovebox lid while its storage menu is open.</summary>
+            internal float Open;
+            /// <summary>How often the switch went down, for the console and the tests.</summary>
+            internal int Presses;
             internal float PressUntil;
             /// <summary>The pose the switch last moved toward; a new one clicks. No click before <see cref="QuietUntil"/>, while states arrive after binding.</summary>
             internal float Goal, QuietUntil;
@@ -219,8 +228,11 @@ namespace Chassis.Instruments
         internal static void Click(Bound b)
         {
             float now = Shown(b.V, b.P);
-            float value = b.Kind == "button" ? 1f : b.Kind == "toggle" ? (now > 0.5f ? 0f : 1f) : b.P.Default;
-            if (b.Kind == "button") b.PressUntil = Time.time + PressSeconds;
+            // The cabin light switch steps through its three positions instead of going back to a default.
+            bool dome = string.Equals(b.P.Name, Vehicles.CabinLight.ControlName, StringComparison.OrdinalIgnoreCase);
+            float value = dome ? Vehicles.CabinLight.Next(Mathf.RoundToInt(now))
+                : b.Kind == "button" ? 1f : b.Kind == "toggle" ? (now > 0.5f ? 0f : 1f) : b.P.Default;
+            if (b.Kind == "button" || b.P.Press > 0f) b.PressUntil = Time.time + PressSeconds;
             Send(b.V, b.P, value, Player.Local);
         }
 
@@ -360,6 +372,9 @@ namespace Chassis.Instruments
             {
                 var cab = Store.Of(vehicle);
                 cab.Controls[c.Name] = value;
+                // A switch that presses in (the cabin light) moves on every peer when a player used it, not when a mod
+                // set it back.
+                if (c.Press > 0f && player >= 0) foreach (var b in Of(lv)) if (b.P == c) b.PressUntil = Time.time + PressSeconds;
             }
             else
             {
@@ -368,6 +383,8 @@ namespace Chassis.Instruments
             var by = player >= 0 ? Ids.PlayerById(player) : null;
             Core.Log.Msg("[Controls] " + Registry.Name(lv) + ": switch '" + c.Name + "' (" + kind + (string.IsNullOrEmpty(c.Action) ? "" : ", " + c.Action) + ") = "
                 + value.ToString("0.##", CultureInfo.InvariantCulture) + " by " + (by != null ? by.PlayerName : player >= 0 ? "player net " + player : "a mod") + ".");
+            // The glovebox opens on the peer of the player who clicked it; the host already checked that the player sits inside.
+            if (string.Equals(c.Action, Vehicles.Glovebox.ControlName, StringComparison.OrdinalIgnoreCase) && by != null && by == Player.Local) Vehicles.Glovebox.Open(lv);
             var use = new ControlUse { Vehicle = lv, Control = c, Action = c.Action ?? string.Empty, Value = value, By = by, IsHost = ChassisNet.IsHost };
             if (!string.IsNullOrEmpty(c.Action) && !BuiltIn.Contains(c.Action))
             {
@@ -459,28 +476,51 @@ namespace Chassis.Instruments
                 {
                     if (b.T == null) continue;
                     Vector3 axis = b.P.Axis.sqrMagnitude > 1e-6f ? b.P.Axis.normalized : Vector3.right;
-                    if (b.Kind == "button")
+                    bool moved = false;
+
+                    // Pressing in: buttons, and any switch with a Press depth (the cabin light), click as they go down.
+                    if (b.Kind == "button" || b.P.Press > 0f)
                     {
-                        float press = Time.time < b.PressUntil ? b.P.Press : 0f;
                         bool down = Time.time < b.PressUntil;
-                        if (down && !b.WasPressed) Knock(b);
+                        float press = down ? b.P.Press : 0f;
+                        if (down && !b.WasPressed) { Knock(b); b.Presses++; }
                         b.WasPressed = down;
-                        if (Mathf.Abs(press - b.Pressed) < 1e-5f) continue;
-                        b.Pressed = Mathf.Lerp(b.Pressed, press, k);
-                        if (Mathf.Abs(press - b.Pressed) < 1e-4f) b.Pressed = press;
-                        b.T.localPosition = b.RestPos + b.Rest * axis * b.Pressed;
-                        continue;
+                        if (Mathf.Abs(press - b.Pressed) >= 1e-5f)
+                        {
+                            b.Pressed = Mathf.Lerp(b.Pressed, press, k);
+                            if (Mathf.Abs(press - b.Pressed) < 1e-4f) b.Pressed = press;
+                            moved = true;
+                        }
                     }
-                    float target = Target(b);
-                    if (Mathf.Abs(target - b.Goal) > 0.01f)
+
+                    if (b.Kind != "button")
                     {
-                        b.Goal = target;
-                        if (Time.time >= b.QuietUntil) Knock(b);
+                        float target = Target(b);
+                        if (Mathf.Abs(target - b.Goal) > 0.01f)
+                        {
+                            b.Goal = target;
+                            if (Time.time >= b.QuietUntil && b.P.Press <= 0f) Knock(b);
+                        }
+                        if (Mathf.Abs(target - b.Angle) >= 0.01f)
+                        {
+                            b.Angle = Mathf.Lerp(b.Angle, target, k);
+                            if (Mathf.Abs(target - b.Angle) < 0.05f) b.Angle = target;
+                            moved = true;
+                        }
                     }
-                    if (Mathf.Abs(target - b.Angle) < 0.01f) continue;
-                    b.Angle = Mathf.Lerp(b.Angle, target, k);
-                    if (Mathf.Abs(target - b.Angle) < 0.05f) b.Angle = target;
-                    b.T.localRotation = b.Rest * Quaternion.AngleAxis(b.Angle, axis);
+
+                    // The glovebox lid swings open on its bottom edge while its storage menu is open.
+                    if (IsGloveboxLid(b))
+                    {
+                        float open = Vehicles.Glovebox.LidOpen(b.V) ? 1f : 0f;
+                        if (Mathf.Abs(open - b.Open) > 1e-4f)
+                        {
+                            b.Open = Mathf.MoveTowards(b.Open, open, Time.deltaTime / LidSeconds);
+                            moved = true;
+                        }
+                    }
+
+                    if (moved) Pose(b, axis);
                 }
             }
             if (Time.unscaledTime < _nextPrune) return;
@@ -505,6 +545,29 @@ namespace Chassis.Instruments
                 if (!_soundFailed) Core.Log.Error("[Controls] the click of switch '" + b.P.Name + "' could not play, logged once until one plays: " + e);
                 _soundFailed = true;
             }
+        }
+
+        /// <summary>How far the glovebox lid swings open, in degrees, and how long it takes.</summary>
+        private const float LidDegrees = 28f, LidSeconds = 0.35f;
+
+        private static bool IsGloveboxLid(Bound b) => string.Equals(b.P.Action, Vehicles.Glovebox.ControlName, StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>Puts a switch where its turn, press and (for the glovebox lid) opening place it.</summary>
+        private static void Pose(Bound b, Vector3 axis)
+        {
+            Quaternion turn = Quaternion.AngleAxis(b.Angle, axis);
+            Vector3 hingeShift = Vector3.zero;
+            if (b.Open > 0f)
+            {
+                // The hinge is the lid's bottom edge on the side facing the cabin (-z); the top tips toward the seat.
+                float eased = Mathf.SmoothStep(0f, 1f, b.Open);
+                Quaternion swing = Quaternion.AngleAxis(-LidDegrees * eased, Vector3.right);
+                Vector3 hinge = Vector3.Scale(b.T.localScale, b.BoxCenter + new Vector3(0f, -b.BoxSize.y * 0.5f, -b.BoxSize.z * 0.5f));
+                hingeShift = b.Rest * (hinge - swing * hinge);
+                turn = turn * swing;
+            }
+            b.T.localRotation = b.Rest * turn;
+            b.T.localPosition = b.RestPos + b.Rest * axis * b.Pressed + hingeShift;
         }
 
         private static float Target(Bound b)
@@ -566,7 +629,9 @@ namespace Chassis.Instruments
             if (list.Count == 0) { yield return "switches: none bound (no profile switches, or the interior is not built yet)"; yield break; }
             foreach (var b in list)
                 yield return "switch " + b.P.Name + " (" + b.Kind + (string.IsNullOrEmpty(b.P.Action) ? "" : ", " + b.P.Action) + (string.IsNullOrEmpty(b.P.Source) ? "" : ", shows " + b.P.Source) + ") = "
-                    + Shown(lv, b.P).ToString("0.##", CultureInfo.InvariantCulture) + ", box " + ProfileJson.F(b.BoxSize) + " at " + ProfileJson.F(b.BoxCenter);
+                    + Shown(lv, b.P).ToString("0.##", CultureInfo.InvariantCulture) + ", box " + ProfileJson.F(b.BoxSize) + " at " + ProfileJson.F(b.BoxCenter)
+                    + (b.Kind == "button" || b.P.Press > 0f ? ", pressed " + b.Presses + "x" : "")
+                    + (IsGloveboxLid(b) ? ", lid open " + b.Open.ToString("0.00", CultureInfo.InvariantCulture) : "");
         }
 
         internal static void Reset()
