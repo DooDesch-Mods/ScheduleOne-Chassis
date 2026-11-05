@@ -91,6 +91,7 @@ namespace Chassis.Debugging
                         Say("interior on|off|rebuild      - base interior and tinted glass in the vanilla cars");
                         Say("mirror [on|off|look [left|right]|own on|off|level 0-3] - live mirrors of the car you sit in");
                         Say("interior fit on|off          - the kit gives way where it reaches out of the body (off = formula sizes)");
+                        Say("interior cabinfit on|off     - the cabin light and the rear-view mirror move back under the roof (off = formula places)");
                         Say("interior shell               - write the shell the mirror search reads of the car you sit in to UserData/Chassis/shell-<code>.obj");
                         Say("interior probe [off]         - red cubes on kit corners outside the body of the car you sit in or the nearest");
                         Say("interior lift <m>            - lowest cushion top above the car's underside, fits the vanilla cars again");
@@ -372,6 +373,12 @@ namespace Chassis.Debugging
                             Interior.BaseInterior.FitToShell = parts[3] != "off";
                             int n = Interior.BaseInterior.RemoveAll();
                             Say("interior fit " + (Interior.BaseInterior.FitToShell ? "on" : "off") + ": " + n + " removed, " + Interior.BaseInterior.Refit() + " code(s) fitted again");
+                        }
+                        else if (op == "cabinfit" && parts.Length > 3)
+                        {
+                            Interior.BaseInterior.FitCabinParts = parts[3] != "off";
+                            int n = Interior.BaseInterior.RemoveAll();
+                            Say("interior cabinfit " + (Interior.BaseInterior.FitCabinParts ? "on" : "off") + ": " + n + " removed, " + Interior.BaseInterior.Refit() + " code(s) fitted again");
                         }
                         else if (op == "shell")
                         {
