@@ -4,6 +4,13 @@ All notable changes to Chassis are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.10.2] - 2026-11-05
+
+### Fixed
+
+- Side mirror glass follows the rounded shape of the mirror on the Cheetah, Hounddog, Veeper and Hotbox, instead of
+  a rectangle with its corners sticking out.
+
 ## [1.10.1] - 2026-11-05
 
 ### Fixed
