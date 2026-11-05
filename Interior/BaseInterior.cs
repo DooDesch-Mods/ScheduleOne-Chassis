@@ -46,6 +46,9 @@ namespace Chassis.Interior
         /// <summary>The fitted kit gives way where it would reach out of the body. The debug console switches it, to compare.</summary>
         internal static bool FitToShell = true;
 
+        /// <summary>Debug: whether the cabin light and the rear-view mirror move back under the roof; off keeps their formula places.</summary>
+        internal static bool FitCabinParts = true;
+
         /// <summary>Vanilla cars get the base interior. Set from the preference at start; the debug console switches it live.</summary>
         internal static bool Enabled;
 
@@ -385,6 +388,14 @@ namespace Chassis.Interior
                 parts.Add(new KitPart { Kind = "gauges", Position = gaugesAt, Size = new Vector3(0.3f, 0.1f, 0.05f), Color = new Color(0.16f, 0.16f, 0.17f) });
                 AddInstruments(profile, gaugesAt, wheelAt, new Vector3(band.center.x, dashTop, dashBack));
                 AddCabin(profile, band, roof, seatZ, d.x, dash);
+                // A sloped windscreen reaches back over the front seats below the top of the window band: the cabin
+                // light gives way to the rear until it sits under the roof.
+                if (shell != null && FitToShell && FitCabinParts)
+                {
+                    var dome = parts.FindAll(p => p.Name == DomeHousing || p.Name == Vehicles.CabinLight.DomeName);
+                    string note = FitInside(shell, dome, underside, belt - BeltMargin, "cabin light", 0.02f, DomeMaxBack, DomeMaxDrop);
+                    if (note != null) fitNotes.Add(note);
+                }
 
                 // Seats: the front row one each, a row behind it as one bench.
                 var done = new bool[seats.Length];
@@ -410,7 +421,7 @@ namespace Chassis.Interior
                 if (shell != null && Mirrors.Codes.Contains(code))
                 {
                     _eyes[code] = new Vector3(d.x, eyes, seatZ);
-                    AddRearMirror(parts, shell, code, band, roof, _eyes[code]);
+                    AddRearMirror(parts, shell, code, band, roof, _eyes[code], underside, belt - BeltMargin, fitNotes);
                 }
                 if (shell != null)
                 {
@@ -503,9 +514,11 @@ namespace Chassis.Interior
             Transform root = lv.transform;
             var found = new List<Vector3>();
             var per = new List<string>();
+            var tested = new List<string>();
             foreach (var mf in b.Root.GetComponentsInChildren<MeshFilter>(true))
             {
                 if (mf == null || mf.sharedMesh == null) continue;
+                tested.Add(mf.gameObject.name);
                 int from = found.Count;
                 shell.OutsidePoints(mf.sharedMesh, root.worldToLocalMatrix * mf.transform.localToWorldMatrix, found);
                 int n = Keep(found, from, band.min.y - BeltMargin);
@@ -515,6 +528,27 @@ namespace Chassis.Interior
                 for (int i = from; i < found.Count; i++) at.Add(ProfileJson.F(found[i]));
                 Core.Log.Msg("[Interior] probe " + code + " " + mf.gameObject.name + " outside at " + string.Join(" ", at));
             }
+            // The occupants: an ellipsoid around each seat's head, from the chin to the crown, against the body.
+            var heads = new List<string>();
+            var profile = ChassisApi.Get(code);
+            if (profile == null) Core.Log.Warning("[Interior] probe " + code + ": no profile, the occupants' heads are not tested.");
+            else
+                for (int i = 0; i < profile.Seats.Count; i++)
+                {
+                    Vector3 eyes = profile.Seats[i].Eyes;
+                    var outside = new List<string>();
+                    foreach (var point in HeadPoints(eyes + new Vector3(0f, HeadUp, -0.02f), HeadSize))
+                        if (!shell.Inside(point)) { outside.Add(ProfileJson.F(point)); found.Add(point); }
+                    heads.Add("seat " + i + " " + (outside.Count == 0 ? "inside" : outside.Count + " point(s) outside") + " (eyes " + ProfileJson.F(eyes) + (outside.Count > 0 ? ", at " + string.Join(" ", outside) : "") + ")");
+                }
+            Core.Log.Msg("[Interior] probe " + code + " tested: " + string.Join(", ", tested) + ".");
+            Core.Log.Msg("[Interior] probe " + code + " heads: " + (heads.Count > 0 ? string.Join(", ", heads) : "none tested") + ".");
+            // Where an outside camera should look: the top of the windscreen, between the cabin light and the mirror.
+            Vector3 top = root.TransformPoint(new Vector3(band.center.x, band.max.y, band.max.z));
+            foreach (var t in b.Root.GetComponentsInChildren<Transform>(true))
+                if (t != null && (t.name == DomeHousing || t.name == Mirrors.RearName))
+                    Core.Log.Msg("[Interior] probe " + code + " world " + t.name + " " + ProfileJson.F(t.position) + ".");
+            Core.Log.Msg("[Interior] probe " + code + " pose: windscreen front top " + ProfileJson.F(top) + ", forward " + ProfileJson.F(root.forward) + ", right " + ProfileJson.F(root.right) + ".");
             if (mark)
             {
                 var holder = new GameObject(MarksName).transform;
@@ -538,6 +572,28 @@ namespace Chassis.Interior
             return code + ": " + report + ", written to " + System.IO.Path.Combine(ChassisApi.Folder, "shell-" + code + ".obj");
         }
 #endif
+
+        /// <summary>The probe's head of a seated occupant: an ellipsoid 0.18 m wide, 0.24 m from chin to crown, 0.22 m deep, its middle 4 cm above the eyes.</summary>
+        private static readonly Vector3 HeadSize = new Vector3(0.18f, 0.24f, 0.22f);
+        private const float HeadUp = 0.04f;
+
+        /// <summary>
+        /// 26 points on the surface of the ellipsoid inside a box of <paramref name="size"/>: the six axis ends, the twelve
+        /// edge middles and the eight diagonals. A head is round, so the box's own corners (empty space at the crown's
+        /// front, where a sloped windscreen meets the roof) are not tested.
+        /// </summary>
+        private static IEnumerable<Vector3> HeadPoints(Vector3 centre, Vector3 size)
+        {
+            Vector3 h = size * 0.5f;
+            for (int x = -1; x <= 1; x++)
+                for (int y = -1; y <= 1; y++)
+                    for (int z = -1; z <= 1; z++)
+                    {
+                        if (x == 0 && y == 0 && z == 0) continue;
+                        var d = new Vector3(x, y, z).normalized;
+                        yield return centre + new Vector3(d.x * h.x, d.y * h.y, d.z * h.z);
+                    }
+        }
 
         /// <summary>Drops the points from <paramref name="from"/> on that lie at or below <paramref name="minY"/>; returns how many stay.</summary>
         private static int Keep(List<Vector3> points, int from, float minY)
@@ -569,7 +625,7 @@ namespace Chassis.Interior
         /// the driver's eye, just under the roof, first leaves the shell; walls behind the driver, such as a van's
         /// partition, do not count. <see cref="Mirrors"/> puts the glass on its back face.
         /// </summary>
-        private static void AddRearMirror(List<KitPart> parts, ShellFit shell, string code, Bounds band, float roof, Vector3 eye)
+        private static void AddRearMirror(List<KitPart> parts, ShellFit shell, string code, Bounds band, float roof, Vector3 eye, float underside, float minY, List<string> fitNotes)
         {
             float y = roof - 0.10f, x = band.center.x;
             float from = eye.z, limit = band.max.z + 0.5f;
@@ -587,8 +643,16 @@ namespace Chassis.Interior
             var behind = new Vector3(band.center.x, eye.y, band.min.z - 10f);
             Vector3 normal = ((eye - at).normalized + (behind - at).normalized).normalized;
             Vector3 rotation = Quaternion.LookRotation(-normal, Vector3.up).eulerAngles;
-            parts.Add(new KitPart { Kind = "mirror", Name = Mirrors.RearName, Position = at, Rotation = rotation, Size = Mirrors.RearSize, Color = new Color(0.10f, 0.10f, 0.11f) });
-            Core.Log.Msg("[Interior] " + code + ": rear-view mirror at " + at.ToString("F2") + ", windscreen at z " + z.ToString("F2") + ", turned " + rotation.ToString("F1") + ".");
+            var mirror = new KitPart { Kind = "mirror", Name = Mirrors.RearName, Position = at, Rotation = rotation, Size = Mirrors.RearSize, Color = new Color(0.10f, 0.10f, 0.11f) };
+            parts.Add(mirror);
+            // Turned towards the driver, the housing's front corners reach further forward than its centre; on a
+            // sloped windscreen its top edge meets the glass sooner. It moves back until all of it is behind the glass.
+            if (FitToShell && FitCabinParts)
+            {
+                string note = FitInside(shell, new List<KitPart> { mirror }, underside, minY, "rear-view mirror", 0.01f, MirrorMaxBack, 0f);
+                if (note != null) fitNotes.Add(note);
+            }
+            Core.Log.Msg("[Interior] " + code + ": rear-view mirror at " + mirror.Position.ToString("F2") + ", windscreen at z " + z.ToString("F2") + ", turned " + rotation.ToString("F1") + ".");
         }
 
         /// <summary>
@@ -723,6 +787,42 @@ namespace Chassis.Interior
 
         /// <summary>Kit corners this far below the belt line still count: the windscreen and the side windows start there.</summary>
         private const float BeltMargin = 0.05f;
+
+        /// <summary>
+        /// Moves <paramref name="group"/> back towards the rear in <paramref name="step"/> steps, at most
+        /// <paramref name="maxBack"/>, then down in 1 cm steps, at most <paramref name="maxDrop"/>, until a copy of every
+        /// part grown by <see cref="FitGrow"/> on each side has no corner outside the body above <paramref name="minY"/>.
+        /// The grown copy keeps the part clear of the glass rather than touching it. Returns a note for the shell test
+        /// line, or null when the group fits where it is.
+        /// </summary>
+        private static string FitInside(ShellFit shell, List<KitPart> group, float underside, float minY, string label, float step, float maxBack, float maxDrop)
+        {
+            if (group.Count == 0)
+            {
+                Core.Log.Warning("[Interior] shell fit of the " + label + ": no part of it in the kit.");
+                return null;
+            }
+            int Outside()
+            {
+                int n = 0;
+                foreach (var p in group)
+                    n += OutsideCount(shell, new KitPart { Kind = p.Kind, Name = p.Name, Position = p.Position, Rotation = p.Rotation, Size = p.Size + FitGrow * 2f }, underside, minY);
+                return n;
+            }
+            void Move(Vector3 by) { foreach (var p in group) p.Position += by; }
+            int before = Outside(), now = before;
+            if (before == 0) return null;
+            float back = 0f, drop = 0f;
+            while (now > 0 && back + step <= maxBack + 0.001f) { Move(new Vector3(0f, 0f, -step)); back += step; now = Outside(); }
+            while (now > 0 && drop + 0.01f <= maxDrop + 0.001f) { Move(new Vector3(0f, -0.01f, 0f)); drop += 0.01f; now = Outside(); }
+            return label + " " + before + " corner(s) outside, moved back " + back.ToString("F2") + (drop > 0f ? ", lowered " + drop.ToString("F2") : "") + (now > 0 ? ", " + now + " still outside" : "");
+        }
+
+        /// <summary>How far the shell fit keeps the cabin light and the rear-view mirror from the body: 1 cm sideways and forward, 3 mm up and down.</summary>
+        private static readonly Vector3 FitGrow = new Vector3(0.01f, 0.003f, 0.01f);
+
+        /// <summary>The cabin light moves back at most 0.24 m and down at most 4 cm; the rear-view mirror back at most 0.15 m.</summary>
+        private const float DomeMaxBack = 0.24f, DomeMaxDrop = 0.04f, MirrorMaxBack = 0.15f;
 
         /// <summary>The kit's instruments: two needles, three warning lamps, the light and hazard switches, the indicator stalk and the horn.</summary>
         private static void AddInstruments(ChassisProfile profile, Vector3 gauges, Vector3 wheel, Vector3 stack)
