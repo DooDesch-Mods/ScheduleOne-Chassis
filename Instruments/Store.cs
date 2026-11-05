@@ -45,6 +45,15 @@ namespace Chassis.Instruments
             return c;
         }
 
+        /// <summary>Whether any vehicle holds this switch at a position other than <paramref name="rest"/>. Walks the
+        /// stored values only, so a per-frame loop can ask once instead of looking up every vehicle's network id.</summary>
+        internal static bool AnyAway(string control, int rest)
+        {
+            foreach (var c in _byId.Values)
+                if (c.Controls.TryGetValue(control, out float v) && UnityEngine.Mathf.RoundToInt(v) != rest) return true;
+            return false;
+        }
+
         /// <summary>Host: the first time a vehicle is seen, it takes over what the save file holds for it.</summary>
         internal static void Seed(LandVehicle v, int id)
         {

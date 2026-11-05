@@ -32,6 +32,8 @@ namespace Chassis.Vehicles
         private const float MovingKmh = 3f, MovingSeconds = 0.3f;
         /// <summary>Lights farther than this from the camera are not lit.</summary>
         private const float Range = 40f;
+        /// <summary>Dark cars beyond this are not looked at (a little past <see cref="Range"/>, so a car at the edge does not flip).</summary>
+        private const float SkipRange = 45f;
         private const float Intensity = 1.4f;
 
         internal static readonly Color LightColor = new Color(1f, 0.86f, 0.62f);
@@ -69,6 +71,20 @@ namespace Chassis.Vehicles
 
         internal static bool IsOn(LandVehicle lv) => Level(lv) > 0f;
 
+        /// <summary>Cars the cabin light keeps a state for.</summary>
+        internal static int Tracked => _states.Count;
+
+        /// <summary>Cabin lights that glow now, and of those the point lights that are switched on.</summary>
+        internal static void Count(out int glowing, out int pointLights)
+        {
+            glowing = 0; pointLights = 0;
+            foreach (var s in _states.Values)
+            {
+                if (s.Level > 0f) glowing++;
+                if (s.Light != null && s.Light.enabled) pointLights++;
+            }
+        }
+
         /// <summary>The switch position: <see cref="Auto"/>, <see cref="On"/> or <see cref="Off"/>.</summary>
         internal static int Mode(LandVehicle lv)
         {
@@ -95,13 +111,25 @@ namespace Chassis.Vehicles
             Camera cam = Camera.main;
             Vector3 eye = cam != null ? cam.transform.position : Vector3.zero;
             float now = Time.time, dt = Time.deltaTime;
+            // A position other than Auto is rare; only then does a far car need its own switch looked up.
+            bool anyHeld = Store.AnyAway(ControlName, Auto);
             foreach (var lv in Registry.Profiled)
             {
                 if (lv == null) continue;
+                int key = lv.GetInstanceID();
+                _states.TryGetValue(key, out var s);
+                // A dark car far from the camera has nothing to show: skip its seats and speed, the bulk of this loop
+                // across every car in the world. It starts over when it comes near, so a stale rider count does not
+                // read as someone getting in. A switch left on On or Off still runs, so the host can put it back.
+                bool far = cam != null && (lv.transform.position - eye).sqrMagnitude > SkipRange * SkipRange;
+                if (far && (s == null || (s.Level <= 0f && s.Shown <= 0f)) && (!anyHeld || Mode(lv) == Auto))
+                {
+                    if (s != null) Forget(s);
+                    continue;
+                }
                 var profile = ChassisApi.For(lv);
                 if (profile == null || profile.Control(ControlName) == null) continue;
-                int key = lv.GetInstanceID();
-                if (!_states.TryGetValue(key, out var s)) _states[key] = s = new State { V = lv };
+                if (s == null) _states[key] = s = new State { V = lv };
                 int mode = Mode(lv);
 
                 int riders = Riders(lv);
@@ -175,6 +203,19 @@ namespace Chassis.Vehicles
                 if (_states[k].LensMat != null) UnityEngine.Object.Destroy(_states[k].LensMat);
                 _states.Remove(k);
             }
+        }
+
+        /// <summary>Drops what a far, dark car was doing, so it is judged afresh once it comes near.</summary>
+        private static void Forget(State s)
+        {
+            if (s.Riders < 0) return;
+            s.Riders = -1;
+            s.DoorUntil = 0f;
+            s.FastSince = -1f;
+            s.StillSince = -1f;
+            s.Parked = false;
+            s.Want = false;
+            s.FadeStart = -1f;
         }
 
         /// <summary>Players and NPCs aboard.</summary>

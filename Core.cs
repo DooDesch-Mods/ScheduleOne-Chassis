@@ -132,8 +132,17 @@ namespace Chassis
         private static readonly System.Collections.Generic.Dictionary<string, float> _lastError = new System.Collections.Generic.Dictionary<string, float>();
         private static readonly System.Collections.Generic.Dictionary<string, int> _muted = new System.Collections.Generic.Dictionary<string, int>();
 
+#if SNITCH
+        // One Snitch section per subsystem ("Chassis.cabin light"), so the profiler shows which tick costs the frame.
+        private static readonly System.Collections.Generic.Dictionary<string, string> _labels = new System.Collections.Generic.Dictionary<string, string>();
+#endif
+
         private static void Guard(string what, System.Action a)
         {
+#if SNITCH
+            if (!_labels.TryGetValue(what, out string label)) _labels[what] = label = "Chassis." + what;
+            using (global::Snitch.Api.Profiler.Sample(label))
+#endif
             try { a(); }
             catch (System.Exception e)
             {
