@@ -44,8 +44,9 @@
 - **Working dashboard:** The speedometer and the rev counter move, and lamps show the indicators
   and the headlights. In first person, look at a switch and left-click it: light switch, hazard
   lights, indicator stalk (also with the mouse wheel) and the horn in the wheel centre.
-- **Cabin light:** The dome lamp lights up for 8 seconds when someone gets in or out, and goes
-  off when the car drives off. Click the lamp to keep it on until you get out.
+- **Cabin light:** The dome lamp lights up for 15 seconds when someone gets in or out, and after
+  3 seconds of standing still. It goes off as soon as you drive and fades out. Click the lamp to
+  switch between Auto, On and Off; an empty car goes back to Auto.
 - **Glovebox:** Click the lid right of the centre console to open it, from the driver or the
   passenger seat. It holds 2 to 4 items, by car size, and is saved with the car. With
   `GloveboxOwnStorage = false` the lid opens the vanilla trunk instead. Items in the own glovebox

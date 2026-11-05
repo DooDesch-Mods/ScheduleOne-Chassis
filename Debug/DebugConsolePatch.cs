@@ -65,6 +65,7 @@ namespace Chassis.Debugging
 #if DEBUG
                         Say("aim <switch>                 - turn the first-person view to a switch of your car");
                         Say("click | scroll <n>           - click or turn the switch in view, as the mouse would");
+                        Say("label                        - the text under the dot right now");
                         Say("outline                      - where the highlight copies of the switch in view sit");
                         Say("ctl <switch> [value]         - use a switch of your car through the API");
                         Say("cabin [open|close|put|take|mode own|trunk] - cabin light and glovebox of your car or the nearest one");
@@ -150,6 +151,9 @@ namespace Chassis.Debugging
                         Say("coast: " + Vehicles.Registry.Name(lv) + " held at " + kmh.ToString("0", CultureInfo.InvariantCulture) + " km/h for " + sec.ToString("0.#", CultureInfo.InvariantCulture) + " s");
                         break;
                     }
+                    case "label":
+                        Say("label: " + Instruments.Cockpit.LabelShown);
+                        break;
                     case "click":
                     {
                         var sw = System.Diagnostics.Stopwatch.StartNew();

@@ -53,7 +53,15 @@ namespace Chassis.Instruments
             }
             Hover(best, best != null || !ThroughWindscreen(rig, lv, origin, dir));
             // A menu that frees the cursor (the glovebox's storage menu) sits where the label would; the name waits.
-            if (_label != null && best != null) _label.gameObject.SetActive(Cursor.lockState == CursorLockMode.Locked && LabelOf(best.P).Length > 0);
+            if (_label != null && best != null)
+            {
+                _label.gameObject.SetActive(Cursor.lockState == CursorLockMode.Locked && LabelOf(best.P).Length > 0);
+                if (IsDome(best))
+                {
+                    string text = TextOf(best);
+                    if (_label.text != text) _label.text = text;
+                }
+            }
             if (best != null) Fit(best, dir);
             if (ShowZones) { Zones(lv); Reach(rig); }
         }
@@ -115,10 +123,23 @@ namespace Chassis.Instruments
         private static void ShowLabel(Controls.Bound b)
         {
             if (_label == null) return;
-            string text = b != null ? LabelOf(b.P) : string.Empty;
+            string text = TextOf(b);
             if (text.Length > 0) _label.text = text;
             _label.gameObject.SetActive(text.Length > 0);
         }
+
+        /// <summary>The label of a switch; the cabin light's adds its position, which a click changes while it is in view.</summary>
+        private static string TextOf(Controls.Bound b)
+        {
+            if (b == null) return string.Empty;
+            string text = LabelOf(b.P);
+            return text.Length > 0 && IsDome(b) ? text + ": " + Vehicles.CabinLight.ModeName(Vehicles.CabinLight.Mode(b.V)) : text;
+        }
+
+        private static bool IsDome(Controls.Bound b) => string.Equals(b.P.Name, Vehicles.CabinLight.ControlName, StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>The text under the dot right now, or "(hidden)".</summary>
+        internal static string LabelShown => _label != null && _label.gameObject.activeSelf ? _label.text : "(hidden)";
 
         internal static string LabelOf(ControlProfile c)
         {
@@ -331,6 +352,13 @@ namespace Chassis.Instruments
             text.alignment = GameTextAlign.Top;
             text.color = new Color(1f, 1f, 1f, 0.92f);
             text.raycastTarget = false;
+            // A dark rim keeps the name readable over a bright switch, such as the lit cabin lamp.
+            try
+            {
+                text.outlineWidth = 0.25f;
+                text.outlineColor = new Color32(0, 0, 0, 220);
+            }
+            catch (Exception e) { Core.Log.Warning("[Cockpit] the switch name gets no dark rim, it shows plain: " + e.Message); }
             go.SetActive(false);
             _label = text;
             Core.Log.Msg("[Cockpit] switch name under the dot made" + (hud != null ? " in the hotbar font '" + (hud.font != null ? hud.font.name : "?") + "'" : "") + ".");

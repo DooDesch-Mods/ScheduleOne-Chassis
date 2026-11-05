@@ -224,7 +224,10 @@ namespace Chassis.Instruments
         internal static void Click(Bound b)
         {
             float now = Shown(b.V, b.P);
-            float value = b.Kind == "button" ? 1f : b.Kind == "toggle" ? (now > 0.5f ? 0f : 1f) : b.P.Default;
+            // The cabin light switch steps through its three positions instead of going back to a default.
+            bool dome = string.Equals(b.P.Name, Vehicles.CabinLight.ControlName, StringComparison.OrdinalIgnoreCase);
+            float value = dome ? Vehicles.CabinLight.Next(Mathf.RoundToInt(now))
+                : b.Kind == "button" ? 1f : b.Kind == "toggle" ? (now > 0.5f ? 0f : 1f) : b.P.Default;
             if (b.Kind == "button") b.PressUntil = Time.time + PressSeconds;
             Send(b.V, b.P, value, Player.Local);
         }

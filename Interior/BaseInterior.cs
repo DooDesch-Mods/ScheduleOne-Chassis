@@ -741,9 +741,14 @@ namespace Chassis.Interior
         private static void AddCabin(ChassisProfile profile, Bounds band, float roof, float seatZ, float driverX, KitPart dash)
         {
             var parts = profile.Interior.Parts;
-            parts.Add(new KitPart { Kind = "panel", Name = Vehicles.CabinLight.DomeName, Position = new Vector3(band.center.x, roof - 0.012f, seatZ + 0.12f), Size = new Vector3(0.14f, 0.014f, 0.08f), Color = new Color(0.78f, 0.76f, 0.7f) });
-            profile.Gauges.Add(new GaugeProfile { Name = Vehicles.CabinLight.ControlName, Kind = "lamp", Path = Vehicles.CabinLight.DomeName, Source = Vehicles.CabinLight.ControlName, Color = Vehicles.CabinLight.LightColor });
-            profile.Controls.Add(new ControlProfile { Name = Vehicles.CabinLight.ControlName, Label = "Cabin light", Kind = "toggle", Path = Vehicles.CabinLight.DomeName, Angle = 0f });
+            // A dark housing flush with the headliner and, set into it, a smaller milky lens that sits a few millimetres
+            // proud of the housing. The lens is the part the lamp gauge lights.
+            var domeAt = new Vector3(band.center.x, roof, seatZ + 0.12f);
+            parts.Add(new KitPart { Kind = "panel", Name = DomeHousing, Position = domeAt + new Vector3(0f, -0.009f, 0f), Size = new Vector3(0.2f, 0.018f, 0.12f), Color = new Color(0.11f, 0.11f, 0.12f) });
+            parts.Add(new KitPart { Kind = "panel", Name = Vehicles.CabinLight.DomeName, Position = domeAt + new Vector3(0f, -0.02f, 0f), Size = new Vector3(0.14f, 0.01f, 0.07f), Color = new Color(0.86f, 0.84f, 0.78f) });
+            profile.Gauges.Add(new GaugeProfile { Name = Vehicles.CabinLight.ControlName, Kind = "lamp", Path = Vehicles.CabinLight.DomeName, Source = Vehicles.CabinLight.ControlName, Color = Vehicles.CabinLight.LightColor, Threshold = 0.05f });
+            // Three positions (Auto, On, Off); a click steps through them, the wheel too.
+            profile.Controls.Add(new ControlProfile { Name = Vehicles.CabinLight.ControlName, Label = "Cabin light", Kind = "knob", Min = Vehicles.CabinLight.Auto, Max = Vehicles.CabinLight.Off, Step = 1f, Default = Vehicles.CabinLight.Auto, Path = DomeHousing, Angle = 0f });
 
             // The passenger side mirrors the driver across the middle of the cabin.
             float passengerX = 2f * band.center.x - driverX;
@@ -753,7 +758,7 @@ namespace Chassis.Interior
             profile.Controls.Add(new ControlProfile { Name = Vehicles.Glovebox.ControlName, Label = "Glovebox", Kind = "button", Path = GloveboxLid, Action = Vehicles.Glovebox.ControlName, Axis = Vector3.forward, Press = 0.004f });
         }
 
-        internal const string GloveboxLid = "Chassis_GloveboxLid";
+        internal const string GloveboxLid = "Chassis_GloveboxLid", DomeHousing = "Chassis_DomeHousing";
         internal const string SpeedNeedle = "Chassis_SpeedNeedle", RpmNeedle = "Chassis_RpmNeedle";
         internal const string LightSwitch = "Chassis_LightSwitch", HazardSwitch = "Chassis_HazardSwitch", IndicatorStalk = "Chassis_IndicatorStalk", HornButton = "Chassis_HornButton";
 

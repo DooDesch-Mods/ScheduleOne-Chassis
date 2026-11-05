@@ -9,23 +9,30 @@ namespace Chassis.Vehicles
     /// <summary>
     /// The cabin light of a vehicle whose profile has a <see cref="DomeName"/> kit part, as the base interior builds it.
     ///
-    /// It comes on by itself when someone gets in or out and goes off after <see cref="AutoSeconds"/> or once the car
-    /// drives off, like the courtesy light of a real car; vanilla has no ignition, so the doors are the only cue. Every
-    /// peer sees the same seats change and works that out on its own. A click on the lamp keeps it on (the switch
-    /// <see cref="ControlName"/>); the host turns that off again when the last occupant gets out, and it is never saved.
-    /// The lamp glows through the gauge <see cref="ControlName"/>; a point light below it lights the cabin.
+    /// The switch <see cref="ControlName"/> has three positions, as the ON/DOOR/OFF switch of a real car; a click moves it
+    /// Auto, On, Off, Auto. In Auto the light comes on for <see cref="DoorSeconds"/> when someone gets in or out, and
+    /// while a car with a player aboard stands for <see cref="StandSeconds"/>; it goes out as soon as the car drives
+    /// (vanilla has no ignition, so throttle and speed stand in for it) and fades over a second. Every peer sees the same
+    /// seats and the same speed and works that out on its own. The host puts the switch back to Auto when the last
+    /// occupant gets out, and it is never saved. The lamp glows through the gauge <see cref="ControlName"/>; a point
+    /// light below it lights the cabin.
     /// </summary>
     internal static class CabinLight
     {
         internal const string DomeName = "Chassis_DomeLight";
         internal const string ControlName = "dome";
-        internal const float AutoSeconds = 8f;
-        /// <summary>Above this shown speed the automatic light goes off: the car drives off.</summary>
-        private const float DriveOffKmh = 8f;
-        /// <summary>The speed stays above <see cref="DriveOffKmh"/> this long before the car counts as driving off.</summary>
-        private const float DriveOffSeconds = 1f;
+        /// <summary>Switch positions, stored as the value of the switch <see cref="ControlName"/>.</summary>
+        internal const int Auto = 0, On = 1, Off = 2;
+        /// <summary>After someone gets in or out the light stays on this long, as the door delay of a real car.</summary>
+        internal const float DoorSeconds = 15f;
+        private const float FadeSeconds = 1f, FadeInSeconds = 0.12f;
+        /// <summary>A car with a player aboard that stands this long lights up.</summary>
+        internal const float StandSeconds = 3f;
+        /// <summary>Above this speed, held for <see cref="MovingSeconds"/>, the car drives (raw km/h, either way).</summary>
+        private const float MovingKmh = 3f, MovingSeconds = 0.3f;
         /// <summary>Lights farther than this from the camera are not lit.</summary>
         private const float Range = 40f;
+        private const float Intensity = 1.4f;
 
         internal static readonly Color LightColor = new Color(1f, 0.86f, 0.62f);
 
@@ -33,8 +40,11 @@ namespace Chassis.Vehicles
         {
             internal LandVehicle V;
             internal int Riders = -1;
-            internal float AutoUntil;
+            internal float DoorUntil;
             internal float FastSince = -1f;
+            internal float StillSince = -1f;
+            internal bool Parked;
+            internal float Level;
             internal Light Light;
             internal Transform Dome;
             internal ChassisProfile Profile;
@@ -46,25 +56,38 @@ namespace Chassis.Vehicles
         private static float _nextPrune;
         private static bool _lightFailed;
 
-        /// <summary>The light is on: the automatic window runs or the switch holds it on.</summary>
-        internal static bool IsOn(LandVehicle lv)
-        {
-            if (lv == null) return false;
-            if (Held(lv)) return true;
-            return _states.TryGetValue(lv.GetInstanceID(), out var s) && Time.time < s.AutoUntil;
-        }
+        /// <summary>How bright the light is, 0 (dark) to 1; between the two while it fades out.</summary>
+        internal static float Level(LandVehicle lv) =>
+            lv != null && _states.TryGetValue(lv.GetInstanceID(), out var s) ? s.Level : 0f;
 
-        private static bool Held(LandVehicle lv)
+        internal static bool IsOn(LandVehicle lv) => Level(lv) > 0f;
+
+        /// <summary>The switch position: <see cref="Auto"/>, <see cref="On"/> or <see cref="Off"/>.</summary>
+        internal static int Mode(LandVehicle lv)
         {
             var cab = Store.Of(lv);
-            return cab != null && cab.Controls.TryGetValue(ControlName, out float v) && v > 0.5f;
+            if (cab == null || !cab.Controls.TryGetValue(ControlName, out float v)) return Auto;
+            int m = Mathf.RoundToInt(v);
+            return m == On || m == Off ? m : Auto;
+        }
+
+        internal static string ModeName(int mode) => mode == On ? "On" : mode == Off ? "Off" : "Auto";
+
+        /// <summary>The next position a click on the lamp moves the switch to: Auto, On, Off, Auto again.</summary>
+        internal static int Next(int mode) => (mode + 1) % 3;
+
+        private static bool HasPlayer(LandVehicle lv)
+        {
+            var seats = lv.Seats;
+            if (seats != null) foreach (var seat in seats) if (seat != null && seat.Occupant != null) return true;
+            return false;
         }
 
         internal static void Tick()
         {
             Camera cam = Camera.main;
             Vector3 eye = cam != null ? cam.transform.position : Vector3.zero;
-            float now = Time.time;
+            float now = Time.time, dt = Time.deltaTime;
             foreach (var lv in Registry.Profiled)
             {
                 if (lv == null) continue;
@@ -72,32 +95,54 @@ namespace Chassis.Vehicles
                 if (profile == null || profile.Control(ControlName) == null) continue;
                 int key = lv.GetInstanceID();
                 if (!_states.TryGetValue(key, out var s)) _states[key] = s = new State { V = lv };
+                int mode = Mode(lv);
 
                 int riders = Riders(lv);
                 if (s.Riders >= 0 && riders != s.Riders)
                 {
-                    s.AutoUntil = now + AutoSeconds;
-                    Core.Log.Msg("[CabinLight] " + Registry.Name(lv) + ": " + (riders > s.Riders ? "someone got in" : "someone got out") + " (" + s.Riders + " -> " + riders + ") - light on for " + AutoSeconds.ToString("0") + " s.");
-                    if (riders == 0 && ChassisNet.IsHost && Held(lv))
+                    s.DoorUntil = now + DoorSeconds;
+                    Core.Log.Msg("[CabinLight] " + Registry.Name(lv) + ": " + (riders > s.Riders ? "someone got in" : "someone got out") + " (" + s.Riders + " -> " + riders + ") - door light for " + DoorSeconds.ToString("0") + " s.");
+                    if (riders == 0 && ChassisNet.IsHost && mode != Auto)
                     {
-                        Core.Log.Msg("[CabinLight] " + Registry.Name(lv) + " is empty - the switch goes back to automatic.");
-                        try { Controls.UseFromApi(lv, ControlName, 0f); }
+                        Core.Log.Msg("[CabinLight] " + Registry.Name(lv) + " is empty - the switch goes back to " + ModeName(Auto) + ".");
+                        try { Controls.UseFromApi(lv, ControlName, Auto); }
                         catch (Exception e) { Core.Log.Error("[CabinLight] switching the cabin light of " + Registry.Name(lv) + " back to automatic failed: " + e.Message); }
                     }
                 }
                 s.Riders = riders;
-                // A car that bounces on its springs (just placed, someone climbing in) is not driving off: the speed
-                // has to stay above the limit for a moment.
-                if (Sources.Kmh(lv) <= DriveOffKmh) s.FastSince = -1f;
+
+                // Driving plays the part of a real car's ignition: the local driver's throttle counts at once, the speed
+                // (all a passenger or a watcher has) after a moment, so a car settling on its springs is not driving.
+                bool gas = lv.LocalPlayerIsDriver && Mathf.Abs(lv.currentThrottle) > 0.05f;
+                if (Mathf.Abs(lv.Speed_Kmh) <= MovingKmh) s.FastSince = -1f;
                 else if (s.FastSince < 0f) s.FastSince = now;
-                if (s.AutoUntil > now && s.FastSince >= 0f && now - s.FastSince >= DriveOffSeconds)
+                bool moving = gas || (s.FastSince >= 0f && now - s.FastSince >= MovingSeconds);
+                if (moving)
                 {
-                    s.AutoUntil = 0f;
-                    Core.Log.Msg("[CabinLight] " + Registry.Name(lv) + " drives off - the automatic light goes off.");
+                    s.StillSince = -1f;
+                    if (s.DoorUntil > now)
+                    {
+                        s.DoorUntil = now;
+                        Core.Log.Msg("[CabinLight] " + Registry.Name(lv) + " drives off" + (gas ? " (throttle)" : "") + " - the door light goes out.");
+                    }
+                }
+                else if (s.StillSince < 0f) s.StillSince = now;
+
+                // Parked with a player aboard: the light comes on after a few seconds of standing. NPC cars that wait
+                // at a junction stay dark.
+                bool parked = !moving && s.StillSince >= 0f && now - s.StillSince >= StandSeconds && HasPlayer(lv);
+                if (parked != s.Parked)
+                {
+                    s.Parked = parked;
+                    if (parked) Core.Log.Msg("[CabinLight] " + Registry.Name(lv) + " stands with a player aboard - the light comes on.");
                 }
 
+                bool want = mode == On || (mode == Auto && (now < s.DoorUntil || parked));
                 bool near = cam == null || (lv.transform.position - eye).sqrMagnitude < Range * Range;
-                Show(lv, profile, s, near && IsOn(lv));
+                float target = want && near ? 1f : 0f;
+                // On within a blink, off over a second, as the theatre dimming of a real car.
+                s.Level = target > s.Level ? Mathf.MoveTowards(s.Level, 1f, dt / FadeInSeconds) : Mathf.MoveTowards(s.Level, 0f, dt / FadeSeconds);
+                Show(lv, profile, s, s.Level);
             }
 
             if (Time.unscaledTime < _nextPrune) return;
@@ -118,8 +163,9 @@ namespace Chassis.Vehicles
             return n;
         }
 
-        private static void Show(LandVehicle lv, ChassisProfile profile, State s, bool on)
+        private static void Show(LandVehicle lv, ChassisProfile profile, State s, float level)
         {
+            bool on = level > 0f;
             if (s.Profile != profile || (s.Dome == null && on))
             {
                 s.Profile = profile;
@@ -146,7 +192,7 @@ namespace Chassis.Vehicles
                     light.type = LightType.Point;
                     light.color = LightColor;
                     light.range = 1.8f;
-                    light.intensity = 1.4f;
+                    light.intensity = Intensity;
                     light.shadows = LightShadows.None;
                     s.Light = light;
                     Core.Log.Msg("[CabinLight] " + Registry.Name(lv) + ": cabin light made.");
@@ -159,15 +205,19 @@ namespace Chassis.Vehicles
                 }
             }
             if (s.Light.enabled != on) s.Light.enabled = on;
+            s.Light.intensity = Intensity * level;
         }
 
+        /// <summary>One line for the console and the tests: "cabin light on|off (switch Auto|On|Off, why), level ...".</summary>
         internal static string Describe(LandVehicle lv)
         {
             if (lv == null) return "cabin light: no vehicle";
             if (ChassisApi.For(lv)?.Control(ControlName) == null) return "cabin light: none in this profile";
             _states.TryGetValue(lv.GetInstanceID(), out var s);
-            float left = s != null ? s.AutoUntil - Time.time : 0f;
-            return "cabin light " + (IsOn(lv) ? "on" : "off") + (Held(lv) ? " (switch on)" : left > 0f ? " (automatic, " + left.ToString("0.0") + " s left)" : " (automatic)")
+            int mode = Mode(lv);
+            float left = s != null ? s.DoorUntil - Time.time : 0f;
+            string why = mode != Auto ? "held" : left > 0f ? "door, " + left.ToString("0.0") + " s left" : s != null && s.Parked ? "standing" : "waiting";
+            return "cabin light " + (IsOn(lv) ? "on" : "off") + " (switch " + ModeName(mode) + ", " + why + "), level " + (s != null ? s.Level : 0f).ToString("0.00")
                 + ", riders " + (s != null ? s.Riders : -1) + ", lamp " + (s?.Dome != null ? "found" : "not found") + ", point light " + (s?.Light != null ? (s.Light.enabled ? "lit" : "dark") : "not made");
         }
 

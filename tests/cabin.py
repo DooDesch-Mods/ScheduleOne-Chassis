@@ -1,15 +1,19 @@
 """Cabin light and glovebox on a vanilla car.
 
 Spawns a car next to the player, takes the driver seat and checks:
-  auto-in     - getting in turns the cabin light on (automatic)
-  auto-off    - the automatic light is off again after its 8 s
-  drive-off   - rolling at 40 km/h ends the automatic light early
-  click-on    - a click on the lamp (aim + click, as the mouse) holds it on
-  click-off   - a second click lets it go back to automatic
+  auto-in     - getting in turns the cabin light on (door light)
+  drive-off   - rolling at 40 km/h ends the door light
+  fade        - it fades out over a second instead of a hard off
+  dark-moving - it stays off while the car drives
+  stand-on    - it comes back after 3 s standing with a player aboard
+  label-auto  - the label under the dot names the switch position
+  click-on, click-off, click-auto - clicks step the switch Auto -> On -> Off -> Auto (aim + click, as the mouse)
   glove-own   - a click on the glovebox lid opens the own glovebox with its slots
   glove-keep  - an item put into the glovebox is still there after close and open
   glove-trunk - in trunk mode the same click opens the vanilla trunk
-  exit-reset  - a light held on goes back to automatic once the car is empty
+  exit-reset  - a switch left on On goes back to Auto once the car is empty
+  exit-door   - getting out lights the cabin
+  exit-dark   - the door light is out after its 15 s
 
 Usage: python -I tests/cabin.py --slot mptest5 [--code shitbox]
 Needs a Debug build of Chassis (the `chassis` console command) in a loaded save.
@@ -40,6 +44,15 @@ def light(slot):
     return run(slot, "chassis cabin", until=r"cabin light (on|off)")
 
 
+def label(slot):
+    return run(slot, "chassis label", until=r"label:")
+
+
+def level(text):
+    m = re.findall(r"level (\d+\.\d+)", text)
+    return float(m[-1]) if m else -1.0
+
+
 def count(text):
     m = re.findall(r"(\d+) items?", text)
     return int(m[-1]) if m else -1
@@ -55,35 +68,47 @@ def main():
 
     run(s, "chassis cabin mode own")
     run(s, "spawnvehicle " + args.code, max_wait=4000)
-    enter = run(s, "chassis car enter " + args.code)
+    # The spawn lands a moment after the command returns, right after a boot more so.
+    enter = ""
+    for _ in range(5):
+        enter = run(s, "chassis car enter " + args.code)
+        if "(driver)" in enter:
+            break
+        time.sleep(1)
     if "(driver)" not in enter:
         print("FAIL setup: not in the driver seat of " + args.code)
         return 1
-    results.append(("auto-in", "cabin light on (automatic" in light(s), "getting in turns the cabin light on"))
+    results.append(("auto-in", "cabin light on (switch Auto, door" in light(s), "getting in turns the cabin light on"))
 
-    time.sleep(9)
-    results.append(("auto-off", "cabin light off" in light(s), "the automatic light is off after 8 s"))
-
-    # Out and in again starts a new 8 s window; rolling at 40 km/h ends it early.
-    run(s, "chassis exit", max_wait=3000)
-    time.sleep(1)
-    run(s, "chassis car enter " + args.code)
+    # Driving ends the door light at once; it fades out over a second and comes back after 3 s of standing.
     run(s, "chassis coast 40 3", max_wait=3000)
-    time.sleep(4)
-    results.append(("drive-off", "cabin light off" in light(s), "driving off ends the automatic light before its 8 s"))
-    time.sleep(2)
+    time.sleep(0.4)
+    levels = [level(light(s)) for _ in range(4)]
+    results.append(("drive-off", levels[-1] < 1.0, "driving ends the door light (levels %s)" % levels))
+    results.append(("fade", any(0.0 < v < 1.0 for v in levels), "the light fades instead of a hard off (levels %s)" % levels))
+    time.sleep(1.5)
+    results.append(("dark-moving", "cabin light off" in light(s), "the light stays off while the car drives"))
+    time.sleep(5)
+    results.append(("stand-on", "cabin light on (switch Auto, standing" in light(s), "the light comes back after 3 s standing"))
 
+    # A click steps the switch Auto -> On -> Off -> Auto; the label under the dot names the position.
     run(s, "chassis view 10")
     run(s, "chassis aim dome")
+    time.sleep(0.3)
+    results.append(("label-auto", "Cabin light: Auto" in label(s), "the label names the position Auto"))
     run(s, "chassis click", until=r"click:")
-    time.sleep(1)
-    results.append(("click-on", "(switch on)" in light(s), "a click on the lamp holds it on"))
+    time.sleep(0.5)
+    on = light(s)
+    results.append(("click-on", "cabin light on (switch On" in on and "Cabin light: On" in label(s), "one click: On"))
     run(s, "chassis click", until=r"click:")
-    time.sleep(1)
-    results.append(("click-off", "(switch on)" not in light(s), "a second click lets it go back to automatic"))
+    time.sleep(1.5)
+    results.append(("click-off", "cabin light off (switch Off" in light(s) and "Cabin light: Off" in label(s), "two clicks: Off, dark although the car stands"))
+    run(s, "chassis click", until=r"click:")
+    time.sleep(0.5)
+    results.append(("click-auto", "cabin light on (switch Auto" in light(s), "three clicks: back to Auto, lit while standing"))
 
     run(s, "chassis aim glovebox")
-    opened = run(s, "chassis click", until=r"glovebox opened|trunk opened|refused")
+    run(s, "chassis click", until=r"glovebox opened|trunk opened|refused")
     time.sleep(1)
     info = run(s, "chassis cabin", until=r"glovebox")
     results.append(("glove-own", re.search(r"own glovebox, \d slots, open", info) is not None, "the lid opens the own glovebox"))
@@ -109,12 +134,17 @@ def main():
     run(s, "chassis cabin close")
     run(s, "chassis cabin mode own")
 
+    # Switch on On, then out: the empty car goes back to Auto, and the door light runs its 15 s.
     run(s, "chassis aim dome")
     run(s, "chassis click", until=r"click:")
-    time.sleep(1)
+    time.sleep(0.5)
     run(s, "chassis exit")
     time.sleep(2)
-    results.append(("exit-reset", "(switch on)" not in light(s), "the held light goes back to automatic when the car is empty"))
+    out = light(s)
+    results.append(("exit-reset", "(switch Auto" in out, "the switch goes back to Auto when the car is empty"))
+    results.append(("exit-door", "cabin light on (switch Auto, door" in out, "getting out lights the cabin"))
+    time.sleep(15)
+    results.append(("exit-dark", "cabin light off" in light(s), "the door light is out after its 15 s"))
 
     failed = 0
     for name, ok, what in results:

@@ -73,13 +73,17 @@ def main():
         return 1
     time.sleep(1)
     a, b = cabin(h), cabin(c)
-    results.append(("light-both", "cabin light on (automatic" in a and "cabin light on (automatic" in b, "both peers see the automatic light"))
+    results.append(("light-both", "cabin light on (switch Auto" in a and "cabin light on (switch Auto" in b, "both peers see the automatic light"))
 
+    # Two clicks put the switch on Off: the client's light goes dark although its own Auto would keep it lit.
     run(h, "chassis view 10")
     run(h, "chassis aim dome")
     run(h, "chassis click", until=r"click:")
-    time.sleep(1.5)
-    results.append(("switch-sync", "(switch on)" in cabin(c), "the host's lamp click shows on the client"))
+    time.sleep(0.5)
+    run(h, "chassis click", until=r"click:")
+    time.sleep(2)
+    results.append(("switch-sync", "cabin light off (switch Off" in cabin(c), "the host's lamp clicks show on the client"))
+    run(h, "chassis click", until=r"click:")
 
     before = items(cabin(c))
     run(h, "chassis cabin put", until=r"put")
