@@ -5,6 +5,7 @@ Rear + Side (2) and once with + Nearby Cars (3). Per car and mirror it checks:
 
   - the mirror was placed (rear: under the windscreen, side: on the body's mirror face),
   - the side glass covers a real mirror face: at least MIN_SIDE_W wide and MIN_SIDE_H high,
+  - the side glass takes the shape of the vanilla mirror face, not a rectangle laid over it,
   - the side view is widened like a convex mirror, not stretched from a sliver of glass (widen at most MAX_WIDEN),
   - in each mode the mirror renders and its glass shows (`chassis mirror info`),
 
@@ -111,6 +112,9 @@ def run_car(r, code, table):
             r.shot("%s-mode%d-%s" % (code, mode, mirror))
 
     for side in ("left", "right"):
+        made = r.lines(start, r"\[Mirror\] glass added to the %s mirror" % side)
+        check(side, "glass shaped like the vanilla mirror", bool(made) and "shaped like the vanilla mirror" in made[-1],
+              made[-1] if made else "no glass line")
         first = r.lines(start, r"\[Mirror\] first mirror render \(%s\)" % side)
         wide = re.search(r"widened x([\d.]+)", first[0]) if first else None
         x = float(wide.group(1)) if wide else 0.0

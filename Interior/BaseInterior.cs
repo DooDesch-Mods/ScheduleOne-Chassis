@@ -94,6 +94,8 @@ namespace Chassis.Interior
         private static readonly HashSet<ChassisProfile> _fitted = new HashSet<ChassisProfile>();
         private static readonly HashSet<string> _fittedCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, Bounds> _bands = new Dictionary<string, Bounds>(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Per vehicle code and side mirror housing name: the outline of the vanilla mirror face, filled with flat triangles in housing x and y.</summary>
+        private static readonly Dictionary<string, Vector2[]> _outlines = new Dictionary<string, Vector2[]>(StringComparer.OrdinalIgnoreCase);
 
         // ---- interiors from mods -----------------------------------------------------------------------------------
 
@@ -631,8 +633,11 @@ namespace Chassis.Interior
             float door = 0f, yMin = belt - 0.15f, yMax = belt + 0.35f, zMin = band.max.z - 0.5f, zMax = band.max.z + 0.6f;
             Vector3 min = Vector3.zero, max = Vector3.zero, face = Vector3.zero, normal = Vector3.zero;
             Vector2 extent = Vector2.zero;
+            Vector2[] outline = null;
             int count = 0, faces = 0;
             string miss = null;
+            string name = left ? Mirrors.SideLName : Mirrors.SideRName;
+            _outlines.Remove(code + "|" + name);
             float[] doorFrom = { yMin, belt };
             for (int k = 0; k < doorFrom.Length; k++)
             {
@@ -641,7 +646,7 @@ namespace Chassis.Interior
                     miss = "no " + label + " outside mirror found on the body (door reaches " + door.ToString("F2") + " m out)";
                 // A box that reaches the back end of the length band is a housing the band cuts off; its face lies
                 // further back, behind the cut.
-                else if (!shell.MirrorFace(min.z <= zMin + 0.01f ? zMin - FaceReach : zMin, zMax, yMin, yMax, left, door, out face, out normal, out extent, out faces))
+                else if (!shell.MirrorFace(min.z <= zMin + 0.01f ? zMin - FaceReach : zMin, zMax, yMin, yMax, left, door, out face, out normal, out extent, out faces, out outline))
                     miss = "no " + label + " outside mirror face found on the body (mirror box " + min.ToString("F2") + " to " + max.ToString("F2") + ", " + count + " point(s), none facing back)";
                 else if (extent.x < 0.04f || extent.y < 0.03f || extent.x > 0.4f || extent.y > 0.3f)
                     miss = "the " + label + " outside mirror face is " + extent.x.ToString("F2") + " x " + extent.y.ToString("F2") + " m, not a mirror";
@@ -657,7 +662,7 @@ namespace Chassis.Interior
             const float depth = 0.004f;
             Vector3 at = face - normal * (depth * 0.5f);
             Quaternion turn = Quaternion.LookRotation(-normal, Vector3.up);
-            string name = left ? Mirrors.SideLName : Mirrors.SideRName;
+            if (outline != null && outline.Length >= 3) _outlines[code + "|" + name] = outline;
             parts.Add(new KitPart { Kind = "mirror", Name = name, Position = at, Rotation = turn.eulerAngles, Size = new Vector3(extent.x, extent.y, depth), Color = new Color(0.10f, 0.10f, 0.11f) });
             float toEye = Vector3.Angle(normal, eye - face);
             Core.Log.Msg("[Interior] " + code + ": " + label + " side mirror at " + at.ToString("F2") + ", " + extent.x.ToString("F2") + " x " + extent.y.ToString("F2") + " m, turned " + turn.eulerAngles.ToString("F1")
@@ -670,6 +675,16 @@ namespace Chassis.Interior
             if (lv == null || !_built.TryGetValue(lv.GetInstanceID(), out var b) || b.Root == null || !b.Shown) return null;
             foreach (var t in b.Root.GetComponentsInChildren<Transform>(true)) if (t.name == name) return t;
             return null;
+        }
+
+        /// <summary>
+        /// The outline of the vanilla mirror face behind side mirror housing <paramref name="name"/> of a car, filled with
+        /// flat triangles in the housing's x and y, three corners each; null when the face search kept none.
+        /// </summary>
+        internal static Vector2[] MirrorOutline(LandVehicle lv, string name)
+        {
+            string code = lv != null ? ChassisApi.CodeOf(lv) : null;
+            return code != null && _outlines.TryGetValue(code + "|" + name, out var outline) ? outline : null;
         }
 
         /// <summary>Driver's eye per vehicle code in kit space, where the mirrors were set for it.</summary>
