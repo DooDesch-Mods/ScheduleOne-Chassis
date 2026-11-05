@@ -12,10 +12,10 @@ namespace Chassis.Vehicles
     /// The switch <see cref="ControlName"/> has three positions, as the ON/DOOR/OFF switch of a real car; a click moves it
     /// Auto, On, Off, Auto. In Auto the light comes on for <see cref="DoorSeconds"/> when someone gets in or out, and
     /// while a car with a player aboard stands for <see cref="StandSeconds"/>; it goes out as soon as the car drives
-    /// (vanilla has no ignition, so throttle and speed stand in for it) and fades over a second. Every peer sees the same
-    /// seats and the same speed and works that out on its own. The host puts the switch back to Auto when the last
-    /// occupant gets out, and it is never saved. The lamp glows through the gauge <see cref="ControlName"/>; a point
-    /// light below it lights the cabin.
+    /// (vanilla has no ignition, so throttle and speed stand in for it). Every peer sees the same seats and the same
+    /// speed and works that out on its own. The host puts the switch back to Auto when the last occupant gets out, and it
+    /// is never saved. Lens and point light fade in over <see cref="FadeInSeconds"/> and out over
+    /// <see cref="FadeSeconds"/>, eased at both ends, as the theatre dimming of a real car.
     /// </summary>
     internal static class CabinLight
     {
@@ -25,7 +25,7 @@ namespace Chassis.Vehicles
         internal const int Auto = 0, On = 1, Off = 2;
         /// <summary>After someone gets in or out the light stays on this long, as the door delay of a real car.</summary>
         internal const float DoorSeconds = 15f;
-        private const float FadeSeconds = 1f, FadeInSeconds = 0.12f;
+        internal const float FadeSeconds = 1.5f, FadeInSeconds = 0.6f;
         /// <summary>A car with a player aboard that stands this long lights up.</summary>
         internal const float StandSeconds = 3f;
         /// <summary>Above this speed, held for <see cref="MovingSeconds"/>, the car drives (raw km/h, either way).</summary>
@@ -45,8 +45,15 @@ namespace Chassis.Vehicles
             internal float StillSince = -1f;
             internal bool Parked;
             internal float Level;
+            internal bool Want;
+            internal float FadeStart = -1f;
             internal Light Light;
             internal Transform Dome;
+            // The lens keeps a material of its own, so its colour can run between dark and lit.
+            internal Renderer Lens;
+            internal Material LensMat;
+            internal Color LensOff;
+            internal float Shown = -1f;
             internal ChassisProfile Profile;
             internal bool LoggedMissing;
         }
@@ -137,11 +144,25 @@ namespace Chassis.Vehicles
                     if (parked) Core.Log.Msg("[CabinLight] " + Registry.Name(lv) + " stands with a player aboard - the light comes on.");
                 }
 
-                bool want = mode == On || (mode == Auto && (now < s.DoorUntil || parked));
+                bool door = now < s.DoorUntil;
+                bool want = mode == On || (mode == Auto && (door || parked));
+                if (want != s.Want)
+                {
+                    s.Want = want;
+                    s.FadeStart = now;
+                    string why = mode == On ? "switch On" : mode == Off ? "switch Off" : door ? "door light" : parked ? "standing with a player aboard"
+                        : moving ? "driving" : s.DoorUntil > 0f && now - s.DoorUntil < 0.5f ? "door time over" : "nothing to light";
+                    Core.Log.Msg("[CabinLight] " + Registry.Name(lv) + ": light fades " + (want ? "in" : "out") + " (" + why + ", level " + s.Level.ToString("0.00") + ").");
+                }
                 bool near = cam == null || (lv.transform.position - eye).sqrMagnitude < Range * Range;
                 float target = want && near ? 1f : 0f;
-                // On within a blink, off over a second, as the theatre dimming of a real car.
-                s.Level = target > s.Level ? Mathf.MoveTowards(s.Level, 1f, dt / FadeInSeconds) : Mathf.MoveTowards(s.Level, 0f, dt / FadeSeconds);
+                s.Level = Mathf.MoveTowards(s.Level, target, dt / (target > s.Level ? FadeInSeconds : FadeSeconds));
+                if (s.FadeStart >= 0f && s.Level == target)
+                {
+                    // A car out of range was dark already when its wish changed: nothing faded, nothing to tell.
+                    if (now > s.FadeStart) Core.Log.Msg("[CabinLight] " + Registry.Name(lv) + ": light fully " + (target > 0f ? "in" : "out") + " after " + (now - s.FadeStart).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + " s.");
+                    s.FadeStart = -1f;
+                }
                 Show(lv, profile, s, s.Level);
             }
 
@@ -149,7 +170,11 @@ namespace Chassis.Vehicles
             _nextPrune = Time.unscaledTime + 2f;
             _gone.Clear();
             foreach (var kv in _states) if (kv.Value.V == null) _gone.Add(kv.Key);
-            foreach (int k in _gone) _states.Remove(k);
+            foreach (int k in _gone)
+            {
+                if (_states[k].LensMat != null) UnityEngine.Object.Destroy(_states[k].LensMat);
+                _states.Remove(k);
+            }
         }
 
         /// <summary>Players and NPCs aboard.</summary>
@@ -166,11 +191,14 @@ namespace Chassis.Vehicles
         private static void Show(LandVehicle lv, ChassisProfile profile, State s, float level)
         {
             bool on = level > 0f;
-            if (s.Profile != profile || (s.Dome == null && on))
+            if (s.Profile != profile || (s.Dome == null && on) || (s.Dome != null && s.Lens == null && s.LensMat != null))
             {
                 s.Profile = profile;
                 s.Dome = Frames.Resolve(Frames.Resolve(lv.transform, profile.Frame), DomeName);
                 s.Light = null;
+                s.Lens = null;
+                if (s.LensMat != null) { UnityEngine.Object.Destroy(s.LensMat); s.LensMat = null; }
+                s.Shown = -1f;
                 if (s.Dome == null)
                 {
                     if (!s.LoggedMissing) Core.Log.Msg("[CabinLight] " + Registry.Name(lv) + " has no " + DomeName + " yet (interior not built or off) - no cabin light.");
@@ -178,8 +206,19 @@ namespace Chassis.Vehicles
                     return;
                 }
                 s.LoggedMissing = false;
+                FindLens(lv, s);
             }
             if (s.Dome == null) return;
+
+            // Eased at both ends: the light swells in and dies away instead of starting or stopping with a step.
+            float glow = Mathf.SmoothStep(0f, 1f, level);
+            if (Mathf.Abs(glow - s.Shown) < 1e-4f) return;
+            s.Shown = glow;
+            if (s.LensMat != null)
+            {
+                if (s.LensMat.HasProperty("_BaseColor")) s.LensMat.SetColor("_BaseColor", Color.Lerp(s.LensOff, LightColor, glow));
+                s.LensMat.SetColor("_EmissionColor", LightColor * (3f * glow));
+            }
             if (s.Light == null)
             {
                 if (!on || _lightFailed) return;
@@ -205,7 +244,41 @@ namespace Chassis.Vehicles
                 }
             }
             if (s.Light.enabled != on) s.Light.enabled = on;
-            s.Light.intensity = Intensity * level;
+            s.Light.intensity = Intensity * glow;
+        }
+
+        /// <summary>Gives the lens a material of its own, with emission on, so <see cref="Show"/> can fade its colour.</summary>
+        private static void FindLens(LandVehicle lv, State s)
+        {
+            Renderer r = s.Dome.GetComponent<Renderer>();
+            if (r == null)
+            {
+                foreach (var c in s.Dome.GetComponentsInChildren<Renderer>(true))
+                {
+                    if (c == null || c.name.StartsWith("Chassis_Outline", StringComparison.Ordinal) || c.name.StartsWith("Chassis_DomeLamp", StringComparison.Ordinal)) continue;
+                    r = c;
+                    break;
+                }
+            }
+            if (r == null || r.sharedMaterial == null)
+            {
+                Core.Log.Warning("[CabinLight] " + Registry.Name(lv) + ": the lens " + DomeName + " has no renderer - only the point light fades.");
+                return;
+            }
+            try
+            {
+                var mat = new Material(r.sharedMaterial) { name = r.sharedMaterial.name + "_ChassisDome" };
+                s.LensOff = mat.HasProperty("_BaseColor") ? mat.GetColor("_BaseColor") : Color.white;
+                if (mat.HasProperty("_EmissionMap")) mat.SetTexture("_EmissionMap", null);
+                mat.EnableKeyword("_EMISSION");
+                mat.SetColor("_EmissionColor", Color.black);
+                mat.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+                r.sharedMaterial = mat;
+                s.Lens = r;
+                s.LensMat = mat;
+                Core.Log.Msg("[CabinLight] " + Registry.Name(lv) + ": lens '" + r.name + "' fades on its own material.");
+            }
+            catch (Exception e) { Core.Log.Error("[CabinLight] the lens material of " + Registry.Name(lv) + " could not be made, only the point light fades: " + e.Message); }
         }
 
         /// <summary>One line for the console and the tests: "cabin light on|off (switch Auto|On|Off, why), level ...".</summary>
@@ -218,11 +291,12 @@ namespace Chassis.Vehicles
             float left = s != null ? s.DoorUntil - Time.time : 0f;
             string why = mode != Auto ? "held" : left > 0f ? "door, " + left.ToString("0.0") + " s left" : s != null && s.Parked ? "standing" : "waiting";
             return "cabin light " + (IsOn(lv) ? "on" : "off") + " (switch " + ModeName(mode) + ", " + why + "), level " + (s != null ? s.Level : 0f).ToString("0.00")
-                + ", riders " + (s != null ? s.Riders : -1) + ", lamp " + (s?.Dome != null ? "found" : "not found") + ", point light " + (s?.Light != null ? (s.Light.enabled ? "lit" : "dark") : "not made");
+                + ", riders " + (s != null ? s.Riders : -1) + ", lamp " + (s?.Dome != null ? "found" : "not found") + ", lens " + (s?.LensMat != null ? "fading" : "plain") + ", point light " + (s?.Light != null ? (s.Light.enabled ? "lit" : "dark") : "not made");
         }
 
         internal static void Reset()
         {
+            foreach (var st in _states.Values) if (st.LensMat != null) UnityEngine.Object.Destroy(st.LensMat);
             _states.Clear();
             _nextPrune = 0f;
             _lightFailed = false;

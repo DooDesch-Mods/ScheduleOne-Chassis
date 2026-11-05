@@ -24,7 +24,7 @@ namespace Chassis.Net
     ///                                    odo id,odo,trip;...           (host: odometers once a second, Odometer)
     ///   req.tune vehicle player k v   -> tune vehicle k v             (host: only the owner, Tune.State)
     ///                                    tunes vehicle k=v;k=v         (host: a car's whole tuning)
-    ///   req.glove.open / req.glove / req.glove.close -> glove.open, glove, gloves (Glovebox)
+    ///   req.glove.open / req.glove / req.glove.close -> glove.open, glove, gloves, glove.close (Glovebox)
     ///   req.sync player               -> own, blink, part, side, odo, ctls, tunes, gloves (a client that joined late)
     /// Ids are FishNet object ids; numbers are invariant culture.
     /// </summary>
@@ -93,6 +93,7 @@ namespace Chassis.Net
                 case "glove.open": Glovebox.OnOpen(I(m.Arg(0)), I(m.Arg(1)), m.Arg(2) == "1"); break;
                 case "glove": Glovebox.OnSet(I(m.Arg(0)), I(m.Arg(1)), m.Arg(2)); break;
                 case "gloves": Glovebox.OnAll(I(m.Arg(0)), m.Arg(1)); break;
+                case "glove.close": Glovebox.OnClose(I(m.Arg(0))); break;
                 default: Core.Log.Warning("[Net] unknown state " + m + ", dropped."); break;
             }
         }

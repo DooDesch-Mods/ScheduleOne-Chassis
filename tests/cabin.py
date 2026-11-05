@@ -2,12 +2,15 @@
 
 Spawns a car next to the player, takes the driver seat and checks:
   auto-in     - getting in turns the cabin light on (door light)
+  fade-in     - it swells in over about half a second instead of a hard on (the log names the time)
   drive-off   - rolling at 40 km/h ends the door light
-  fade        - it fades out over a second instead of a hard off
+  fade        - it fades out over 1.5 s instead of a hard off
   dark-moving - it stays off while the car drives
   stand-on    - it comes back after 3 s standing with a player aboard
   label-auto  - the label under the dot names the switch position
   click-on, click-off, click-auto - clicks step the switch Auto -> On -> Off -> Auto (aim + click, as the mouse)
+  dome-press  - every click presses the lamp in (its press counter rises by 3)
+  lid-open, lid-shut - the glovebox lid swings open while the glovebox is open and shuts after
   glove-own   - a click on the glovebox lid opens the own glovebox with its slots
   glove-keep  - an item put into the glovebox is still there after close and open
   glove-trunk - in trunk mode the same click opens the vanilla trunk
@@ -49,8 +52,24 @@ def label(slot):
 
 
 def level(text):
-    m = re.findall(r"level (\d+\.\d+)", text)
+    m = re.findall(r"cabin light (?:on|off) \(.*?level (\d+\.\d+)", text)
     return float(m[-1]) if m else -1.0
+
+
+def switch(slot, name):
+    text = run(slot, "chassis telemetry", until=r"switch " + name + " ")
+    m = re.search(r"switch " + name + r" .*", text)
+    return m.group(0) if m else ""
+
+
+def presses(text):
+    m = re.search(r"pressed (\d+)x", text)
+    return int(m.group(1)) if m else -1
+
+
+def lid(text):
+    m = re.search(r"lid open (\d\.\d\d)", text)
+    return float(m.group(1)) if m else -1.0
 
 
 def count(text):
@@ -78,7 +97,13 @@ def main():
     if "(driver)" not in enter:
         print("FAIL setup: not in the driver seat of " + args.code)
         return 1
+    car = re.search(r"car enter: (\S+ net \d+)", enter)
     results.append(("auto-in", "cabin light on (switch Auto, door" in light(s), "getting in turns the cabin light on"))
+    time.sleep(0.5)
+    log = subprocess.run([sys.executable, "-I", S1, "--slot", s, "log", "--grep", "light fully in", "-n", "40"],
+                         capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
+    took = [float(t) for t in re.findall(re.escape(car.group(1)) + r": light fully in after (\d+\.\d+) s", log)] if car else []
+    results.append(("fade-in", bool(took) and took[-1] >= 0.4, "the light swells in (took %s s)" % took[-1:]))
 
     # Driving ends the door light at once; it fades out over a second and comes back after 3 s of standing.
     run(s, "chassis coast 40 3", max_wait=3000)
@@ -86,7 +111,7 @@ def main():
     levels = [level(light(s)) for _ in range(4)]
     results.append(("drive-off", levels[-1] < 1.0, "driving ends the door light (levels %s)" % levels))
     results.append(("fade", any(0.0 < v < 1.0 for v in levels), "the light fades instead of a hard off (levels %s)" % levels))
-    time.sleep(1.5)
+    time.sleep(2.5)
     results.append(("dark-moving", "cabin light off" in light(s), "the light stays off while the car drives"))
     time.sleep(5)
     results.append(("stand-on", "cabin light on (switch Auto, standing" in light(s), "the light comes back after 3 s standing"))
@@ -96,24 +121,32 @@ def main():
     run(s, "chassis aim dome")
     time.sleep(0.3)
     results.append(("label-auto", "Cabin light: Auto" in label(s), "the label names the position Auto"))
+    pressed_before = presses(switch(s, "dome"))
     run(s, "chassis click", until=r"click:")
     time.sleep(0.5)
     on = light(s)
     results.append(("click-on", "cabin light on (switch On" in on and "Cabin light: On" in label(s), "one click: On"))
     run(s, "chassis click", until=r"click:")
-    time.sleep(1.5)
+    time.sleep(2.5)
     results.append(("click-off", "cabin light off (switch Off" in light(s) and "Cabin light: Off" in label(s), "two clicks: Off, dark although the car stands"))
     run(s, "chassis click", until=r"click:")
     time.sleep(0.5)
     results.append(("click-auto", "cabin light on (switch Auto" in light(s), "three clicks: back to Auto, lit while standing"))
+    pressed_after = presses(switch(s, "dome"))
+    results.append(("dome-press", pressed_before >= 0 and pressed_after == pressed_before + 3, "each click presses the lamp in (%d -> %d)" % (pressed_before, pressed_after)))
 
     run(s, "chassis aim glovebox")
     run(s, "chassis click", until=r"glovebox opened|trunk opened|refused")
     time.sleep(1)
     info = run(s, "chassis cabin", until=r"glovebox")
     results.append(("glove-own", re.search(r"own glovebox, \d slots, open", info) is not None, "the lid opens the own glovebox"))
+    opened = lid(switch(s, "glovebox"))
+    results.append(("lid-open", opened == 1.0, "the lid stands open while the glovebox is open (lid %.2f)" % opened))
 
     run(s, "chassis cabin close")
+    time.sleep(1)
+    shut = lid(switch(s, "glovebox"))
+    results.append(("lid-shut", shut == 0.0, "the lid shuts after the glovebox closes (lid %.2f)" % shut))
     before = count(run(s, "chassis cabin", until=r"glovebox"))
     if before > 0:
         # A glovebox left full by an earlier run: empty one slot, so the put has room.
@@ -143,7 +176,7 @@ def main():
     out = light(s)
     results.append(("exit-reset", "(switch Auto" in out, "the switch goes back to Auto when the car is empty"))
     results.append(("exit-door", "cabin light on (switch Auto, door" in out, "getting out lights the cabin"))
-    time.sleep(15)
+    time.sleep(16)
     results.append(("exit-dark", "cabin light off" in light(s), "the door light is out after its 15 s"))
 
     failed = 0

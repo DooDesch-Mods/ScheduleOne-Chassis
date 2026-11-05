@@ -64,6 +64,10 @@ namespace Chassis.Vehicles
         private static StorageEntity _entity;
         private static readonly List<ItemSlot> _slots = new List<ItemSlot>();
         private static int _openId = -1;
+        // Gloveboxes some player holds open (the host's word, on every peer), and the car whose trunk this peer opened
+        // from the lid. Both swing the lid open.
+        private static readonly HashSet<int> _lidOpen = new HashSet<int>();
+        private static int _trunkId = -1;
         private static string[] _pushed;
         private static float _nextPoll;
         private static float _nextHostCheck;
@@ -145,6 +149,7 @@ namespace Chassis.Vehicles
             if (trunk == null) { Core.Log.Warning("[Glovebox] " + Registry.Name(lv) + " has no trunk - the lid in trunk mode does nothing."); return "refused: no trunk."; }
             if (!trunk.CanBeOpened()) { Core.Log.Msg("[Glovebox] the trunk of " + Registry.Name(lv) + " cannot be opened now (not owned or in use)."); return "refused: the trunk cannot be opened now."; }
             trunk.Open();
+            _trunkId = Ids.Of(lv);
             Core.Log.Msg("[Glovebox] trunk opened from the seat of " + Registry.Name(lv) + " (" + trunk.SlotCount + " slots).");
             return "trunk opened (" + trunk.SlotCount + " slots).";
         }
@@ -172,6 +177,7 @@ namespace Chassis.Vehicles
 
         internal static void OnOpen(int vehicle, int player, bool granted)
         {
+            if (granted && _lidOpen.Add(vehicle)) Core.Log.Msg("[Glovebox] the lid of net " + vehicle + " opens (player net " + player + " holds it).");
             var me = Player.Local;
             if (me == null || Ids.Of(me) != player) return;
             var lv = Registry.ById(vehicle);
@@ -288,6 +294,21 @@ namespace Chassis.Vehicles
             if (!_byId.TryGetValue(vehicle, out var b) || b.Holder != player) return;
             b.Holder = -1;
             Core.Log.Msg("[Glovebox] player net " + player + " let go of the glovebox of net " + vehicle + ".");
+            ChassisNet.ToAll("glove.close", vehicle.ToString(CultureInfo.InvariantCulture));
+        }
+
+        internal static void OnClose(int vehicle)
+        {
+            if (_lidOpen.Remove(vehicle)) Core.Log.Msg("[Glovebox] the lid of net " + vehicle + " closes.");
+        }
+
+        /// <summary>True while the lid of this car stands open: someone holds its glovebox, or this peer opened the trunk
+        /// from it.</summary>
+        internal static bool LidOpen(LandVehicle lv)
+        {
+            if (lv == null) return false;
+            int id = Ids.Of(lv);
+            return id >= 0 && (_lidOpen.Contains(id) || _openId == id || _trunkId == id);
         }
 
         // ---- contents ------------------------------------------------------------------------------------------------
@@ -370,8 +391,15 @@ namespace Chassis.Vehicles
 
         // ---- per frame -----------------------------------------------------------------------------------------------
 
+        private static readonly List<int> _released = new List<int>();
+
         internal static void Tick()
         {
+            if (_trunkId >= 0)
+            {
+                var menu = Singleton<StorageMenu>.InstanceExists ? Singleton<StorageMenu>.Instance : null;
+                if (menu == null || !menu.IsOpen) { Core.Log.Msg("[Glovebox] the trunk menu opened from the lid of net " + _trunkId + " closed - the lid closes."); _trunkId = -1; }
+            }
             if (_openId >= 0)
             {
                 var lv = Registry.ById(_openId);
@@ -392,7 +420,10 @@ namespace Chassis.Vehicles
                 if (kv.Value.Holder < 0 || Ids.PlayerById(kv.Value.Holder) != null) continue;
                 Core.Log.Msg("[Glovebox] player net " + kv.Value.Holder + " left while holding the glovebox of net " + kv.Key + " - released.");
                 kv.Value.Holder = -1;
+                _released.Add(kv.Key);
             }
+            foreach (int id in _released) ChassisNet.ToAll("glove.close", id.ToString(CultureInfo.InvariantCulture));
+            _released.Clear();
         }
 
         // ---- save file -----------------------------------------------------------------------------------------------
@@ -536,6 +567,8 @@ namespace Chassis.Vehicles
             _seeded.Clear();
             _loadedFrom = null;
             _openId = -1;
+            _trunkId = -1;
+            _lidOpen.Clear();
             _pushed = null;
             foreach (var slot in _slots) if (slot != null && slot.ItemInstance != null) slot.ClearStoredInstance(false);
         }
