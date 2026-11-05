@@ -37,12 +37,17 @@
   renders the mirrors of up to three cars within 15 m. Reflections sets how sharp they are.
 - The speedometer and the rev counter move. In first person, look at a switch and left-click it:
   light switch, hazard lights, indicator stalk and the horn in the wheel centre.
+- The cabin light fades on when someone gets in or out and while the car stands, and off when
+  you drive. Click the dome lamp to switch between Auto, On and Off.
+- Click the lid right of the centre console to open the glovebox, from the driver or the
+  passenger seat. It holds 2 to 4 items, by car size, and is saved with the car.
 - The vanilla cars flash their own amber indicator lamps outside. A rear without one flashes part
   of the brake light in red.
 - Guns hit NPCs that sit in a car. A driver who goes down falls out, and the car stops.
 - Riding and pushing the wheelchairs moved to its own mod, Rollin. Without Rollin the wheelchairs
   stay vanilla props.
-- In co-op, seats, horn, indicators, locks and owners sync through the host.
+- In co-op, seats, horn, indicators, locks, owners, the cabin light and the glovebox sync through
+  the host.
 
 ## Controls
 
@@ -58,6 +63,10 @@
 ## Screenshots
 
 ![Driver in the seat](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/01-seated-driver.jpg)
+
+![Cabin light at night](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/11-cabin-light.jpg)
+
+![Glovebox](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/12-glovebox.jpg)
 
 ![Working dashboard](https://raw.githubusercontent.com/DooDesch-Mods/ScheduleOne-Chassis/main/docs/img/09-dash.jpg)
 
@@ -82,6 +91,9 @@ turns the base interior and the visible NPC drivers of the vanilla cars on or of
 `Mirrors` (default `2`) picks which mirrors render: `0` Off, `1` Rear Only, `2` Rear + Side,
 `3` + Nearby Cars. `Reflections` (default `1`, `0` Low to `3` Ultra) sets how sharp chrome and the
 mirrors reflect. Both are also in the game's graphics settings.
+
+`GloveboxOwnStorage` (default `true`) gives the glovebox its own slots, saved in
+`Chassis.glovebox`. `false` makes the lid open the vanilla trunk, and saves stay vanilla.
 
 ## For mod authors
 
