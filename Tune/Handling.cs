@@ -75,10 +75,11 @@ namespace Chassis.Tune
                 spring.spring *= s.Spring;
                 spring.damper *= s.Damper;
                 wc.suspensionSpring = spring;
-                // The wheel hangs from its centre; a higher centre puts the body lower over the same wheel. The drop is
-                // in metres along the car's up, whatever the wheel transform's scale.
+                // The wheel hangs from its centre; a higher centre puts the body lower over the same wheel. RideHeight is
+                // the body's change in metres (negative = lower), so the centre moves the other way, along the car's up,
+                // whatever the wheel transform's scale.
                 drop = s.RideHeight * DropScale(wc);
-                wc.center = st.Centers[i] + wc.transform.InverseTransformVector(lv.transform.up * drop);
+                wc.center = st.Centers[i] + wc.transform.InverseTransformVector(lv.transform.up * -drop);
             }
             if (st.Sound != null) st.Sound.EnginePitchMultiplier = st.Pitch * s.EnginePitch;
             if (Mathf.Abs(s.Grip - 1f) > 0.0001f) _grip[lv.GetInstanceID()] = s.Grip;
