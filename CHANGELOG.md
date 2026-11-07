@@ -4,6 +4,13 @@ All notable changes to Chassis are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.10.4] - 2026-11-07
+
+### Fixed
+
+- Suspension upgrades lower the car again. Every stage raised the body instead, on every car, most visible on the
+  Cheetah.
+
 ## [1.10.3] - 2026-11-05
 
 ### Fixed
