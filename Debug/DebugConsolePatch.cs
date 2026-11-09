@@ -84,6 +84,7 @@ namespace Chassis.Debugging
                         Say("cam <dist> <yaw> <height>|off - orbit camera around your vehicle or the nearest seated body");
                         Say("cam hands|handl|handr <dist> <yaw> <height> - the same, aimed at both hands or one");
                         Say("grip [markers on|off] [wrap palm f1 f2 f3 t1 t2 t3 roll at] - steering wheel grip: colour markers, live angles");
+                        Say("seatanim snap on|off|trace <n> - snap into the seated pose; log n animator frames per seating");
                         Say("feet                         - ankle axes of every seated body (side x near -1 = sole down)");
                         Say("profile list|show|save|reload|set <field> <values> [code] [seat] - seat profiles (see 'chassis profile')");
                         Say("target seat|patrol|near|gun|shoot|keep|list - shots into cars (see 'chassis target')");
@@ -253,6 +254,23 @@ namespace Chassis.Debugging
                             if (cur != null) Say("vehicle " + cur.vehicleCode + " net " + Net.Ids.Of(cur) + " speed " + cur.Speed_Kmh.ToString("F1") + " km/h throttle " + cur.currentThrottle.ToString("F2") + " steer " + cur.CurrentSteerAngle.ToString("F0"));
                         }
                         break;
+                    case "seatanim":
+                        {
+                            string what = parts.Length > 2 ? parts[2].ToLower() : "";
+                            if (what == "snap" && parts.Length > 3)
+                            {
+                                Seating.SeatRig.DebugNoSnap = parts[3].ToLower() == "off";
+                                Say("seatanim: snap into the seated pose " + (Seating.SeatRig.DebugNoSnap ? "off (vanilla transition)" : "on"));
+                            }
+                            else if (what == "trace" && parts.Length > 3 && int.TryParse(parts[3], out int frames))
+                            {
+                                Seating.SeatRig.DebugAnimFrames = frames;
+                                Say("seatanim: logging " + frames + " animator frames of each new seating");
+                            }
+                            else Say("seatanim snap on|off | trace <frames>");
+                        }
+                        break;
+
                     case "feet":
                         {
                             int n = 0;
