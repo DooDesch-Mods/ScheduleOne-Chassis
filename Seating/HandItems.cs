@@ -146,8 +146,17 @@ namespace Chassis.Seating
 
         private static string _blockLogged;
 
+#if DEBUG
+        internal static int UpdateCalls;
+        internal static string LastUpdated = "-";
+#endif
+
         private static void UpdatePrefix(GameEquippable __instance)
         {
+#if DEBUG
+            UpdateCalls++;
+            if (__instance != null) LastUpdated = Interop.TypeName(__instance);
+#endif
             if (_depth++ > 0) return;
             try
             {
@@ -368,7 +377,7 @@ namespace Chassis.Seating
 
         // ---- trash out of the window ---------------------------------------------------------------------------------
 
-        /// <summary>Spawn points this close to the local camera come from the player's own hands.</summary>
+        /// <summary>Spawn points this close to the local camera (first person or chase view) come from the player's own hands.</summary>
         private const float HandReach = 1.5f;
         /// <summary>How far out from the seat the body's outer skin is searched.</summary>
         private const float SkinSearch = 4f;
@@ -392,7 +401,11 @@ namespace Chassis.Seating
                     var lv = lp.CurrentVehicle.GetComponent<LandVehicle>();
                     if (lv == null) { Core.Log.Warning("[Items] vehicle of the local player has no LandVehicle, trash " + __0 + " stays inside."); return; }
                     Transform v = lv.transform;
-                    Vector3 eye = cam.transform.position;
+                    // The chase camera sits outside the car, often on the other side; the seat's eye point says which
+                    // window is beside the player.
+                    var rig = Occupants.Of(lp);
+                    Vector3 eye = rig != null && rig.Profile != null ? rig.Frame.TransformPoint(rig.Profile.Eyes) : cam.transform.position;
+                    if (rig == null || rig.Profile == null) Core.Log.Warning("[Items] no seat of the local player, trash " + __0 + " goes out on the camera's side.");
                     float side = v.InverseTransformPoint(eye).x >= 0f ? 1f : -1f;
                     Vector3 dir = v.right * side;
                     Vector3 at = OutsideSkin(lv, eye - v.up * 0.35f, dir) + dir * 0.35f;
