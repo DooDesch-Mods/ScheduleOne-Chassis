@@ -18,7 +18,7 @@ import time
 S1 = "F:/Projects/Mods/Schedule1/Workspace/tools/bridge/s1.py"
 X, Y, Z = 60.0, 4.4, -70.0
 FRAMES = 40
-LINE = re.compile(r"\[SeatAnim\] .* frame (\d+) shown (\w+) active (\w+) state (\w+) transition ([\w-]+)")
+LINE = re.compile(r"\[SeatAnim\] local .* frame (\d+) shown (\w+) active (\w+) state (\w+) transition ([\w-]+)")
 fails = 0
 
 
@@ -45,7 +45,7 @@ def seating(slot, code):
     run(slot, "chassis car enter " + code)
     time.sleep(2.5)
     rows = []
-    for m in LINE.finditer(s1(slot, "log", "--grep", "[SeatAnim]", "-n", str(FRAMES * 3))):
+    for m in LINE.finditer(s1(slot, "log", "--grep", "[SeatAnim] local", "-n", str(FRAMES * 3))):
         if m.group(1) == "1":
             rows = []  # a new seating starts; keep only the last one
         rows.append(m)

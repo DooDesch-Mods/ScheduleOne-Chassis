@@ -380,7 +380,7 @@ namespace Chassis.Seating
 
         private int _poseHeld;
         private Animator _animator;
-        private bool _animatorMissingLogged;
+        private bool _animatorMissingLogged, _poseStateMissingLogged;
         private int _snaps;
 #if DEBUG
         private int _animTraced;
@@ -401,8 +401,8 @@ namespace Chassis.Seating
 
         /// <summary>
         /// The pose bool starts a transition of a third of a second from standing into the pose state. A seated body
-        /// sits from its first frame: every transition into the pose state, after getting in or after the body was shown
-        /// again, is cut short by jumping straight into the state.
+        /// sits from its first frame: while it is not fully in the pose state, after getting in or after the body was
+        /// shown again, it jumps straight into the state.
         /// </summary>
         private void SnapPose()
         {
@@ -411,9 +411,18 @@ namespace Chassis.Seating
             if (anim == null || !anim.isActiveAndEnabled || anim.runtimeAnimatorController == null) return;
             int target = Animator.StringToHash("Base Layer." + _seat.Pose);
             if (anim.GetCurrentAnimatorStateInfo(0).fullPathHash == target && !anim.IsInTransition(0)) return;
-            bool toPose = anim.IsInTransition(0) && anim.GetNextAnimatorStateInfo(0).fullPathHash == target;
-            if (!toPose && anim.GetCurrentAnimatorStateInfo(0).fullPathHash != target) return;
+            if (!anim.HasState(0, target))
+            {
+                if (!_poseStateMissingLogged)
+                {
+                    _poseStateMissingLogged = true;
+                    Core.Log.Warning("[Seat] " + Name + " - the animator has no state Base Layer." + _seat.Pose + "; the seated pose is not snapped.");
+                }
+                return;
+            }
             anim.Play(target, 0, 0f);
+            // Play takes effect at the next animator update; evaluating now poses the bones before this frame renders.
+            anim.Update(0f);
             _snaps++;
             if (_snaps <= 3) Core.Log.Msg("[Seat] " + Name + " jumped straight into the pose " + _seat.Pose + " (" + _snaps + ").");
         }
