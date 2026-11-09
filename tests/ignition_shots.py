@@ -55,6 +55,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--slot", required=True)
     ap.add_argument("--vehicles", nargs="+", default=["shitbox", "cheetah", "veeper"])
+    ap.add_argument("--paint", help="RRGGBB custom paint on every car before the pictures, to see the key fob follow it")
     a = ap.parse_args()
     slot = a.slot
 
@@ -66,6 +67,12 @@ def main():
         if "car put:" not in out:
             check(code, False, "car put failed: " + out.strip()[-160:])
             continue
+        if a.paint:
+            # The tuning command reaches a car within 15 m; the camera views do not need the player near.
+            s1(slot, "tp", str(X + 4), str(Y), str(Z))
+            time.sleep(1)
+            s1(slot, "run", "chassis tune set paint %s,classic" % a.paint)
+            s1(slot, "tp", str(X + 40), str(Y), str(Z + 40))
         time.sleep(2.5)
         p = lock_position(slot)
         if p is None:

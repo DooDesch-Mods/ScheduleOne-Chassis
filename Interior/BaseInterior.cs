@@ -86,6 +86,11 @@ namespace Chassis.Interior
             internal readonly List<KeyValuePair<Renderer, bool[]>> LiningGlass = new List<KeyValuePair<Renderer, bool[]>>();
             internal readonly List<MeshFilter> Opened = new List<MeshFilter>();
             internal readonly List<Mesh> Closed = new List<Mesh>();
+            /// <summary>The ignition key's fob material, this car's own copy, and the colour it shows.</summary>
+            internal Material KeyTag;
+            internal Color KeyTagColour;
+            /// <summary>The kit has no ignition key; the tag is not looked for again.</summary>
+            internal bool NoKey;
         }
 
         private static readonly Dictionary<int, Built> _built = new Dictionary<int, Built>();
@@ -209,7 +214,7 @@ namespace Chassis.Interior
                 foreach (var kv in _built)
                 {
                     if (kv.Value.V == null) _gone.Add(kv.Key);
-                    else FollowModel(kv.Value);
+                    else { FollowModel(kv.Value); FollowKeyTag(kv.Value); }
                 }
                 foreach (int k in _gone) _built.Remove(k);
             }
@@ -239,6 +244,48 @@ namespace Chassis.Interior
             b.Shown = shown;
             b.Root.SetActive(shown);
             Core.Log.Msg("[Interior] " + Registry.Name(b.V) + ": the car model is " + (shown ? "shown" : "hidden") + " - the interior follows.");
+        }
+
+        /// <summary>
+        /// The fob on the ignition key takes the colour the body shows now: the vanilla colour, a custom paint or a
+        /// repaint, on every peer, since each peer reads its own body material. Checked with the tick, so a repaint
+        /// shows on the fob within half a second.
+        /// </summary>
+        private static void FollowKeyTag(Built b)
+        {
+            if (b.NoKey) return;
+            if (b.KeyTag == null)
+            {
+                Transform key = Frames.Deep(b.V.transform, IgnitionKey);
+                var r = key != null ? key.GetComponent<MeshRenderer>() : null;
+                if (r == null) { b.NoKey = true; return; }
+                var mats = r.sharedMaterials;
+                if (mats.Length < 2 || mats[1] == null)
+                {
+                    b.NoKey = true;
+                    Core.Log.Warning("[Interior] " + Registry.Name(b.V) + ": the ignition key has no fob material - the fob keeps its kit colour.");
+                    return;
+                }
+                b.KeyTag = new Material(mats[1]) { name = "Chassis_key_tag" };
+                mats[1] = b.KeyTag;
+                r.sharedMaterials = mats;
+                b.KeyTagColour = new Color(-1f, -1f, -1f);
+            }
+            Color body = Chassis.Tune.Paint.BodyColour(b.V, out float metallic, out float smooth);
+            body.a = 1f;
+            if (body == b.KeyTagColour) return;
+            b.KeyTagColour = body;
+            Chassis.Tune.Paint.Colour(b.KeyTag, body, metallic, smooth);
+            Core.Log.Msg("[Interior] " + Registry.Name(b.V) + ": key fob takes the body colour " + Chassis.Tune.Values.Hex(body) + ".");
+        }
+
+        /// <summary>The colour the ignition key's fob shows and the body colour, for the debug check.</summary>
+        internal static string DescribeKeyTag(LandVehicle lv)
+        {
+            if (lv == null || !_built.TryGetValue(lv.GetInstanceID(), out var b)) return "no interior built";
+            if (b.KeyTag == null) return b.NoKey ? "no ignition key" : "fob not set up yet";
+            Color body = Chassis.Tune.Paint.BodyColour(lv, out _, out _);
+            return "fob " + Chassis.Tune.Values.Hex(b.KeyTag.color) + ", body " + Chassis.Tune.Values.Hex(body);
         }
 
         // ---- fitting a vanilla car ---------------------------------------------------------------------------------
@@ -864,7 +911,7 @@ namespace Chassis.Interior
 
             // Ignition lock on the driver's edge of the centre stack face, level with the hazard switch: right beside
             // the wheel and in the driver's reach, and in view past the rim, where a lock on the dashboard face would
-            // sit behind it. The key sticks out of it, blade and upright head, a red fob hanging below, and turns an
+            // sit behind it. The key sticks out of it, blade and upright head, a fob in the body colour hanging below, and turns an
             // eighth to the right while the engine may run. The auto ignition button sits on the other side of the hazard switch, its amber
             // lamp above it lit while it is on.
             float toWheel = Mathf.Sign(wheel.x - stack.x == 0f ? -1f : wheel.x - stack.x);
@@ -1401,6 +1448,7 @@ namespace Chassis.Interior
                 case "rocker": return new Color(0.85f, 0.85f, 0.8f);
                 case "button": return new Color(c.r * 1.6f, c.g * 1.6f, c.b * 1.6f);
                 case "stalk": return new Color(0.5f, 0.5f, 0.52f);
+                // The fob; a built car's base kit paints it in the body colour (FollowKeyTag).
                 case "key": return new Color(0.85f, 0.12f, 0.08f);
                 default: return new Color(c.r * 0.35f, c.g * 0.35f, c.b * 0.35f);
             }

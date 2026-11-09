@@ -6,7 +6,8 @@ Optional ignition: the key, auto ignition and what an engine that is off still d
 
 Spawns a car on flat ground, sits in it and goes through the ignition the way a player does (the key as the key
 binding turns it, the auto ignition button as a click; both through the host). Reads `chassis ign` for the state
-and drives with `chassis drive` to see whether the throttle works. Prints PASS or FAIL per check; exit code 1 on any
+and drives with `chassis drive` to see whether the throttle works. Then compares the key fob with the body colour
+(`chassis ign tag`) as spawned, with a custom paint and after a repaint in Marco's menu. Prints PASS or FAIL per check; exit code 1 on any
 FAIL. Debug build of Chassis needed.
 """
 import argparse
@@ -62,6 +63,35 @@ def drive(slot):
     run(slot, "chassis drive -1 0 2")
     time.sleep(3)
     return speed
+
+
+TAG = re.compile(r"ign tag: fob #?([0-9A-Fa-f]{6}), body #?([0-9A-Fa-f]{6})")
+
+
+def tag(slot):
+    """The key fob's colour and the body colour as the car shows them, after the half-second tick."""
+    time.sleep(1.5)
+    m = TAG.search(run(slot, "chassis ign tag"))
+    return (m.group(1).upper(), m.group(2).upper()) if m else (None, None)
+
+
+def key_tag(slot, paint="1E5AC8"):
+    """The fob follows the body colour: as spawned, with a custom paint, and after a repaint at Marco's."""
+    fob, body = tag(slot)
+    check("tag-start", fob is not None and fob == body, "fob %s, body %s as spawned" % (fob, body))
+
+    run(slot, "chassis tune set paint %s,classic" % paint)
+    fob, body = tag(slot)
+    check("tag-paint", fob == body == paint, "custom paint %s: fob %s, body %s" % (paint, fob, body))
+
+    before = fob
+    run(slot, "chassis tune marco open")
+    bought = run(slot, "chassis tune marco Red")
+    run(slot, "chassis tune marco close")
+    fob, body = tag(slot)
+    check("tag-repaint", fob is not None and fob == body and fob != before,
+          "repainted at Marco's (%s): fob %s, body %s" % (bought.strip().splitlines()[0][:80] if bought.strip() else "no answer", fob, body))
+    run(slot, "chassis tune clear")
 
 
 def main():
@@ -132,6 +162,8 @@ def main():
     st, _ = state(slot, "auto")
     check("auto-on", st and st["auto"] == "on" and st["engine"] == "on",
           "auto ignition button: auto %s, engine %s" % (st and st["auto"], st and st["engine"]))
+
+    key_tag(slot)
 
     run(slot, "chassis exit")
     sys.exit(1 if fails else 0)

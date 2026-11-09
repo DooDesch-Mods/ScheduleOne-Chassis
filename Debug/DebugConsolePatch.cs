@@ -209,6 +209,7 @@ namespace Chassis.Debugging
                         string act = parts.Length > 2 ? parts[2].ToLowerInvariant() : "";
                         if (act == "key") Vehicles.Ignition.KeyPressed(lv);
                         else if (act == "auto") Instruments.Controls.UseLocal(lv, Vehicles.Ignition.AutoName, Vehicles.Ignition.Auto(lv) ? 0f : 1f);
+                        else if (act == "tag") { Say("ign tag: " + Interior.BaseInterior.DescribeKeyTag(lv)); break; }
                         Say("ign: " + Vehicles.Ignition.Describe(lv));
                         break;
                     }
