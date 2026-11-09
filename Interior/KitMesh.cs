@@ -227,18 +227,26 @@ namespace Chassis.Interior
         }
 
         /// <summary>
-        /// A key sticking out of its lock: the shaft from the origin out along -Z, a flat bow of size.x by size.y at
-        /// size.z, and a tag hanging below the bow in the accent colour, so the key reads at a glance.
+        /// A car key stuck in its lock, origin on the lock face, reaching out along -Z: a slim blade leaves the keyhole
+        /// along the cylinder axis and ends in a flat head (bow) in the same upright plane, size.x thick, size.y tall,
+        /// the whole key size.z long. A small fob in the accent colour hangs from the end of the head. Turning the part
+        /// about Z turns blade, head and fob together, as a key turns in a cylinder.
         /// </summary>
         internal static Mesh Key(Vector3 size, string name)
         {
-            float bowW = size.x, bowH = size.y, reach = Mathf.Max(size.z, 0.01f);
-            const float shaft = 0.004f, bowT = 0.005f;
+            float t = Mathf.Max(size.x, 0.003f), headH = Mathf.Max(size.y, 0.01f), reach = Mathf.Max(size.z, 0.02f);
+            float blade = reach * 0.32f, head = reach - blade;
             var m = new KitMesh();
-            m.Box(new Vector3(0f, 0f, -reach * 0.5f), new Vector3(shaft, shaft, reach));
-            m.Box(new Vector3(0f, 0f, -reach - bowT * 0.5f), new Vector3(bowW, bowH, bowT));
+            // Blade out of the keyhole, a little narrower than the head is thick, with a shoulder where it meets the head.
+            m.Box(new Vector3(0f, 0f, -blade * 0.5f), new Vector3(t * 0.45f, headH * 0.3f, blade));
+            m.Box(new Vector3(0f, 0f, -blade + 0.002f), new Vector3(t, headH * 0.55f, 0.004f));
+            // Head: a wide paddle with a narrower rounded-off end, upright in the plane of the blade.
+            m.Box(new Vector3(0f, 0f, -blade - head * 0.36f), new Vector3(t, headH, head * 0.72f));
+            m.Box(new Vector3(0f, 0f, -blade - head * 0.86f), new Vector3(t, headH * 0.7f, head * 0.28f));
+            // Ring through the end of the head and the fob hanging from it.
+            m.Box(new Vector3(0f, -headH * 0.42f, -reach + 0.003f), new Vector3(t * 0.6f, 0.006f, 0.003f));
             m.Accent();
-            m.Box(new Vector3(0f, -bowH * 0.5f - 0.014f, -reach - bowT * 0.5f), new Vector3(bowW * 0.5f, 0.028f, bowT * 0.8f));
+            m.Box(new Vector3(0f, -headH * 0.5f - 0.016f, -reach + 0.003f), new Vector3(t * 1.4f, 0.026f, 0.014f));
             return m.Build(name);
         }
 
