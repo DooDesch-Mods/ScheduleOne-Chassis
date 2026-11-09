@@ -35,6 +35,7 @@ namespace Chassis.Instruments
         internal static readonly HashSet<string> BuiltIn = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "lights", "hazard", "indicator", "indicator_left", "indicator_right", "horn", "trip_reset", Vehicles.Glovebox.ControlName,
+            Vehicles.Ignition.ControlName, Vehicles.Ignition.AutoName,
         };
 
         private static readonly Dictionary<string, Action<ControlUse>> _actions = new Dictionary<string, Action<ControlUse>>(StringComparer.OrdinalIgnoreCase);
@@ -306,6 +307,17 @@ namespace Chassis.Instruments
 
             if (BuiltIn.Contains(c.Action ?? "")) HostBuiltIn(lv, vehicle, c, kind, value);
             ChassisNet.ToAll("ctl", vehicle.ToString(CultureInfo.InvariantCulture), c.Name, value.ToString("R", CultureInfo.InvariantCulture), player.ToString(CultureInfo.InvariantCulture));
+            if (string.Equals(c.Action, Vehicles.Ignition.ControlName, StringComparison.OrdinalIgnoreCase))
+                Vehicles.Ignition.HostKey(lv, vehicle.ToString(CultureInfo.InvariantCulture), value);
+        }
+
+        /// <summary>The local player uses a switch by key instead of a click.</summary>
+        internal static void UseLocal(LandVehicle lv, string name, float value)
+        {
+            var c = ChassisApi.For(lv)?.Control(name);
+            if (c == null) { Core.Log.Warning("[Controls] " + Registry.Name(lv) + " has no switch '" + name + "' - key not used."); return; }
+            foreach (var b in Of(lv)) if (b.P == c && (b.Kind == "button" || c.Press > 0f)) b.PressUntil = Time.time + PressSeconds;
+            Send(lv, c, value, Player.Local);
         }
 
         private static bool SitsIn(LandVehicle lv, Player p)
@@ -385,6 +397,9 @@ namespace Chassis.Instruments
                 + value.ToString("0.##", CultureInfo.InvariantCulture) + " by " + (by != null ? by.PlayerName : player >= 0 ? "player net " + player : "a mod") + ".");
             // The glovebox opens on the peer of the player who clicked it; the host already checked that the player sits inside.
             if (string.Equals(c.Action, Vehicles.Glovebox.ControlName, StringComparison.OrdinalIgnoreCase) && by != null && by == Player.Local) Vehicles.Glovebox.Open(lv);
+            if (string.Equals(c.Action, Vehicles.Ignition.ControlName, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(c.Action, Vehicles.Ignition.AutoName, StringComparison.OrdinalIgnoreCase))
+                Vehicles.Ignition.Changed(lv, "switch '" + c.Name + "' = " + value.ToString("0", CultureInfo.InvariantCulture));
             var use = new ControlUse { Vehicle = lv, Control = c, Action = c.Action ?? string.Empty, Value = value, By = by, IsHost = ChassisNet.IsHost };
             if (!string.IsNullOrEmpty(c.Action) && !BuiltIn.Contains(c.Action))
             {
@@ -438,6 +453,8 @@ namespace Chassis.Instruments
                     cab.Controls[pair.Substring(0, eq)] = v;
                     n++;
                 }
+                var lv = Registry.ById(id);
+                if (lv != null && Vehicles.Ignition.Has(lv)) Vehicles.Ignition.Changed(lv, "switch states from the host");
             }
             Core.Log.Msg("[Controls] " + n + " switch state(s) from the host.");
         }
