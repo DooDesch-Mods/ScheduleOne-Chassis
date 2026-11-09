@@ -53,6 +53,10 @@ namespace Chassis.Seating
 
         /// <summary>Dev console (`chassis crouch keep`): leaves a seated body crouched, as vanilla would.</summary>
         internal static bool DebugKeepCrouch;
+        /// <summary>Debug: leave the animator's sit-down transition alone, as before the snap.</summary>
+        internal static bool DebugNoSnap;
+        /// <summary>Debug: frames of animator state to log after each seating, 0 = off.</summary>
+        internal static int DebugAnimFrames;
 
         internal bool Alive => (Player != null || Npc != null) && Vehicle != null && _avatar != null && _anchor != null;
 
@@ -375,6 +379,61 @@ namespace Chassis.Seating
         }
 
         private int _poseHeld;
+        private Animator _animator;
+        private bool _animatorMissingLogged;
+        private int _snaps;
+#if DEBUG
+        private int _animTraced;
+#endif
+
+        /// <summary>The avatar's animator (AvatarAnimation keeps it in a private field, so it is found on its object).</summary>
+        private Animator BodyAnimator()
+        {
+            if (_animator != null) return _animator;
+            _animator = _avatar.Animation != null ? _avatar.Animation.GetComponentInChildren<Animator>(true) : null;
+            if (_animator == null && !_animatorMissingLogged)
+            {
+                _animatorMissingLogged = true;
+                Core.Log.Warning("[Seat] " + Name + " has no animator under its avatar animation - the seated pose is not snapped.");
+            }
+            return _animator;
+        }
+
+        /// <summary>
+        /// The pose bool starts a transition of a third of a second from standing into the pose state. A seated body
+        /// sits from its first frame: every transition into the pose state, after getting in or after the body was shown
+        /// again, is cut short by jumping straight into the state.
+        /// </summary>
+        private void SnapPose()
+        {
+            if (IsPusher || DebugNoSnap || _seat == null || string.IsNullOrEmpty(_seat.Pose) || _seat.Pose == "Standing") return;
+            var anim = BodyAnimator();
+            if (anim == null || !anim.isActiveAndEnabled || anim.runtimeAnimatorController == null) return;
+            int target = Animator.StringToHash("Base Layer." + _seat.Pose);
+            if (anim.GetCurrentAnimatorStateInfo(0).fullPathHash == target && !anim.IsInTransition(0)) return;
+            bool toPose = anim.IsInTransition(0) && anim.GetNextAnimatorStateInfo(0).fullPathHash == target;
+            if (!toPose && anim.GetCurrentAnimatorStateInfo(0).fullPathHash != target) return;
+            anim.Play(target, 0, 0f);
+            _snaps++;
+            if (_snaps <= 3) Core.Log.Msg("[Seat] " + Name + " jumped straight into the pose " + _seat.Pose + " (" + _snaps + ").");
+        }
+
+#if DEBUG
+        private void TraceAnim()
+        {
+            if (_animTraced >= DebugAnimFrames) return;
+            var anim = BodyAnimator();
+            if (anim == null) return;
+            _animTraced++;
+            bool shown = _avatar.BodyContainer == null || _avatar.BodyContainer.gameObject.activeInHierarchy;
+            int sit = Animator.StringToHash("Base Layer." + (_seat != null ? _seat.Pose : "Sitting"));
+            var cur = anim.GetCurrentAnimatorStateInfo(0);
+            string state = cur.fullPathHash == sit ? "pose" : "other";
+            string trans = anim.IsInTransition(0) ? (anim.GetNextAnimatorStateInfo(0).fullPathHash == sit ? "to-pose" : "to-other") : "none";
+            Core.Log.Msg("[SeatAnim] " + Name + " frame " + _animTraced + " shown " + shown + " active " + anim.isActiveAndEnabled
+                + " state " + state + " transition " + trans + " t " + cur.normalizedTime.ToString("F2"));
+        }
+#endif
 
         /// <summary>
         /// Switching the animator's object off and on resets its parameters (keepAnimatorStateOnDisable is off), so a body
@@ -418,6 +477,10 @@ namespace Chassis.Seating
                 _avatar.Animation.SetCrouched(false);
                 if (!_uncrouchLogged) { _uncrouchLogged = true; Core.Log.Msg("[Seat] " + Name + " got in crouched, seated upright."); }
             }
+            SnapPose();
+#if DEBUG
+            TraceAnim();
+#endif
             if (_glideT < 1f) { _glideT = Mathf.Min(1f, _glideT + dt / GlideSeconds); }
             ApplyGlide();
             if (!_ikOn) return;
