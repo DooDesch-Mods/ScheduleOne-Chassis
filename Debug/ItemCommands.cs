@@ -38,7 +38,7 @@ namespace Chassis.Debugging
                 case "ray": Say("items ray: " + Ray()); break;
                 case "cop": Say("items cop: " + Cop()); break;
                 case "seats": Say("items seats: " + Seats()); break;
-                case "target": Say("items target: " + Target(p.Length > 3 ? float.Parse(p[3], CultureInfo.InvariantCulture) : 8f)); break;
+                case "target": Say("items target: " + Target(p.Length > 3 ? float.Parse(p[3], CultureInfo.InvariantCulture) : 8f, p.Length > 4 && p[4].ToLowerInvariant() == "cop")); break;
                 case "hp": Say("items hp: " + (_aimed != null ? SeatRig.Who(_aimed) + " health " + Hp(_aimed) : "no NPC aimed at, use 'chassis items aim'")); break;
                 case "aimfix":
                     Say("items aimfix: " + (_aimed != null ? SeatRig.Who(_aimed) + ", " + FirstPersonView.Nudge(_aimed.transform.position + Vector3.up * 1.2f) : "no NPC aimed at, use 'chassis items target'"));
@@ -56,7 +56,7 @@ namespace Chassis.Debugging
                     break;
                 }
                 default:
-                    Say("items status | press primary|secondary|reload [frames] | slot <1-9> | pick <name> | aim | target [m] | aimfix | track [off] | ray | hp | cop | seats | exit");
+                    Say("items status | press primary|secondary|reload [frames] | slot <1-9> | pick <name> | aim | target [m] [cop] | aimfix | track [off] | ray | hp | cop | seats | exit");
                     break;
             }
         }
@@ -94,7 +94,14 @@ namespace Chassis.Debugging
             var state = lp != null && lp.CurrentVehicle != null ? lp.CurrentVehicle.GetComponent<LandVehicle>()?.State : null;
             string ammo = "-";
             var gun = eq != null ? eq.As<GameRangedWeapon>() : null;
-            if (gun != null) ammo = gun.Ammo + " aim " + gun.Aim.ToString("F2", CultureInfo.InvariantCulture);
+            if (gun != null)
+            {
+                // Vanilla caps the accuracy by the player controller's speed, so a non-zero speed while seated keeps the spread wide.
+                var pm = PlayerSingleton<PlayerMovement>.InstanceExists ? PlayerSingleton<PlayerMovement>.Instance : null;
+                string speed = pm != null && pm.Controller != null ? pm.Controller.velocity.magnitude.ToString("F2", CultureInfo.InvariantCulture) : "-";
+                ammo = gun.Ammo + " aim " + gun.Aim.ToString("F2", CultureInfo.InvariantCulture)
+                    + " acc " + gun.Accuracy.ToString("F2", CultureInfo.InvariantCulture) + " ctrlSpeed " + speed;
+            }
             return "seated=" + HandItems.LocalSeated + " fp=" + FirstPersonView.Active + " hovered=" + (Instruments.Cockpit.Hovered != null)
                 + " slot=" + (item != null && item.Definition != null ? item.Definition.Name : "-") + " placeable=" + HandItems.IsPlaceable(item)
                 + " equippable=" + (eq != null ? Interop.TypeName(eq) : "-") + " avatarItem=" + (avItem != null ? avItem.name + "@" + LayerMask.LayerToName(avItem.gameObject.layer) : "-")
@@ -136,6 +143,8 @@ namespace Chassis.Debugging
 
         private static NPC _aimed;
         private static bool _track;
+        private static Vector3? _holdSpot;
+        private static Quaternion _holdRot;
 
         /// <summary>While tracking is on, turns the first-person view onto the aimed NPC's chest once per frame, so a
         /// walking target stays under the crosshair.</summary>
@@ -148,7 +157,16 @@ namespace Chassis.Debugging
                 Core.Log.Warning("[Items] aim tracking stopped: " + (_aimed == null ? "no NPC aimed at" : "first person is off") + ".");
                 return;
             }
-            try { FirstPersonView.Nudge(_aimed.transform.position + Vector3.up * 1.2f); }
+            try
+            {
+                // The NPC's schedule walks it on after the warp; it is put back whenever it drifts off its spot.
+                if (_holdSpot.HasValue && _aimed.Movement != null && Vector3.Distance(_aimed.transform.position, _holdSpot.Value) > 0.3f)
+                {
+                    _aimed.Movement.Stop();
+                    _aimed.Movement.Warp(_holdSpot.Value, _holdRot);
+                }
+                FirstPersonView.Nudge(_aimed.transform.position + Vector3.up * 1.2f);
+            }
             catch (Exception e) { _track = false; Core.Log.Error("[Items] aim tracking failed and stopped: " + e.Message); }
         }
 
@@ -173,7 +191,8 @@ namespace Chassis.Debugging
             }
             if (best == null) return "no NPC on foot within 40 m";
             _aimed = best;
-            float dist = Vector3.Distance(best.transform.position, lp.transform.position);
+            _holdSpot = null;
+            float dist =Vector3.Distance(best.transform.position, lp.transform.position);
             return SeatRig.Who(best) + " at " + dist.ToString("F1") + " m" + (bd >= 1000f ? " (behind or beside)" : " (ahead)") + ", health " + Hp(best) + ", "
                 + FirstPersonView.LookAt(best.transform.position + Vector3.up * 1.2f);
         }
@@ -226,7 +245,9 @@ namespace Chassis.Debugging
         /// Puts the nearest civilian on foot on the ground <paramref name="dist"/> m in front of the local player's car,
         /// stops them there and turns the first-person view to their chest.
         /// </summary>
-        private static string Target(float dist)
+        /// <summary>Puts the nearest civilian (or, with <paramref name="police"/>, officer) on foot <paramref name="dist"/> m
+        /// ahead of the camera, facing the car, and turns the view onto its chest.</summary>
+        private static string Target(float dist, bool police)
         {
             var lp = Player.Local;
             if (lp == null || lp.CurrentVehicle == null) return "not in a vehicle";
@@ -235,11 +256,11 @@ namespace Chassis.Debugging
             foreach (var n in UnityEngine.Object.FindObjectsOfType<NPC>())
             {
                 if (n == null || n.IsInVehicle || !n.IsConscious || !n.gameObject.activeInHierarchy || n.Movement == null) continue;
-                if (n.As<GamePoliceOfficer>() != null) continue;
+                if ((n.As<GamePoliceOfficer>() != null) != police) continue;
                 float d = Vector3.Distance(n.transform.position, car.position);
                 if (d < bd) { bd = d; best = n; }
             }
-            if (best == null) return "no civilian on foot";
+            if (best == null) return police ? "no officer on foot" : "no civilian on foot";
             var pc = PlayerSingleton<PlayerCamera>.Instance;
             Transform view = pc != null ? pc.transform : car;
             Vector3 fwd = Vector3.ProjectOnPlane(view.forward, Vector3.up).normalized;
@@ -248,6 +269,8 @@ namespace Chassis.Debugging
             best.Movement.Stop();
             best.Movement.Warp(spot, Quaternion.LookRotation(-fwd));
             _aimed = best;
+            _holdSpot = spot;
+            _holdRot = Quaternion.LookRotation(-fwd);
             return SeatRig.Who(best) + " put " + dist.ToString("F1", CultureInfo.InvariantCulture) + " m ahead at " + spot.ToString("F2") + ", health " + Hp(best) + ", "
                 + FirstPersonView.LookAt(spot + Vector3.up * 1.2f);
         }

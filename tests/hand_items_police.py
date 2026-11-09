@@ -65,17 +65,28 @@ def main():
     early = r.lines(start, r"\[Items\] crime recorded")
     r.check("no crime before the shot", not early, early[0] if early else "")
     shot_mark = r.mark()
-    r.note("cop: " + (r.say("chassis items cop", "items cop", settle_ms=600) or ["-"])[-1])
+    # The officer notices the shot through his vision cone, so he stands in front of the car facing it; the shot
+    # goes into the sky so it does not hit him.
+    placed = r.say("chassis items target 12 cop", "items target", settle_ms=800)
+    r.note("cop: " + (placed[-1] if placed else "no answer"))
+    r.say("chassis view -35", "view=")
+    time.sleep(0.5)
 
-    r.say("chassis items press secondary 60", "items press", settle_ms=300)
-    time.sleep(0.8)
-    r.say("chassis items press primary 2", "items press", settle_ms=800)
     pursuit = ""
-    for _ in range(16):
-        time.sleep(0.5)
-        pursuit = field(status(), "pursuit")
+    shots = 0
+    for _ in range(3):
+        r.say("chassis items press secondary 240", "items press", settle_ms=300)
+        time.sleep(1.5)
+        r.say("chassis items press primary 2", "items press", settle_ms=500)
+        shots += 1
+        for _ in range(8):
+            time.sleep(0.5)
+            pursuit = field(status(), "pursuit")
+            if pursuit and not pursuit.startswith("None"):
+                break
         if pursuit and not pursuit.startswith("None"):
             break
+    r.note("shots fired: %d" % shots)
     r.shot("police-after-shot")
     r.check("officer reacts to the shot from the car", bool(pursuit) and not pursuit.startswith("None"), "pursuit " + pursuit)
     crime = r.lines(shot_mark, r"\[Items\] crime recorded on the local player: .*seated=True")

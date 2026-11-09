@@ -111,15 +111,26 @@ def main():
 
     hp_before = hp()
     before = ammo(st)
-    r.say("chassis items press secondary 60", "items press", settle_ms=300)
-    time.sleep(0.6)
+    # Vanilla scatters every shot by 5 to 15 degrees, less the longer the weapon is aimed, so a single shot at 8 m can
+    # miss; the aim is held until the accuracy is up and up to three shots are fired.
+    r.say("chassis items press secondary 600", "items press", settle_ms=300)
+    time.sleep(2.0)
+    r.note("before the shot: " + status())
     r.shot("fp-aimed")
     r.say("chassis items press primary 2", "items press", settle_ms=800)
     time.sleep(0.6)
     after = ammo(None)
     r.check("first person: pistol fires", before > 0 and after == before - 1, "ammo %d -> %d" % (before, after))
-    r.say("chassis items track off", "items track", settle_ms=300)
     hp_after = hp()
+    for _ in range(2):
+        if 0 <= hp_after < hp_before:
+            break
+        time.sleep(1.0)
+        r.say("chassis items press primary 2", "items press", settle_ms=800)
+        time.sleep(0.6)
+        hp_after = hp()
+    after = ammo(None)
+    r.say("chassis items track off", "items track", settle_ms=300)
     r.check("shot from inside the car hits the NPC", hp_before > 0 and 0 <= hp_after < hp_before, "health %d -> %d" % (hp_before, hp_after))
     let = r.lines(start, r"\[Items\] shot from inside .* body collider")
     r.check("own body lets the bullet through", bool(let), let[0] if let else "no line")
