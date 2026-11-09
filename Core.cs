@@ -30,6 +30,7 @@ namespace Chassis
             Net.ChassisSync.Init();
             Tune.RepaintPatch.Apply(HarmonyInstance);
             Seating.NpcRiders.ApplyUmbrellaPatch(HarmonyInstance);
+            Seating.HandItems.ApplyInputPatches(HarmonyInstance);
             Interior.BaseInterior.LoadSetting();
             Instruments.Sources.LoadSetting();
             Vehicles.Steering.LoadSetting();
@@ -63,6 +64,7 @@ namespace Chassis
         private static void ResetWorld()
         {
             Seating.FirstPersonView.Reset();
+            Seating.HandItems.Reset();
             Seating.Occupants.Reset();
             Rideables.Showroom.Reset();
             Vehicles.Registry.Reset();
@@ -95,6 +97,7 @@ namespace Chassis
             if (!_inWorld) return;
             Guard("parts", Vehicles.Parts.LateTick);
             Guard("grips", Seating.SeatRig.LateTick);
+            Guard("item input", Seating.HandItems.LateTick);
             Guard("mirrors", Interior.Mirrors.LateTick);
 #if DEBUG
             Guard("look cam", Debugging.LookCam.LateTick);
@@ -118,6 +121,7 @@ namespace Chassis
             Guard("glovebox", Vehicles.Glovebox.Tick);
             Guard("showroom", Rideables.Showroom.Tick);
             Guard("view", Seating.FirstPersonView.Tick);
+            Guard("hand items", Seating.HandItems.Tick);
             Guard("key hints", Vehicles.KeyHints.Tick);
             Guard("pedals", Instruments.Pedals.Tick);
             Guard("odometer", Instruments.Odometer.Tick);
