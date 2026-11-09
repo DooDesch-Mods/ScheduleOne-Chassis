@@ -165,6 +165,22 @@ namespace Chassis.Seating
             return "looking at " + world.ToString("F2") + ", yaw " + _yaw.ToString("F0") + " pitch " + _pitch.ToString("F0");
         }
 
+        /// <summary>Turns the active first-person view by the angle between the rendered camera's forward and a world
+        /// point; the camera follows on the next frame, so repeated calls close the remaining error.</summary>
+        internal static string Nudge(Vector3 world)
+        {
+            if (!Active) return "first person is off";
+            if (!PlayerSingleton<PlayerCamera>.InstanceExists) return "no player camera";
+            var pc = PlayerSingleton<PlayerCamera>.Instance;
+            Transform view = pc.Camera != null ? pc.Camera.transform : pc.transform;
+            Vector3 d = view.InverseTransformDirection(world - view.position);
+            float dyaw = Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg;
+            float dpitch = -Mathf.Atan2(d.y, new Vector2(d.x, d.z).magnitude) * Mathf.Rad2Deg;
+            _yaw = Mathf.Clamp(_yaw + dyaw, -MaxYaw, MaxYaw);
+            _pitch = Mathf.Clamp(_pitch + dpitch, MinPitch, MaxPitch);
+            return "camera was off by yaw " + dyaw.ToString("F1") + " pitch " + dpitch.ToString("F1") + ", now yaw " + _yaw.ToString("F0") + " pitch " + _pitch.ToString("F0");
+        }
+
         internal static string Describe()
         {
             string s = "view="+ (Active ? "first person" : "chase") + " yaw " + _yaw.ToString("F0") + " pitch " + _pitch.ToString("F0");

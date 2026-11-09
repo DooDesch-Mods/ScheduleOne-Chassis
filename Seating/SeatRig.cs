@@ -50,6 +50,7 @@ namespace Chassis.Seating
         private bool _ikOn;
         private bool _shownLogged;
         private bool _uncrouchLogged;
+        private bool _holdsItem;
 
         /// <summary>Dev console (`chassis crouch keep`): leaves a seated body crouched, as vanilla would.</summary>
         internal static bool DebugKeepCrouch;
@@ -470,6 +471,17 @@ namespace Chassis.Seating
                 s.leftHand.IKPositionWeight = 1f; s.rightHand.IKPositionWeight = 1f;
                 float rw = rimGrip ? 1f : hands.RotationWeight;
                 s.leftHand.IKRotationWeight = rw; s.rightHand.IKRotationWeight = rw;
+                // A held item: the right hand leaves the wheel and the animator's hold pose carries the item. In the
+                // local first-person view the viewmodel shows the item, and the body's raised arm would cross it, so
+                // the local hand stays on the wheel there; other peers still see it off the wheel.
+                bool holds = Player != null && !IsPusher && _avatar.CurrentEquippable != null
+                    && !(Player.IsLocalPlayer && FirstPersonView.Active);
+                if (holds) { s.rightHand.IKPositionWeight = 0f; s.rightHand.IKRotationWeight = 0f; }
+                if (holds != _holdsItem)
+                {
+                    _holdsItem = holds;
+                    Core.Log.Msg("[Seat] " + Name + (holds ? " holds " + _avatar.CurrentEquippable.name + ", right hand off the grip." : " has the right hand back on the grip."));
+                }
             }
             if (rimGrip != _rimGrip)
             {
