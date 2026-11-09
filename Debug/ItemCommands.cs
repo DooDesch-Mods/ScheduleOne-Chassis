@@ -221,6 +221,10 @@ namespace Chassis.Debugging
             int n = i + 1;
             if (i < 0 || i >= inv.hotbarSlots.Count) { Say("items slot: " + n + " out of range 1-" + inv.hotbarSlots.Count); return; }
             var slot = inv.hotbarSlots[i];
+            // As the number keys do: the old slot is deselected first, otherwise its equippable stays alive and
+            // keeps reacting to the mouse buttons next to the new one.
+            var current = inv.EquippedSlotIndex != -1 ? inv.IndexAllSlots(inv.EquippedSlotIndex) : null;
+            if (current != null && current.IsSelected) current.Deselect();
             inv.Equip(slot);
             Say("items slot " + n + ": " + (slot.ItemInstance != null && slot.ItemInstance.Definition != null ? slot.ItemInstance.Definition.Name : "empty") + " -> " + Status());
         }

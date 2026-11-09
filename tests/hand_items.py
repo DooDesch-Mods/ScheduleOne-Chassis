@@ -106,15 +106,32 @@ def main():
     r.check("first person: viewmodel shown", field(st, "viewmodel") == "True", st)
     r.check("first person: seated body's copy hidden", "@Invisible" in field(st, "avatarItem"), st)
     r.check("first person: own right hand stays on the wheel", field(st, "rightHandIK") == "1.00", st)
-    aim = r.say("chassis items target 8", "items target", settle_ms=800)
-    r.note("aim: " + (aim[-1] if aim else "no answer"))
-    # The NPC walks on after the warp, so the view follows it every frame until the shot is out.
-    r.say("chassis items track", "items track", settle_ms=300)
-    time.sleep(1.0)
-    fix = r.say("chassis items aimfix", "items aimfix", settle_ms=300)
-    r.note("aim error with tracking: " + (fix[-1] if fix else "no answer"))
-    ray = r.say("chassis items ray", "items ray", settle_ms=600)
-    r.note("ray: " + (ray[-1] if ray else "no answer"))
+    def blocker(line):
+        """What stops the bullet before the aimed NPC (a parked or passing car), or "" when the line of fire is clear."""
+        stop = re.search(r"bullet stops at (\S+) at ([\d.]+) m", line)
+        npc = re.search(r"aimed NPC at \([^)]*\) ([\d.]+) m", line)
+        if not stop or not npc:
+            return ""
+        return "%s at %s m" % (stop.group(1), stop.group(2)) if float(stop.group(2)) < float(npc.group(1)) - 1.0 else ""
+
+    # The NPC walks on after the warp, so the view follows it every frame until the shot is out. A car of the save's
+    # world can stand or drive in the line of fire; the NPC is placed again until the line is clear.
+    blocked = ""
+    for attempt in range(4):
+        aim = r.say("chassis items target 8", "items target", settle_ms=800)
+        r.note("aim: " + (aim[-1] if aim else "no answer"))
+        r.say("chassis items track", "items track", settle_ms=300)
+        time.sleep(1.0)
+        fix = r.say("chassis items aimfix", "items aimfix", settle_ms=300)
+        r.note("aim error with tracking: " + (fix[-1] if fix else "no answer"))
+        ray = r.say("chassis items ray", "items ray", settle_ms=600)
+        r.note("ray: " + (ray[-1] if ray else "no answer"))
+        blocked = blocker(ray[-1] if ray else "")
+        if not blocked:
+            break
+        r.note("line of fire blocked by " + blocked + ", attempt %d" % (attempt + 1))
+        r.say("chassis items track off", "items track", settle_ms=300)
+        time.sleep(4.0)
 
     def hp():
         said = r.say("chassis items hp", "items hp", settle_ms=500)
@@ -143,7 +160,8 @@ def main():
         hp_after = hp()
     after = ammo(None)
     r.say("chassis items track off", "items track", settle_ms=300)
-    r.check("shot from inside the car hits the NPC", hp_before > 0 and 0 <= hp_after < hp_before, "health %d -> %d" % (hp_before, hp_after))
+    r.check("shot from inside the car hits the NPC", hp_before > 0 and 0 <= hp_after < hp_before,
+            "health %d -> %d" % (hp_before, hp_after) + (", line of fire blocked by " + blocked if blocked else ""))
     let = r.lines(start, r"\[Items\] shot from inside .* body collider")
     r.check("own body lets the bullet through", bool(let), let[0] if let else "no line")
 
