@@ -7,6 +7,8 @@ Needs a joined pair from `pwsh -File tests/coop_up.ps1` with a Debug build. Chec
   host-key      - the driver turns the key back on: the engine runs on both peers, auto ignition stays off
   client-auto   - the passenger presses auto ignition: on for both peers
   client-bind   - the passenger's ignition key binding (a controller button) turns the key off for both peers
+  client-tag    - the host paints the car: the key fob on the client takes the new body colour
+  client-tag-back - the host removes the paint: the client's fob follows the body back
 
 Usage: python -I tests/ignition_coop.py --host mptest5 --client mptest6
 """
@@ -52,6 +54,14 @@ def ign(slot, act=""):
 def both(h, c):
     time.sleep(1.5)
     return ign(h), ign(c)
+
+
+TAG = re.compile(r"ign tag: fob #?([0-9A-Fa-f]{6}), body #?([0-9A-Fa-f]{6})")
+
+
+def tag(slot):
+    m = TAG.search(run(slot, "chassis ign tag", until=r"ign tag: "))
+    return (m.group(1).upper(), m.group(2).upper()) if m else (None, None)
 
 
 def fmt(s):
@@ -115,6 +125,17 @@ def main():
     results.append(("client-bind", ok, "host " + fmt(hs) + " / client " + fmt(cs)))
     run(c, "chassis bind Ignition button none")
     ign(h, "auto")
+
+    # The host paints the car; the fob on the client's copy takes the new body colour.
+    run(h, "chassis tune set paint 1E5AC8,classic")
+    time.sleep(2.5)
+    fob, body = tag(c)
+    results.append(("client-tag", fob == body == "1E5AC8", "host painted 1E5AC8: client fob %s, body %s" % (fob, body)))
+    run(h, "chassis tune clear")
+    time.sleep(2)
+    fob, body = tag(c)
+    results.append(("client-tag-back", fob is not None and fob == body and fob != "1E5AC8",
+                    "paint removed: client fob %s, body %s" % (fob, body)))
 
     run(c, "chassis exit")
     run(h, "chassis exit")
