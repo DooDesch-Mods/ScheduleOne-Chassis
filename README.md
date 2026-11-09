@@ -78,6 +78,12 @@
 | `Left click` | In first person: use the switch you look at. A dot in the screen centre shows that you can. |
 | `Mouse wheel` | In first person: turn the knob or stalk you look at. |
 
+The indicator and first person keys can be changed, and each can also get a controller button:
+`IndicatorLeftKey`, `IndicatorRightKey`, `FirstPersonKey` and the matching `...Button` entries in
+`UserData/MelonPreferences.cfg` under `[Chassis]`. A button is an Input System path such as
+`<Gamepad>/select`. Most pad buttons already do something in the game (Y opens the phone), so pick one
+that is free while driving.
+
 ## Screenshots
 
 | | |

@@ -77,6 +77,7 @@ namespace Chassis.Debugging
                         Say("showroom [tp|enter|hover|press <i>] [m] - showroom cars; tp to car i's door (m metres out, facing it), enter gets in, hover/press fire its prompt events");
                         Say("showroom ghost on|off        - draw the hidden display props over their cars (alignment check)");
                         Say("view [pitch]                 - first person on/off while seated (key V); a pitch turns it on looking down that far");
+                        Say("bind [<name> key <KeyCode>|<name> button <path|none>|pad <control>] - indicator and first-person keys; pad presses a virtual gamepad control");
                         Say("exit                         - leave the vehicle (as the Interact key)");
                         Say("drive <fwd> <steer> [s]       - driver input for s seconds (default 3)");
                         Say("despawn car                  - remove the nearest car within 30 m");
@@ -321,6 +322,16 @@ namespace Chassis.Debugging
                             Vehicles.KeyHints.Rebuild();
                         }
                         Say(Vehicles.KeyHints.Describe() + ", arrows '" + Vehicles.KeyHints.ArrowFormat + "'");
+                        break;
+                    case "bind":
+                        // bind | bind <name> key <KeyCode> | bind <name> button <path|none> | bind pad <control>
+                        if (parts.Length > 3 && parts[2].ToLower() == "pad") Say(Vehicles.Bindings.Pad(parts[3]));
+                        else if (parts.Length > 4)
+                        {
+                            var b = Vehicles.Bindings.Find(parts[2]);
+                            Say(b == null ? "bind: no binding '" + parts[2] + "' (IndicatorLeft, IndicatorRight, FirstPerson)" : Vehicles.Bindings.Set(b, parts[3].ToLower(), parts[4]));
+                        }
+                        else Say(Vehicles.Bindings.Describe());
                         break;
                     case "profile":
                         ProfileCommands.Run(parts);

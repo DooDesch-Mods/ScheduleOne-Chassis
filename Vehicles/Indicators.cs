@@ -15,7 +15,8 @@ namespace Chassis.Vehicles
     /// </summary>
     internal static class Indicators
     {
-        internal const KeyCode LeftKey = KeyCode.LeftArrow, RightKey = KeyCode.RightArrow;
+        internal static KeyCode LeftKey => Bindings.IndicatorLeft.Key;
+        internal static KeyCode RightKey => Bindings.IndicatorRight.Key;
         /// <summary>The side value of the hazard lights: both sides flash.</summary>
         internal const int Hazard = 2;
         /// <summary>One flash on and off, in seconds: about 90 flashes a minute.</summary>
@@ -133,7 +134,7 @@ namespace Chassis.Vehicles
 
         private static void Keys()
         {
-            bool left = Input.GetKeyDown(LeftKey), right = Input.GetKeyDown(RightKey);
+            bool left = Bindings.IndicatorLeft.Down(), right = Bindings.IndicatorRight.Down();
             if ((!left && !right) || GameInput.IsTyping) return;
             Arrow(left);
         }

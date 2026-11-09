@@ -361,7 +361,7 @@ namespace Chassis.Vehicles
             catch (Exception ex) { Core.Log.Error("[KeyHints] could not shorten the arrow key labels, the game's stay: " + ex.Message); }
         }
 
-        private static T Create<T>() where T : ScriptableObject
+        internal static T Create<T>() where T : ScriptableObject
         {
 #if IL2CPP
             var o = ScriptableObject.CreateInstance(Il2CppType.Of<T>()).Cast<T>();
