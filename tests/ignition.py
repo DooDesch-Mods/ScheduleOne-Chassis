@@ -51,14 +51,16 @@ def state(slot, act=""):
 
 
 def drive(slot):
-    """Full throttle for 3 s from standing; returns the speed reached."""
-    run(slot, "chassis drive 1 0 3")
-    time.sleep(3.2)
+    """Full throttle for 2 s from standing; returns the speed read while the throttle is still held."""
+    run(slot, "chassis drive 1 0 2")
+    time.sleep(1.5)
     st, _ = state(slot)
-    speed = abs(st["speed"]) if st else -1
-    # stop again for the next check
+    # Signed: forward is positive, so a car still rolling back from the last check does not count as driving.
+    speed = st["speed"] if st else -99
+    # back to the start for the next check
+    time.sleep(1)
     run(slot, "chassis drive -1 0 2")
-    time.sleep(2.5)
+    time.sleep(3)
     return speed
 
 
@@ -72,7 +74,7 @@ def main():
     run(slot, "chassis exit")
     run(slot, "chassis car remove")
     s1(slot, "tp", str(X + 4), str(Y), str(Z))
-    out = run(slot, "chassis car put %s %s %s %s 0" % (code, X, Y, Z))
+    out = run(slot, "chassis car put %s %s %s %s 180" % (code, X, Y, Z))
     if "car put:" not in out:
         check("spawn", False, out.strip()[-200:])
         sys.exit(1)
@@ -89,7 +91,7 @@ def main():
         st, out = state(slot, "auto")
     check("default", st["auto"] == "on" and st["engine"] == "on", "auto ignition %s, engine %s on entering" % (st["auto"], st["engine"]))
     v = drive(slot)
-    check("drive-auto", v > 5, "%.1f km/h after 3 s full throttle with auto ignition" % v)
+    check("drive-auto", v > 5, "%.1f km/h after 1.5 s full throttle with auto ignition" % v)
 
     st, out = state(slot, "key")
     check("key-off", st and st["auto"] == "off" and st["key"] == "off" and st["engine"] == "off",
@@ -98,7 +100,7 @@ def main():
           "host logged that the key turned auto ignition off")
     check("rpm-off", st and st["rpm"] == 0, "rev counter %s with the engine off" % (st and st["rpm"]))
     v = drive(slot)
-    check("no-throttle", 0 <= v < 1.5, "%.1f km/h after 3 s full throttle with the engine off" % v)
+    check("no-throttle", -99 < v < 1.5, "%.1f km/h after 1.5 s full throttle with the engine off" % v)
 
     lights = run(slot, "chassis ctl lights 1")
     check("lights-off-engine", "value now 1" in lights, "headlights switch with the engine off: " + lights.strip().splitlines()[0][:120] if lights.strip() else "no answer")
@@ -116,9 +118,17 @@ def main():
     check("key-on", st and st["key"] == "on" and st["engine"] == "on" and st["auto"] == "off",
           "key turned on: key %s, engine %s, auto %s" % (st and st["key"], st and st["engine"], st and st["auto"]))
     v = drive(slot)
-    check("drive-key", v > 5, "%.1f km/h with the key on" % v)
+    check("drive-key", v > 5, "%.1f km/h after 1.5 s full throttle with the key on" % v)
 
-    st, _ = state(slot, "key")
+    # The ignition binding on a controller button, pressed on a virtual gamepad.
+    run(slot, "chassis bind Ignition button <Gamepad>/select")
+    run(slot, "chassis bind pad select")
+    time.sleep(1.5)
+    st, _ = state(slot)
+    check("bind-key", st and st["key"] == "off" and st["engine"] == "off",
+          "ignition button <Gamepad>/select: key %s, engine %s" % (st and st["key"], st and st["engine"]))
+    run(slot, "chassis bind Ignition button none")
+
     st, _ = state(slot, "auto")
     check("auto-on", st and st["auto"] == "on" and st["engine"] == "on",
           "auto ignition button: auto %s, engine %s" % (st and st["auto"], st and st["engine"]))

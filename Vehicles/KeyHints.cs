@@ -48,6 +48,8 @@ namespace Chassis.Vehicles
             new Entry { Id = "chassis.firstperson", Label = "First Person", Keys = () => new[] { FirstPersonView.Key },
                 Show = c => !c.Pushing && Occupants.Of(Player.Local) != null },
             new Entry { Id = "chassis.horn", Label = "Horn", Keys = () => new[] { Horn.Key }, Show = c => c.Driver },
+            new Entry { Id = "chassis.ignition", Label = "Ignition", Keys = () => new[] { Bindings.Ignition.Key },
+                Show = c => !c.Pushing && c.Vehicle != null && Occupants.Of(Player.Local) != null && Ignition.Has(c.Vehicle) },
             new Entry { Id = "chassis.indicators", Label = "Indicators", Keys = () => new[] { Indicators.LeftKey, Indicators.RightKey },
                 Show = c => c.Driver && Indicators.CanSignal(c.Vehicle, c.Profile), Last = true },
             new Entry { Id = "chassis.push", Label = "Push", Show = c => c.Pushing, Buttons = new[] { "Motion" } },

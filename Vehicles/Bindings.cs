@@ -88,6 +88,7 @@ namespace Chassis.Vehicles
         internal static readonly Binding IndicatorLeft = new Binding("IndicatorLeft", KeyCode.LeftArrow);
         internal static readonly Binding IndicatorRight = new Binding("IndicatorRight", KeyCode.RightArrow);
         internal static readonly Binding FirstPerson = new Binding("FirstPerson", KeyCode.V);
+        internal static readonly Binding Ignition = new Binding("Ignition", KeyCode.I);
 
         private static int _serial;
         private static bool _created;
@@ -109,7 +110,8 @@ namespace Chassis.Vehicles
                 IndicatorLeft.Create(cat, "Left indicator", "switches the left indicator on and off");
                 IndicatorRight.Create(cat, "Right indicator", "switches the right indicator on and off");
                 FirstPerson.Create(cat, "First person", "switches the first-person view in a seat");
-                Core.Log.Msg("[Bindings] " + IndicatorLeft + ", " + IndicatorRight + ", " + FirstPerson + ".");
+                Ignition.Create(cat, "Ignition", "turns the ignition key of the car you sit in");
+                Core.Log.Msg("[Bindings] " + IndicatorLeft + ", " + IndicatorRight + ", " + FirstPerson + ", " + Ignition + ".");
             }
             catch (Exception e)
             {
@@ -117,12 +119,12 @@ namespace Chassis.Vehicles
             }
         }
 
-        internal static string Describe() => "bindings: " + IndicatorLeft + ", " + IndicatorRight + ", " + FirstPerson;
+        internal static string Describe() => "bindings: " + IndicatorLeft + ", " + IndicatorRight + ", " + FirstPerson + ", " + Ignition;
 
 #if DEBUG
         internal static Binding Find(string name)
         {
-            foreach (var b in new[] { IndicatorLeft, IndicatorRight, FirstPerson })
+            foreach (var b in new[] { IndicatorLeft, IndicatorRight, FirstPerson, Ignition })
                 if (string.Equals(b.Name, name, StringComparison.OrdinalIgnoreCase)) return b;
             return null;
         }

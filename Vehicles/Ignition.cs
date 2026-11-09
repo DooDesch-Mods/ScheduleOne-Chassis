@@ -121,6 +121,17 @@ namespace Chassis.Vehicles
             Controls.UseLocal(lv, ControlName, KeyShown(lv) > 0.5f ? 0f : 1f);
         }
 
+        /// <summary>The ignition key binding, for whoever sits in the car; the host checks the seat.</summary>
+        internal static void Tick()
+        {
+            if (!Bindings.Ignition.Down() || GameInput.IsTyping) return;
+            var lp = Player.Local;
+            var lv = lp != null && lp.CurrentVehicle != null ? lp.CurrentVehicle.GetComponent<LandVehicle>() : null;
+            if (lv == null) { Core.Log.Msg("[Ignition] ignition key on foot - nothing to switch."); return; }
+            if (lv.State != null && lv.LocalPlayerIsDriver && !lv.State.IsAcceptingInput) { Core.Log.Msg("[Ignition] ignition key in " + Registry.Name(lv) + " ignored: the vehicle takes no input."); return; }
+            KeyPressed(lv);
+        }
+
         internal static void Forget(LandVehicle lv)
         {
             if (lv == null) return;

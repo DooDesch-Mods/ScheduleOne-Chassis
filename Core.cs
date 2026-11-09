@@ -112,6 +112,7 @@ namespace Chassis
             Guard("horn", Vehicles.Horn.Tick);
             Guard("checkpoint horn", Vehicles.CheckpointHorn.Tick);
             Guard("indicators", Vehicles.Indicators.Tick);
+            Guard("ignition", Vehicles.Ignition.Tick);
             Guard("auto lights", Vehicles.AutoLights.Tick);
             Guard("cabin light", Vehicles.CabinLight.Tick);
             Guard("glovebox", Vehicles.Glovebox.Tick);
