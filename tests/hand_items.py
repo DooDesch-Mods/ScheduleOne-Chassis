@@ -59,6 +59,7 @@ def main():
     for item in (GUN, DRINK, PLACEABLE):
         g.run("give %s 1" % item, settle_ms=800, max_wait_ms=6000)
     g.run("give %s 2" % MAG, settle_ms=800, max_wait_ms=6000)
+    g.run("give %s 1" % DRINK, settle_ms=800, max_wait_ms=6000)
     g.run("spawnvehicle " + code, settle_ms=3000, max_wait_ms=8000)
 
     entered = r.say("chassis car enter " + code, "car enter", settle_ms=2500)
@@ -85,6 +86,17 @@ def main():
     r.check("chase view: pistol does not fire", before >= 0 and after == before, "ammo %d -> %d" % (before, after))
     kept = r.lines(start, r"\[Items\] mouse input kept from .*weapon in the chase view")
     r.check("chase view: weapon input blocked in the log", bool(kept), kept[0] if kept else "no line")
+
+    # Consumables work in both views; the chase view drinks the first of the two cans.
+    r.say("chassis items pick " + DRINK, "items slot", settle_ms=1500)
+    time.sleep(1.0)
+    mark = r.mark()
+    r.say("chassis items press primary 2", "items press", settle_ms=500)
+    hit = r.wait_line(mark, r"\[Items\] trash .* thrown out of the (left|right) window", 8)
+    # The driver sits on the left; the chase camera behind the car must not decide the side.
+    r.check("chase view: drink trash out of the driver's window", bool(hit) and "left window" in hit, hit or "no line within 8 s")
+    r.say("chassis items pick " + GUN, "items slot", settle_ms=1500)
+    time.sleep(1.0)
 
     # ---- first person -----------------------------------------------------------------------------------------
     view = r.say("chassis view 0", "view=")

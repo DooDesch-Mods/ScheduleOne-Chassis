@@ -88,9 +88,41 @@ def main():
     h, c = args.host, args.client
     results = []
 
+    # A client joining the host's save for the first time plays the intro, then opens the character creator; until it
+    # is closed the client's camera is not the player's and its held item stays inactive.
+    end = time.time() + 240
+    closed = False
+    while time.time() < end:
+        if "done with the default looks" in run(c, "chassis items creator", until=r"items creator", max_wait=3000):
+            closed = True
+            time.sleep(3)
+            break
+        time.sleep(3)
+    results.append(("client-creator", closed, "client's character creator closed" if closed else "no character creator within 240 s"))
+    # Side Hustle raises the phone with its lobby app on the client after the join. An open phone is a UI element, and
+    # vanilla only lets a consumable be used while no UI element is open.
+    ui = ""
+    for _ in range(5):
+        run(c, "shphone down", until=r"shphone", max_wait=3000)
+        time.sleep(2)
+        m = re.search(r"\bui \[([^\]]*)\]", status(c))
+        ui = m.group(1) if m else "?"
+        if ui == "":
+            break
+    results.append(("client-ui-clear", ui == "", "client's open UI elements: [" + ui + "]"))
+
+    # Items go in through the mod's give, which reports the hotbar afterwards and logs an error if adding fails; a
+    # client that has just joined may answer before its inventory exists, so each give is repeated a few times.
     for slot in (h, c):
-        run(slot, "give m1911 1")
-        run(slot, "give cuke 2")
+        for words in ("chassis items give m1911 1", "chassis items give cuke 2"):
+            added = False
+            for _ in range(10):
+                if re.search(r"items give: added [1-9]", run(slot, words, until=r"items give: ", max_wait=4000)):
+                    added = True
+                    break
+                time.sleep(2)
+            if not added:
+                print("  [" + slot + "] '" + words + "' added nothing")
     pos = where(h)
     x, y, z = pos["position"]
     run(h, "chassis car put shitbox %.2f %.2f %.2f 0" % (x + 4, y, z), max_wait=5000)
@@ -122,8 +154,12 @@ def main():
     time.sleep(0.8)
     e = seat_entry(run(h, "chassis items seats", until=r"items seats"), "remote")
     results.append(("host-sees-drink", "Cuke" in e and "@Invisible" not in e, "host sees the can in the passenger's hand: " + e))
-    time.sleep(3.0)
-    trash = log_lines(c, r"\[Items\] trash .* thrown out of the (left|right) window")
+    trash = []
+    for _ in range(10):
+        time.sleep(1.0)
+        trash = log_lines(c, r"\[Items\] trash .* thrown out of the (left|right) window")
+        if trash:
+            break
     results.append(("client-drink", any("right window" in l for l in trash), "passenger's trash out of the right window: " + (trash[-1] if trash else "no line")))
 
     run(c, "chassis items pick m1911", until=r"items slot")

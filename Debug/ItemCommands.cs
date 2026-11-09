@@ -5,6 +5,13 @@ using System.Globalization;
 using Chassis.Compat;
 using Chassis.Seating;
 using HarmonyLib;
+#if IL2CPP
+using GameRegistry = Il2CppScheduleOne.Registry;
+using GameCharacterCreator = Il2CppScheduleOne.CharacterCreator.CharacterCreator;
+#else
+using GameRegistry = ScheduleOne.Registry;
+using GameCharacterCreator = ScheduleOne.CharacterCreator.CharacterCreator;
+#endif
 
 namespace Chassis.Debugging
 {
@@ -34,6 +41,19 @@ namespace Chassis.Debugging
                     if (p.Length < 4) { Say("items pick <name or id>"); break; }
                     Pick(p[3].ToLowerInvariant());
                     break;
+                case "creator":
+                    // A test client joining without saved looks starts in the character creator, where the viewmodel
+                    // and the held item stay inactive; this finishes it with the default looks.
+                    {
+                        var cc = Singleton<GameCharacterCreator>.InstanceExists ? Singleton<GameCharacterCreator>.Instance : null;
+                        if (cc == null || !cc.IsOpen) Say("items creator: not open");
+                        else { cc.Done(); Say("items creator: done with the default looks"); }
+                    }
+                    break;
+                case "give":
+                    if (p.Length < 4) { Say("items give <id> [qty]"); break; }
+                    Say("items give: " + Give(p[3].ToLowerInvariant(), p.Length > 4 ? int.Parse(p[4], CultureInfo.InvariantCulture) : 1));
+                    break;
                 case "aim": Say("items aim: " + AimAtNpc()); break;
                 case "ray": Say("items ray: " + Ray()); break;
                 case "cop": Say("items cop: " + Cop()); break;
@@ -56,7 +76,7 @@ namespace Chassis.Debugging
                     break;
                 }
                 default:
-                    Say("items status | press primary|secondary|reload [frames] | slot <1-9> | pick <name> | aim | target [m] [cop] | aimfix | track [off] | ray | hp | cop | seats | exit");
+                    Say("items status | press primary|secondary|reload [frames] | slot <1-9> | pick <name> | give <id> [qty] | creator | aim | target [m] [cop] | aimfix | track [off] | ray | hp | cop | seats | exit");
                     break;
             }
         }
@@ -107,8 +127,36 @@ namespace Chassis.Debugging
                 + " equippable=" + (eq != null ? Interop.TypeName(eq) : "-") + " avatarItem=" + (avItem != null ? avItem.name + "@" + LayerMask.LayerToName(avItem.gameObject.layer) : "-")
                 + " viewmodel=" + vm + " rightHandIK=" + hand + " gun=" + ammo
                 + " stateEquipping=" + (state != null ? state.Properties.Equipping.ToString() : "-")
-                + " pursuit=" + (lp != null && lp.CrimeData != null ? lp.CrimeData.CurrentPursuitLevel.ToString() + "/" + lp.CrimeData.Crimes.Count : "-");
+                + " pursuit=" + (lp != null && lp.CrimeData != null ? lp.CrimeData.CurrentPursuitLevel.ToString() + "/" + lp.CrimeData.Crimes.Count : "-")
+                + " input=" + Input()
+                + " eqUpdates " + HandItems.UpdateCalls + " last " + HandItems.LastUpdated
+                + (eq != null ? " eqEnabled " + eq.enabled + " eqActive " + eq.gameObject.activeInHierarchy + " eqPos " + eq.transform.position : "");
         }
+
+        /// <summary>What the game's input sees: time scale, GameInput instances, the singleton's held buttons and pending presses.</summary>
+        private static string Input()
+        {
+            var gi = Singleton<GameInput>.InstanceExists ? Singleton<GameInput>.Instance : null;
+            var all = UnityEngine.Object.FindObjectsOfType<GameInput>();
+            var held = new List<string>();
+            if (gi != null) foreach (var b in HandItems.Held(gi)) held.Add(b.ToString());
+            var pcam = PlayerSingleton<PlayerCamera>.InstanceExists ? PlayerSingleton<PlayerCamera>.Instance : null;
+            return "ts " + Time.timeScale.ToString("F2", CultureInfo.InvariantCulture) + " ui " + (pcam != null ? "[" + UiNames(pcam) + "]" : "-") + " instances " + (all != null ? all.Length : 0)
+                + " held [" + string.Join(",", held) + "] pending " + _held.Count + " lateUpdates " + _lateUpdates
+                + " secondary " + GameInput.GetButton(GameInput.ButtonCode.SecondaryClick);
+        }
+
+        /// <summary>Names of the UI elements the player camera counts as open; vanilla consumables need none.</summary>
+        private static string UiNames(PlayerCamera pcam)
+        {
+            var list = pcam.ActiveUIElements;
+            if (list == null) return "";
+            var names = new List<string>();
+            for (int i = 0; i < list.Count; i++) names.Add(list[i]);
+            return string.Join(",", names);
+        }
+
+        private static int _lateUpdates;
 
         private static void Slot(int n)
         {
@@ -129,7 +177,43 @@ namespace Chassis.Debugging
                 if (def == null) continue;
                 if (def.Name.ToLowerInvariant().Contains(what) || def.ID.ToLowerInvariant().Contains(what)) { Equip(inv, i); return; }
             }
-            Say("items pick: no hotbar item matches '" + what + "'");
+            Say("items pick: no hotbar item matches '" + what + "', hotbar " + Hotbar(inv));
+        }
+
+        private static string Hotbar(GamePlayerInventory inv)
+        {
+            var parts = new List<string>();
+            for (int i = 0; i < inv.hotbarSlots.Count; i++)
+            {
+                var it = inv.hotbarSlots[i].ItemInstance;
+                parts.Add((i + 1) + "=" + (it != null && it.Definition != null ? it.Definition.ID + "x" + it.Quantity : "-"));
+            }
+            return string.Join(" ", parts);
+        }
+
+        /// <summary>Adds items through the local PlayerInventory and reports the hotbar after it, or the error.</summary>
+        private static string Give(string id, int qty)
+        {
+            var inv = PlayerSingleton<GamePlayerInventory>.Instance;
+            if (inv == null) return "no PlayerInventory";
+            var def = GameRegistry.GetItem(id);
+            if (def == null) return "unknown item '" + id + "'";
+            int added = 0;
+            try
+            {
+                for (; added < qty; added++)
+                {
+                    var inst = def.GetDefaultInstance(1);
+                    if (!inv.CanItemFitInInventory(inst, 1)) { Core.Log.Warning("[Items] give " + id + ": no space after " + added + "."); break; }
+                    inv.AddItemToInventory(inst);
+                }
+            }
+            catch (Exception e)
+            {
+                Core.Log.Error("[Items] give " + id + " failed after " + added + ": " + e);
+                return "failed after " + added + ": " + e.GetType().Name + " " + e.Message;
+            }
+            return "added " + added + " " + id + ", hotbar " + Hotbar(inv);
         }
 
         private static void Equip(GamePlayerInventory inv, int i)
@@ -347,6 +431,7 @@ namespace Chassis.Debugging
         {
             private static void Postfix(GameInput __instance)
             {
+                _lateUpdates++;
                 Track();
                 if (_held.Count == 0) return;
                 try
