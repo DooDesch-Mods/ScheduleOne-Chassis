@@ -4,6 +4,24 @@ All notable changes to Chassis are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.11.0] - 2026-11-09
+
+### Added
+
+- Use hotbar items in any vehicle seat: eat, drink, smoke and hold weapons. Weapons fire in first person, and trash
+  goes out of the window.
+- Optional ignition: turn the key beside the wheel (`I`) to switch the engine off and on, or press the auto ignition
+  button to drive as before.
+- The tag on the ignition key has the colour of the car and changes with it when the car is repainted.
+- Honk at a police checkpoint to call the officer to your window. He searches the car while you stay inside.
+- Indicator, first person and ignition keys can be changed, and each can get a controller button (`[Chassis]` in
+  `MelonPreferences.cfg`).
+
+### Fixed
+
+- Underglow lights the ground as one even strip instead of separate spots.
+- The driver no longer shows standing for a moment when getting into a car.
+
 ## [1.10.4] - 2026-11-07
 
 ### Fixed
