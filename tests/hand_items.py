@@ -154,7 +154,11 @@ def main():
     for _ in range(2):
         if 0 <= hp_after < hp_before:
             break
+        # The warped NPC can still be falling or walking when the first shot goes out, so the view is put back on it.
+        fix = r.say("chassis items aimfix", "items aimfix", settle_ms=300)
         time.sleep(1.0)
+        ray = r.say("chassis items ray", "items ray", settle_ms=600)
+        r.note("retry aim: " + (fix[-1] if fix else "no answer") + " | " + (ray[-1] if ray else "no ray"))
         r.say("chassis items press primary 2", "items press", settle_ms=800)
         time.sleep(0.6)
         hp_after = hp()
@@ -202,7 +206,12 @@ def main():
     mark = r.mark()
     r.say("chassis items exit", "items exit", settle_ms=2500)
     back = r.wait_line(mark, r"\[Items\] .* back in the hand after getting out", 5)
-    r.check("placeable back in the hand after getting out", bool(back), back or "no line within 5 s")
+    # A shot NPC may fight back; a player killed in the seat is thrown out by vanilla and the item check has no
+    # meaning, so the state after getting out says why the line is missing.
+    after_exit = status() if not back else ""
+    r.check("placeable back in the hand after getting out", bool(back), back or "no line within 5 s; " + after_exit)
+    if "Dead" in after_exit:
+        r.note("the player died in the seat before getting out")
     st = status()
     r.check("viewmodel shown again on foot", field(st, "viewmodel") == "True", st)
 

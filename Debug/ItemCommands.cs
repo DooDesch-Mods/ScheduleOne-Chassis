@@ -128,6 +128,7 @@ namespace Chassis.Debugging
                 + " viewmodel=" + vm + " rightHandIK=" + hand + " gun=" + ammo
                 + " stateEquipping=" + (state != null ? state.Properties.Equipping.ToString() : "-")
                 + " pursuit=" + (lp != null && lp.CrimeData != null ? lp.CrimeData.CurrentPursuitLevel.ToString() + "/" + lp.CrimeData.Crimes.Count : "-")
+                + " playerHp=" + (lp != null && lp.Health != null ? lp.Health.CurrentHealth.ToString("F0", CultureInfo.InvariantCulture) : "-")
                 + " input=" + Input()
                 + " eqUpdates " + HandItems.UpdateCalls + " last " + HandItems.LastUpdated
                 + (eq != null ? " eqEnabled " + eq.enabled + " eqActive " + eq.gameObject.activeInHierarchy + " eqPos " + eq.transform.position : "");

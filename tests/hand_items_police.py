@@ -51,8 +51,10 @@ def main():
     # 20 m: close enough to see and hear the shot, far enough that the officer does not walk up for a search first.
     g.world("teleport", {"x": x + 20.0, "y": y + 0.5, "z": z, "yaw": 270}, timeout_ms=8000)
     time.sleep(1.5)
+    r.note("after the teleport: playerHp " + field(status(), "playerHp"))
     g.run("give %s 1" % GUN, settle_ms=800, max_wait_ms=6000)
     g.run("spawnvehicle shitbox", settle_ms=3000, max_wait_ms=8000)
+    r.note("after the spawn: playerHp " + field(status(), "playerHp"))
     entered = r.say("chassis car enter shitbox", "car enter", settle_ms=2500)
     r.check("got into the car beside the officer", any("driver" in l for l in entered), entered[-1] if entered else "no answer")
 
@@ -61,6 +63,8 @@ def main():
     time.sleep(1.0)
     st = status()
     r.check("seated with the pistol in first person", field(st, "seated") == "True" and field(st, "fp") == "True" and field(st, "gun") not in ("", "-"), st)
+    # A dead player fires no crime; a death before the shot is named here instead of as a missing police reaction.
+    r.check("player alive before the shot", "Dead" not in st and field(st, "playerHp") not in ("", "-", "0"), "playerHp " + field(st, "playerHp"))
     r.check("no pursuit before the shot", field(st, "pursuit").startswith("None"), st)
     early = r.lines(start, r"\[Items\] crime recorded")
     r.check("no crime before the shot", not early, early[0] if early else "")
