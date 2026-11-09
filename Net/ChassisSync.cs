@@ -13,6 +13,7 @@ namespace Chassis.Net
     ///   req.drive vehicle sign        -> drive vehicle sign           (driver's stroke direction for the hands)
     ///   req.honk vehicle player flash hold -> honk vehicle hold       (host: player sits inside or owns it)
     ///   req.honk.stop vehicle         -> honk.stop vehicle            (the driver let go of the horn key)
+    ///   req.cpwalk officer x y z fx fy fz -> (none)                   (host: officer walks to a driver window, CheckpointHorn)
     ///   req.blink vehicle side        -> blink vehicle side           (-1 left, 1 right, 0 off)
     ///   req.part vehicle name 1|0     -> part vehicle name 1|0        (lid held open)
     ///   req.side vehicle 1|0          -> side vehicle 1|0             (storage opened at the front)
@@ -46,6 +47,7 @@ namespace Chassis.Net
                 case "req.drive": ChassisNet.ToAll("drive", m.Arg(0), m.Arg(1)); break;
                 case "req.honk": Horn.HostHonk(I(m.Arg(0)), I(m.Arg(1)), m.Arg(2) == "1", m.Arg(3) == "1"); break;
                 case "req.honk.stop": ChassisNet.ToAll("honk.stop", m.Arg(0)); break;
+                case "req.cpwalk": CheckpointHorn.HostWalk(I(m.Arg(0)), new UnityEngine.Vector3(Fl(m.Arg(1)), Fl(m.Arg(2)), Fl(m.Arg(3))), new UnityEngine.Vector3(Fl(m.Arg(4)), Fl(m.Arg(5)), Fl(m.Arg(6)))); break;
                 case "req.blink": ChassisNet.ToAll("blink", m.Arg(0), Indicators.Clean(I(m.Arg(1))).ToString(CultureInfo.InvariantCulture)); break;
                 case "req.part": ChassisNet.ToAll("part", m.Arg(0), m.Arg(1), m.Arg(2) == "1" ? "1" : "0"); break;
                 case "req.side": ChassisNet.ToAll("side", m.Arg(0), m.Arg(1) == "1" ? "1" : "0"); break;

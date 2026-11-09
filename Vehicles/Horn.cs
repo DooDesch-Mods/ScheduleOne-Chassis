@@ -34,13 +34,21 @@ namespace Chassis.Vehicles
                 return;
             }
             if (!Input.GetKeyDown(Key) || GameInput.IsTyping) return;
+            Press();
+        }
+
+        /// <summary>The horn key went down: the driver checks, the horn, then the checkpoint talk.</summary>
+        internal static bool Press()
+        {
             var lp = Player.Local;
             var lv = lp != null && lp.CurrentVehicle != null ? lp.CurrentVehicle.GetComponent<LandVehicle>() : null;
-            if (lv == null || !lv.LocalPlayerIsDriver) return;
-            if (lv.State != null && !lv.State.IsAcceptingInput) return;
-            if (!Send(lv, false, true)) return;
+            if (lv == null || !lv.LocalPlayerIsDriver) return false;
+            if (lv.State != null && !lv.State.IsAcceptingInput) return false;
+            if (!Send(lv, false, true)) return false;
+            CheckpointHorn.Honked(lv);
             _held = lv;
             _heldId = Ids.Of(lv);
+            return true;
         }
 
         private static void Release(string why)

@@ -23,6 +23,7 @@ namespace Chassis.Debugging
             Say("car slide [km/h] [deg] [s]   - hold the body at a speed turned off its facing, for tyre slip and drift smoke");
             Say("car wheels                   - drift state, smoke and smoke colour per wheel");
             Say("car honk [flash]             - horn (key G)");
+            Say("car hornkey                  - one horn key press, with the driver checks and the checkpoint talk");
             Say("car hear [d1,d2,...]         - plays the horn from each distance and reports the level at the listener");
             Say("car blink l|r|off            - indicator, straight through the API");
             Say("car arrow l|r                - one arrow key press, with the driver and profile checks");
@@ -119,6 +120,10 @@ namespace Chassis.Debugging
                 case "blink":
                     ChassisApi.SetIndicator(lv, arg == "l" || arg == "left" ? -1 : arg == "r" || arg == "right" ? 1 : 0);
                     Say("car blink: asked " + arg);
+                    break;
+                case "hornkey":
+                    // The horn key path itself: driver checks, horn, checkpoint talk. The key-up check releases it next frame.
+                    Say(Vehicles.Horn.Press() ? "car hornkey: pressed" : "car hornkey: no horn (not the driver, no input, or refused)");
                     break;
                 case "arrow":
                     // The arrow key path itself, with its driver and profile checks, unlike blink.
