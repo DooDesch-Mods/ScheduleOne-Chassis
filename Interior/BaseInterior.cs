@@ -861,7 +861,22 @@ namespace Chassis.Interior
             profile.Controls.Add(new ControlProfile { Name = "hazard", Label = "Hazard lights", Kind = "toggle", Path = HazardSwitch, Action = "hazard", Source = "hazard", Axis = Vector3.right, Angle = 20f });
             profile.Controls.Add(new ControlProfile { Name = "indicator", Label = "Indicator", Kind = "knob", Path = IndicatorStalk, Action = "indicator", Source = "indicator", Axis = Vector3.back, Angle = 24f, Min = -1f, Max = 1f, Step = 1f, Default = 0f });
             profile.Controls.Add(new ControlProfile { Name = "horn", Label = "Horn", Kind = "button", Path = HornButton, Action = "horn", Axis = Vector3.forward, Press = 0.006f });
+
+            // Ignition lock right of the column with the key in it: the key turns a quarter to the right while the engine
+            // may run. The auto ignition button sits beside the hazard switch, its amber lamp above it lit while it is on.
+            var lockAt = new Vector3(wheel.x + 0.2f, gauges.y - 0.09f, gauges.z - 0.01f);
+            parts.Add(new KitPart { Kind = "button", Name = IgnitionLock, Position = lockAt, Size = new Vector3(0.016f, 0f, 0.012f), Color = new Color(0.55f, 0.55f, 0.57f) });
+            parts.Add(new KitPart { Kind = "rocker", Name = IgnitionKey, Parent = IgnitionLock, Position = lockAt + new Vector3(0f, 0f, -0.016f), Size = new Vector3(0.008f, 0.03f, 0.008f), Color = new Color(0.72f, 0.72f, 0.74f) });
+            var autoAt = new Vector3(stack.x + 0.05f, stack.y - 0.12f, stack.z - 0.09f);
+            parts.Add(new KitPart { Kind = "button", Name = AutoIgnitionButton, Position = autoAt, Size = new Vector3(0.012f, 0f, 0.012f), Color = new Color(0.13f, 0.13f, 0.14f) });
+            parts.Add(new KitPart { Kind = "lamp", Name = AutoIgnitionLamp, Position = autoAt + new Vector3(0f, 0.022f, -0.004f), Size = new Vector3(0.008f, 0.005f, 0.004f), Color = dark });
+            profile.Gauges.Add(new GaugeProfile { Name = Vehicles.Ignition.AutoName, Kind = "lamp", Path = AutoIgnitionLamp, Source = "auto_ignition", Color = new Color(1f, 0.62f, 0.1f) });
+            profile.Controls.Add(new ControlProfile { Name = Vehicles.Ignition.ControlName, Label = "Ignition", Kind = "toggle", Path = IgnitionKey, Action = Vehicles.Ignition.ControlName, Source = "ignition", Axis = Vector3.back, Angle = 45f });
+            profile.Controls.Add(new ControlProfile { Name = Vehicles.Ignition.AutoName, Label = "Auto ignition", Kind = "toggle", Path = AutoIgnitionButton, Action = Vehicles.Ignition.AutoName, Source = "auto_ignition", Default = 1f, Axis = Vector3.forward, Angle = 0f, Press = 0.004f });
         }
+
+        internal const string IgnitionLock = "Chassis_IgnitionLock", IgnitionKey = "Chassis_IgnitionKey";
+        internal const string AutoIgnitionButton = "Chassis_AutoIgnition", AutoIgnitionLamp = "Chassis_LampAutoIgnition";
 
         /// <summary>
         /// The cabin light in the middle of the roof, just behind the front seats' eyes, and the glovebox lid on the

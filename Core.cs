@@ -83,6 +83,7 @@ namespace Chassis
             Instruments.Sources.Reset();
             Instruments.Gauges.Reset();
             Instruments.Controls.Reset();
+            Vehicles.Ignition.Reset();
             Instruments.Cockpit.Reset();
             Instruments.Watch.Reset();
             Tune.State.Reset();

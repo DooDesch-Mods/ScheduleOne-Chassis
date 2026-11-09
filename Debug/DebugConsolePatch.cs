@@ -68,6 +68,7 @@ namespace Chassis.Debugging
                         Say("label                        - the text under the dot right now");
                         Say("outline                      - where the highlight copies of the switch in view sit");
                         Say("ctl <switch> [value]         - use a switch of your car through the API");
+                        Say("ign [key|auto]               - ignition state; turn the key or press auto ignition as the player");
                         Say("cabin [open|close|put|take|mode own|trunk] - cabin light and glovebox of your car or the nearest one");
                         Say("coast [km/h] [s]             - hold your car at that speed along its facing (default 40 km/h, 5 s)");
                         Say("creator                      - finish an open character creator with the default looks (test clients)");
@@ -196,6 +197,19 @@ namespace Chassis.Debugging
                         float? val = parts.Length > 3 ? F(parts, 3, 0f) : (float?)null;
                         Api.ChassisApi.UseControl(lv, parts[2], val);
                         Say("ctl: used '" + parts[2] + "'" + (val.HasValue ? " with " + val.Value.ToString(CultureInfo.InvariantCulture) : "") + ", value now " + Api.ChassisApi.ControlValue(lv, parts[2]).ToString("0.##", CultureInfo.InvariantCulture));
+                        break;
+                    }
+
+                    case "ign":
+                    {
+                        // ign: state; ign key: the ignition key as the driver's key binding turns it; ign auto: a click on
+                        // the auto ignition button. Both go through the host like a click.
+                        var lv = Target(null);
+                        if (lv == null) { Say("ign: no vehicle"); break; }
+                        string act = parts.Length > 2 ? parts[2].ToLowerInvariant() : "";
+                        if (act == "key") Vehicles.Ignition.KeyPressed(lv);
+                        else if (act == "auto") Instruments.Controls.UseLocal(lv, Vehicles.Ignition.AutoName, Vehicles.Ignition.Auto(lv) ? 0f : 1f);
+                        Say("ign: " + Vehicles.Ignition.Describe(lv));
                         break;
                     }
 

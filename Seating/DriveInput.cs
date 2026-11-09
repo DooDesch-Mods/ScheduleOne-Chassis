@@ -47,6 +47,7 @@ namespace Chassis.Seating
                 if (Time.time < DebugUntil) __instance.currentThrottle = DebugDrive.x;
                 if (Time.time < DebugUntil + 1f && Time.time >= _nextTrace) TraceDrive(__instance);
 #endif
+                Vehicles.Ignition.LimitThrottle(__instance);
                 if (RimDriven(__instance)) Occupants.LocalDrive = __instance.currentThrottle;
             }
         }
