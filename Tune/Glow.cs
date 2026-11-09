@@ -56,8 +56,14 @@ namespace Chassis.Tune
 
         // ---- neon --------------------------------------------------------------------------------------------------
 
-        private const float SillTuck = 0.2f, ArchGap = 0.06f, TyreClear = 0.22f, LightEvery = 0.6f;
+        private const float SillTuck = 0.2f, ArchGap = 0.06f, TyreClear = 0.22f;
         private const float LightDrop = 0.08f, LightIntensity = 2.2f;
+        /// <summary>
+        /// Light spacing. Each light makes a pool on the ground about as wide as its height above it, so lights further
+        /// apart than that height leave dark gaps between bright spots. A row spaces its lights by that height, within
+        /// these limits, and each light gets the share of <see cref="LightIntensity"/> its spacing covers.
+        /// </summary>
+        private const float LightEvery = 0.6f, LightMinGap = 0.2f;
         /// <summary>Wide enough to light the ground well past the body, narrow enough to stay under the floor.</summary>
         private const float SpotAngle = 150f;
         /// <summary>
@@ -126,14 +132,21 @@ namespace Chassis.Tune
 
             var root = new GameObject(Body.PartPrefix + "neon");
             root.transform.SetParent(c.V.transform, false);
-            var lights = new List<Vector3>();
-            var report = new List<string>();
-            foreach (var t in rows) report.Add(t.Key + " " + Tune.Apply.F(Row(t.Value, lights)) + " m");
-
             // The light reaches the ground below the row and about half a metre past the body, not across the street.
             // Spots that face the ground: a point light shone up through the floor and lit the cabin from below.
             float ground = wheels ? LowestWheel(c.V, radius) : b.min.y - 0.3f;
             float clearance = Mathf.Max(0.1f, b.min.y - ground);
+            var lights = new List<Vector3>();
+            var shares = new List<float>();
+            var report = new List<string>();
+            foreach (var t in rows)
+            {
+                float gap = Gap(t.Value, ground);
+                int before = lights.Count;
+                float length = Row(t.Value, gap, lights);
+                for (int i = before; i < lights.Count; i++) shares.Add(gap / LightEvery);
+                report.Add(t.Key + " " + Tune.Apply.F(length) + " m every " + Tune.Apply.F(gap) + " m");
+            }
             float range = Mathf.Clamp(clearance * 4f + 1.2f, 1.8f, 3f);
             for (int i = 0; i < lights.Count; i++)
             {
@@ -147,7 +160,7 @@ namespace Chassis.Tune
                 l.innerSpotAngle = SpotAngle * 0.6f;
                 l.color = colour;
                 l.range = range;
-                l.intensity = LightIntensity;
+                l.intensity = LightIntensity * shares[i];
                 l.shadows = LightShadows.None;
                 l.renderMode = LightRenderMode.ForcePixel;
             }
@@ -279,12 +292,21 @@ namespace Chassis.Tune
             }
         }
 
+        /// <summary>The spacing of a row's lights: their mean height above the ground, within the limits.</summary>
+        private static float Gap(List<Vector3> line, float ground)
+        {
+            float y = 0f;
+            foreach (var p in line) y += p.y;
+            float height = y / Mathf.Max(1, line.Count) - LightDrop - ground;
+            return Mathf.Clamp(height, LightMinGap, LightEvery);
+        }
+
         /// <summary>The lights of one row, spread evenly over its length just below the rim. Returns the length.</summary>
-        private static float Row(List<Vector3> line, List<Vector3> lights)
+        private static float Row(List<Vector3> line, float gap, List<Vector3> lights)
         {
             float length = 0f;
             for (int i = 0; i + 1 < line.Count; i++) length += Vector3.Distance(line[i], line[i + 1]);
-            int n = Mathf.Max(1, Mathf.RoundToInt(length / LightEvery));
+            int n = Mathf.Max(1, Mathf.RoundToInt(length / gap));
             for (int k = 0; k < n; k++) lights.Add(Along(line, length * (k + 0.5f) / n) + Vector3.down * LightDrop);
             return length;
         }

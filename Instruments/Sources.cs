@@ -60,7 +60,10 @@ namespace Chassis.Instruments
             Add("trip_km", "km", v => Odometer.Read(v, true, false));
             Add("occupied", "0 or 1, anyone aboard (players or NPCs)", v => Ok(v.IsOccupied ? 1f : 0f));
             Add("driver", "0 or 1, someone at the wheel (a player or an NPC)", v => Ok(HasDriver(v) ? 1f : 0f));
-            Add("dome", "0 to 1, the cabin light's brightness (between while it fades out)", v => Ok(CabinLight.Level(v)));
+            Add("ignition", "0 or 1, the key: the engine with auto ignition on, the key's own position with it off", v => Ok(Ignition.KeyShown(v)));
+            Add("auto_ignition", "0 or 1, auto ignition", v => Ok(Ignition.Auto(v) ? 1f : 0f));
+            Add("engine", "0 or 1, the engine runs", v => Ok(Ignition.Running(v) ? 1f : 0f));
+            Add("dome","0 to 1, the cabin light's brightness (between while it fades out)", v => Ok(CabinLight.Level(v)));
         }
 
         private static void Add(string name, string unit, Func<LandVehicle, GaugeReading> read) =>
@@ -85,7 +88,7 @@ namespace Chassis.Instruments
 
         private static GaugeReading Rpm(LandVehicle v)
         {
-            if (!v.IsOccupied) return Ok(0f);
+            if (!v.IsOccupied || !Ignition.Allowed(v)) return Ok(0f);
             float top = v.TopSpeed > 1f ? v.TopSpeed : 60f;
             float f = Mathf.Clamp01(Mathf.Abs(v.Speed_Kmh) / top);
             // Standing with the throttle down revs the engine; vanilla has no engine model, VehicleSound pitches by speed alone.

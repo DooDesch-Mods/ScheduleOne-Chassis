@@ -68,6 +68,7 @@ namespace Chassis.Debugging
                         Say("label                        - the text under the dot right now");
                         Say("outline                      - where the highlight copies of the switch in view sit");
                         Say("ctl <switch> [value]         - use a switch of your car through the API");
+                        Say("ign [key|auto]               - ignition state; turn the key or press auto ignition as the player");
                         Say("cabin [open|close|put|take|mode own|trunk] - cabin light and glovebox of your car or the nearest one");
                         Say("coast [km/h] [s]             - hold your car at that speed along its facing (default 40 km/h, 5 s)");
                         Say("creator                      - finish an open character creator with the default looks (test clients)");
@@ -77,17 +78,20 @@ namespace Chassis.Debugging
                         Say("showroom [tp|enter|hover|press <i>] [m] - showroom cars; tp to car i's door (m metres out, facing it), enter gets in, hover/press fire its prompt events");
                         Say("showroom ghost on|off        - draw the hidden display props over their cars (alignment check)");
                         Say("view [pitch]                 - first person on/off while seated (key V); a pitch turns it on looking down that far");
+                        Say("bind [<name> key <KeyCode>|<name> button <path|none>|pad <control>] - indicator and first-person keys; pad presses a virtual gamepad control");
                         Say("exit                         - leave the vehicle (as the Interact key)");
                         Say("drive <fwd> <steer> [s]       - driver input for s seconds (default 3)");
                         Say("despawn car                  - remove the nearest car within 30 m");
                         Say("cam <dist> <yaw> <height>|off - orbit camera around your vehicle or the nearest seated body");
                         Say("cam hands|handl|handr <dist> <yaw> <height> - the same, aimed at both hands or one");
                         Say("grip [markers on|off] [wrap palm f1 f2 f3 t1 t2 t3 roll at] - steering wheel grip: colour markers, live angles");
+                        Say("seatanim snap on|off|trace <n> - snap into the seated pose; log n animator frames per seating");
                         Say("feet                         - ankle axes of every seated body (side x near -1 = sole down)");
                         Say("profile list|show|save|reload|set <field> <values> [code] [seat] - seat profiles (see 'chassis profile')");
                         Say("target seat|patrol|near|gun|shoot|keep|list - shots into cars (see 'chassis target')");
                         Say("items status|press|slot|aim - hotbar items while seated (see 'chassis items')");
                         Say("car [enter|honk|blink|arrow|lock|part|side|rain|assign|owners] - horn, indicators, lock, lids (see 'chassis car help')");
+                        Say("checkpoint on|warp|park|state - a police checkpoint for the horn test (see 'chassis checkpoint help')");
                         Say("tune [part|remove|set|clear|stats|demo] - paint, parts, lights and driving of a car (see 'chassis tune help')");
                         Say("interior on|off|rebuild      - base interior and tinted glass in the vanilla cars");
                         Say("mirror [on|off|look [left|right]|own on|off|level 0-3] - live mirrors of the car you sit in");
@@ -197,6 +201,19 @@ namespace Chassis.Debugging
                         break;
                     }
 
+                    case "ign":
+                    {
+                        // ign: state; ign key: the ignition key as the driver's key binding turns it; ign auto: a click on
+                        // the auto ignition button. Both go through the host like a click.
+                        var lv = Target(null);
+                        if (lv == null) { Say("ign: no vehicle"); break; }
+                        string act = parts.Length > 2 ? parts[2].ToLowerInvariant() : "";
+                        if (act == "key") Vehicles.Ignition.KeyPressed(lv);
+                        else if (act == "auto") Instruments.Controls.UseLocal(lv, Vehicles.Ignition.AutoName, Vehicles.Ignition.Auto(lv) ? 0f : 1f);
+                        Say("ign: " + Vehicles.Ignition.Describe(lv));
+                        break;
+                    }
+
                     case "cabin":
                     {
                         var lv = Target(null);
@@ -252,6 +269,23 @@ namespace Chassis.Debugging
                             if (cur != null) Say("vehicle " + cur.vehicleCode + " net " + Net.Ids.Of(cur) + " speed " + cur.Speed_Kmh.ToString("F1") + " km/h throttle " + cur.currentThrottle.ToString("F2") + " steer " + cur.CurrentSteerAngle.ToString("F0"));
                         }
                         break;
+                    case "seatanim":
+                        {
+                            string what = parts.Length > 2 ? parts[2].ToLower() : "";
+                            if (what == "snap" && parts.Length > 3)
+                            {
+                                Seating.SeatRig.DebugNoSnap = parts[3].ToLower() == "off";
+                                Say("seatanim: snap into the seated pose " + (Seating.SeatRig.DebugNoSnap ? "off (vanilla transition)" : "on"));
+                            }
+                            else if (what == "trace" && parts.Length > 3 && int.TryParse(parts[3], out int frames))
+                            {
+                                Seating.SeatRig.DebugAnimFrames = frames;
+                                Say("seatanim: logging " + frames + " animator frames of each new seating");
+                            }
+                            else Say("seatanim snap on|off | trace <frames>");
+                        }
+                        break;
+
                     case "feet":
                         {
                             int n = 0;
@@ -323,12 +357,26 @@ namespace Chassis.Debugging
                         }
                         Say(Vehicles.KeyHints.Describe() + ", arrows '" + Vehicles.KeyHints.ArrowFormat + "'");
                         break;
+                    case "bind":
+                        // bind | bind <name> key <KeyCode> | bind <name> button <path|none> | bind pad <control>
+                        if (parts.Length > 3 && parts[2].ToLower() == "pad") Say(Vehicles.Bindings.Pad(parts[3]));
+                        else if (parts.Length > 4)
+                        {
+                            var b = Vehicles.Bindings.Find(parts[2]);
+                            Say(b == null ? "bind: no binding '" + parts[2] + "' (IndicatorLeft, IndicatorRight, FirstPerson)" : Vehicles.Bindings.Set(b, parts[3].ToLower(), parts[4]));
+                        }
+                        else Say(Vehicles.Bindings.Describe());
+                        break;
                     case "profile":
                         ProfileCommands.Run(parts);
                         break;
 
                     case "car":
                         VehicleCommands.Run(parts);
+                        break;
+
+                    case "checkpoint":
+                        CheckpointCommands.Run(parts);
                         break;
 
                     case "items":

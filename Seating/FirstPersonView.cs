@@ -15,7 +15,7 @@ namespace Chassis.Seating
     [HarmonyPatch(typeof(VehicleCamera), "LateUpdate")]
     internal static class FirstPersonView
     {
-        internal const KeyCode Key = KeyCode.V;
+        internal static KeyCode Key => Vehicles.Bindings.FirstPerson.Key;
         private const float MaxYaw = 135f, MinPitch = -70f, MaxPitch = 60f, NearClip = 0.03f;
 
         internal static bool Active { get; private set; }
@@ -33,7 +33,7 @@ namespace Chassis.Seating
             var rig = Occupants.Of(Player.Local);
             if (Active && (rig == null || rig.IsPusher)) { Set(false, "not seated"); return; }
             if (rig == null || rig.IsPusher || GameInput.IsTyping) return;
-            if (Input.GetKeyDown(Key)) Set(!Active, "V pressed");
+            if (Vehicles.Bindings.FirstPerson.Down()) Set(!Active, Vehicles.Bindings.FirstPerson + " pressed");
         }
 
         internal static void Reset()
