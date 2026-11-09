@@ -862,11 +862,15 @@ namespace Chassis.Interior
             profile.Controls.Add(new ControlProfile { Name = "indicator", Label = "Indicator", Kind = "knob", Path = IndicatorStalk, Action = "indicator", Source = "indicator", Axis = Vector3.back, Angle = 24f, Min = -1f, Max = 1f, Step = 1f, Default = 0f });
             profile.Controls.Add(new ControlProfile { Name = "horn", Label = "Horn", Kind = "button", Path = HornButton, Action = "horn", Axis = Vector3.forward, Press = 0.006f });
 
-            // Ignition lock right of the column with the key in it: the key turns a quarter to the right while the engine
-            // may run. The auto ignition button sits beside the hazard switch, its amber lamp above it lit while it is on.
-            var lockAt = new Vector3(wheel.x + 0.2f, gauges.y - 0.09f, gauges.z - 0.01f);
-            parts.Add(new KitPart { Kind = "button", Name = IgnitionLock, Position = lockAt, Size = new Vector3(0.016f, 0f, 0.012f), Color = new Color(0.55f, 0.55f, 0.57f) });
-            parts.Add(new KitPart { Kind = "rocker", Name = IgnitionKey, Parent = IgnitionLock, Position = lockAt + new Vector3(0f, 0f, -0.016f), Size = new Vector3(0.008f, 0.03f, 0.008f), Color = new Color(0.72f, 0.72f, 0.74f) });
+            // Ignition lock on the driver's edge of the centre stack face, level with the hazard switch: right beside
+            // the wheel and in the driver's reach, and in view past the rim, where a lock on the dashboard face would
+            // sit behind it. The key sticks out of it with a silver bow and a red tag and turns an eighth to the right
+            // while the engine may run. The auto ignition button sits on the other side of the hazard switch, its amber
+            // lamp above it lit while it is on.
+            float toWheel = Mathf.Sign(wheel.x - stack.x == 0f ? -1f : wheel.x - stack.x);
+            var lockAt = new Vector3(stack.x + toWheel * LockFromStackCentre, stack.y - 0.12f, stack.z - 0.088f);
+            parts.Add(new KitPart { Kind = "button", Name = IgnitionLock, Position = lockAt, Size = new Vector3(0.016f, 0f, 0.008f), Color = new Color(0.2f, 0.2f, 0.21f) });
+            parts.Add(new KitPart { Kind = "key", Name = IgnitionKey, Parent = IgnitionLock, Position = lockAt + new Vector3(0f, 0f, -0.008f), Size = new Vector3(0.034f, 0.026f, 0.02f), Color = new Color(0.78f, 0.78f, 0.8f) });
             var autoAt = new Vector3(stack.x + 0.05f, stack.y - 0.12f, stack.z - 0.09f);
             parts.Add(new KitPart { Kind = "button", Name = AutoIgnitionButton, Position = autoAt, Size = new Vector3(0.012f, 0f, 0.012f), Color = new Color(0.13f, 0.13f, 0.14f) });
             parts.Add(new KitPart { Kind = "lamp", Name = AutoIgnitionLamp, Position = autoAt + new Vector3(0f, 0.022f, -0.004f), Size = new Vector3(0.008f, 0.005f, 0.004f), Color = dark });
@@ -876,6 +880,8 @@ namespace Chassis.Interior
         }
 
         internal const string IgnitionLock = "Chassis_IgnitionLock", IgnitionKey = "Chassis_IgnitionKey";
+        /// <summary>How far the ignition lock sits from the centre of the 0.26 m wide centre stack, towards the wheel.</summary>
+        private const float LockFromStackCentre = 0.085f;
         internal const string AutoIgnitionButton = "Chassis_AutoIgnition", AutoIgnitionLamp = "Chassis_LampAutoIgnition";
 
         /// <summary>
@@ -1104,6 +1110,9 @@ namespace Chassis.Interior
                     break;
                 case "stalk":
                     mesh = KitMesh.Stalk(part.Size, "Chassis_stalk");
+                    break;
+                case "key":
+                    mesh = KitMesh.Key(part.Size, "Chassis_key");
                     break;
                 case "lamp":
                     mesh = new KitMesh().Box(Vector3.zero, part.Size).Build("Chassis_lamp");
@@ -1392,6 +1401,7 @@ namespace Chassis.Interior
                 case "rocker": return new Color(0.85f, 0.85f, 0.8f);
                 case "button": return new Color(c.r * 1.6f, c.g * 1.6f, c.b * 1.6f);
                 case "stalk": return new Color(0.5f, 0.5f, 0.52f);
+                case "key": return new Color(0.85f, 0.12f, 0.08f);
                 default: return new Color(c.r * 0.35f, c.g * 0.35f, c.b * 0.35f);
             }
         }

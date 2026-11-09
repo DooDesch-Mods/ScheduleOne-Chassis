@@ -226,6 +226,22 @@ namespace Chassis.Interior
             return m.Build(name);
         }
 
+        /// <summary>
+        /// A key sticking out of its lock: the shaft from the origin out along -Z, a flat bow of size.x by size.y at
+        /// size.z, and a tag hanging below the bow in the accent colour, so the key reads at a glance.
+        /// </summary>
+        internal static Mesh Key(Vector3 size, string name)
+        {
+            float bowW = size.x, bowH = size.y, reach = Mathf.Max(size.z, 0.01f);
+            const float shaft = 0.004f, bowT = 0.005f;
+            var m = new KitMesh();
+            m.Box(new Vector3(0f, 0f, -reach * 0.5f), new Vector3(shaft, shaft, reach));
+            m.Box(new Vector3(0f, 0f, -reach - bowT * 0.5f), new Vector3(bowW, bowH, bowT));
+            m.Accent();
+            m.Box(new Vector3(0f, -bowH * 0.5f - 0.014f, -reach - bowT * 0.5f), new Vector3(bowW * 0.5f, 0.028f, bowT * 0.8f));
+            return m.Build(name);
+        }
+
         /// <summary>A lever from the origin out along -X with a pale tip.</summary>
         internal static Mesh Stalk(Vector3 size, string name)
         {
