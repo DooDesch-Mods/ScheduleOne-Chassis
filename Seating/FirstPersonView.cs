@@ -28,16 +28,59 @@ namespace Chassis.Seating
         private static readonly List<KeyValuePair<Renderer, UnityEngine.Rendering.ShadowCastingMode>> _hidden = new List<KeyValuePair<Renderer, UnityEngine.Rendering.ShadowCastingMode>>();
         private static bool _announced, _aimFailed;
 
+        /// <summary>Preference StartInFirstPerson: every seat starts in first person.</summary>
+        internal static bool StartInFirstPerson;
+
+        // The view the local player had when they last left a seat; a new seat starts in it when StartInFirstPerson is
+        // off. Kept for the whole game session, also across save loads.
+        private static bool _lastWasFirstPerson;
+        // Set when the local player took a seat; the next Tick applies the start view, once the rig is in place.
+        private static bool _pendingStart;
+
+        internal static void LoadSetting()
+        {
+            try
+            {
+                var cat = MelonLoader.MelonPreferences.CreateCategory("Chassis");
+                var entry = cat.CreateEntry("StartInFirstPerson", false, "Start in first person",
+                    "Entering a vehicle starts in first person. Off: the view you had when you last left a vehicle.");
+                StartInFirstPerson = entry.Value;
+                Core.Log.Msg("[View] start in first person " + (StartInFirstPerson ? "on" : "off") + " (preference StartInFirstPerson).");
+            }
+            catch (Exception e)
+            {
+                StartInFirstPerson = false;
+                Core.Log.Warning("[View] reading the StartInFirstPerson preference failed - seats start in the last view: " + e.Message);
+            }
+        }
+
+        /// <summary>The local player took a seat.</summary>
+        internal static void Entered() => _pendingStart = true;
+
+        /// <summary>The local player leaves a seat: remember the view for the next one.</summary>
+        internal static void Leaving()
+        {
+            _pendingStart = false;
+            _lastWasFirstPerson = Active;
+        }
+
         internal static void Tick()
         {
             var rig = Occupants.Of(Player.Local);
             if (Active && (rig == null || rig.IsPusher)) { Set(false, "not seated"); return; }
+            if (_pendingStart && rig != null)
+            {
+                _pendingStart = false;
+                if (!rig.IsPusher && !Active && (StartInFirstPerson || _lastWasFirstPerson))
+                    Set(true, StartInFirstPerson ? "start in first person" : "first person was the last view");
+            }
             if (rig == null || rig.IsPusher || GameInput.IsTyping) return;
             if (Vehicles.Bindings.FirstPerson.Down()) Set(!Active, Vehicles.Bindings.FirstPerson + " pressed");
         }
 
         internal static void Reset()
         {
+            _pendingStart = false;
             if (Active) Set(false, "world unloaded");
         }
 
