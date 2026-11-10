@@ -49,6 +49,21 @@ def state(slot):
     return run(slot, "chassis checkpoint state")
 
 
+def where(slot):
+    """Player and camera position as two (x, y, z) tuples, or (None, None) when the bridge gives no answer."""
+    import json
+    try:
+        w = json.loads(s1(slot, "where"))
+        return tuple(w["position"]), tuple(w["camera"]["position"])
+    except (ValueError, KeyError, TypeError) as e:
+        print("WARN where failed: %s" % e)
+        return None, None
+
+
+def dist(a, b):
+    return sum((p - q) ** 2 for p, q in zip(a, b)) ** 0.5 if a and b else float("inf")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--slot", required=True)
@@ -105,6 +120,7 @@ def main():
     check("in-area", re.search(r"area1 \[[^\]]*shitbox|area1 \[[^\]]*Shitbox", st, re.I) is not None,
           (re.search(r"area1 \[[^\]]*\]", st) or re.search(".*", st)).group(0)[:120])
 
+    parked, seen = where(slot)
     before, walks = asks(slot), count(slot, WALKS)
     run(slot, "chassis car hornkey")
     time.sleep(1)
@@ -121,15 +137,29 @@ def main():
     m = re.search(r"checkpoint choose: [^\n]*", out)
     check("okay", "answer 1 in the talk of" in out, m.group(0) if m else out.strip()[-120:])
 
+    # During the search and after it the player stays in the parked car and the camera stays at the car: the
+    # reported failure moved the view to the spot where the player got in, until a restart. The player position
+    # is the root of the body, which stays where the player got in; the camera is compared with its own position
+    # before the honk.
     searched, opened, last = False, False, ""
+    worst_player, worst_cam = 0.0, 0.0
     deadline = time.time() + a.wait
     while time.time() < deadline and not (searched and opened):
         time.sleep(3)
         last = state(slot)
         searched = searched or "searching True" in last
         opened = re.search(r"gate1 True|gate2 True", last) is not None
+        p, c = where(slot)
+        worst_player = max(worst_player, dist(parked, p))
+        worst_cam = max(worst_cam, dist(seen, c))
     check("search", searched, "an officer searched the car")
     check("gate", opened, "a gate opened within %d s: %s" % (a.wait, last.strip().splitlines()[0][:160] if last.strip() else "no state"))
+    time.sleep(5)
+    p, c = where(slot)
+    worst_player = max(worst_player, dist(parked, p))
+    worst_cam = max(worst_cam, dist(seen, c))
+    check("stays", worst_player < 4.0, "player at most %.1f m from where he parked (%s)" % (worst_player, p))
+    check("camera", worst_cam < 8.0, "camera at most %.1f m from where it was before the honk (%s)" % (worst_cam, c))
     shot = s1(slot, "shot").strip().splitlines()
     print("INFO gate screenshot: " + (shot[-1] if shot else "none"))
 
