@@ -4,6 +4,13 @@ All notable changes to Chassis are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.12.1] - 2026-11-10
+
+### Fixed
+
+- An officer who wants to search you in a car no longer starts a chase at once. He pulls you over, walks to your
+  window and searches you in your seat. Driving off still counts as failure to comply.
+
 ## [1.12.0] - 2026-11-10
 
 ### Added
