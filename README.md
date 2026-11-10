@@ -10,7 +10,7 @@
 > wheel that turns. Chassis adds a first person view, a horn, indicators, locks and owners, and a
 > base interior for the vanilla cars. Other mods build their vehicles on it.
 
-![Version](https://img.shields.io/badge/version-1.11.0-blue)
+![Version](https://img.shields.io/badge/version-1.12.0-blue)
 ![Game](https://img.shields.io/badge/game-Schedule%20I-purple)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 ![Status](https://img.shields.io/badge/status-working-brightgreen)
@@ -26,7 +26,8 @@
   included. The driver holds the steering wheel with both hands, and the wheel turns when you
   steer.
 - **First person view:** Press `V` in a vehicle to look from your seat. Your body stays visible
-  below you, and only your own copy of your head is hidden.
+  below you, and only your own copy of your head is hidden. The next seat starts in the view you
+  last used.
 - **Horn:** Press `G`. `H` stays the headlights.
 - **Indicators:** The left and right arrow keys switch them on vehicles that have indicator lamps.
   Press the same key again to switch off. After the turn they switch off on their own.
@@ -131,6 +132,7 @@ Settings live in `UserData/MelonPreferences.cfg` under `Chassis`.
 | `SpeedUnit` | `kmh` | `kmh` or `mph`: the speedometer and the odometer. |
 | `Mirrors` | `2` | Which mirrors render: `0` Off, `1` Rear Only, `2` Rear + Side, `3` + Nearby Cars. Also in the graphics settings. |
 | `Reflections` | `1` | How sharp chrome paint and the mirrors reflect: `0` Low to `3` Ultra. Also in the graphics settings. |
+| `StartInFirstPerson` | `false` | `true` starts every seat in first person. `false` starts in the view you had when you last got out. |
 | `MirrorShowsOwnCar` | `false` | `true` shows your own car's body in the mirrors. |
 | `GloveboxOwnStorage` | `true` | `true`: the glovebox has its own slots, saved in `Chassis.glovebox`. `false`: the lid opens the vanilla trunk, and saves stay vanilla. |
 

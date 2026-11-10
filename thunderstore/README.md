@@ -8,7 +8,7 @@
 > wheel that turns. Chassis adds a first person view, a horn, indicators, locks and owners, and a
 > base interior for the vanilla cars. Other mods build their vehicles on it.
 
-![Version](https://img.shields.io/badge/version-1.11.0-blue)
+![Version](https://img.shields.io/badge/version-1.12.0-blue)
 ![Game](https://img.shields.io/badge/game-Schedule%20I-purple)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 [![Discord](https://mods.doodesch.de/img/badge.svg)](https://mods.doodesch.de) [![Polyfill](https://polyfill.doomods.com/badge/chassis.svg)](https://polyfill.doomods.com/mod/chassis)
@@ -22,6 +22,7 @@
 - Players and NPCs in a vehicle sit visibly in their seats, police included. The driver holds
   the steering wheel with both hands, and the wheel turns when you steer.
 - Press V in a vehicle for a first person view from your seat. Your body stays visible below you.
+  The next seat starts in the view you last used.
 - Press G for the horn. H stays the headlights.
 - The key hints at the bottom left show the vehicle's keys. While you push a vehicle they show
   Push and Let Go.
@@ -94,6 +95,9 @@ mirrors reflect. Both are also in the game's graphics settings.
 
 `GloveboxOwnStorage` (default `true`) gives the glovebox its own slots, saved in
 `Chassis.glovebox`. `false` makes the lid open the vanilla trunk, and saves stay vanilla.
+
+`StartInFirstPerson` (default `false`) starts every seat in first person. Without it, a seat starts
+in the view you had when you last got out.
 
 ## For mod authors
 

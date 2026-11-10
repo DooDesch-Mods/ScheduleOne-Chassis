@@ -4,6 +4,19 @@ All notable changes to Chassis are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.12.0] - 2026-11-10
+
+### Added
+
+- Getting into a car starts in the view you had when you last got out. `StartInFirstPerson` starts every seat in
+  first person.
+
+### Fixed
+
+- After honking at a police checkpoint, the view no longer jumps to where you got into the car once the officer has
+  talked.
+- The checkpoint officer no longer walks back and forth when the spot beside the driver door is blocked.
+
 ## [1.11.0] - 2026-11-09
 
 ### Added
