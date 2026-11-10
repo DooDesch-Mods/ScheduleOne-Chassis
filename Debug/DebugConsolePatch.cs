@@ -78,6 +78,7 @@ namespace Chassis.Debugging
                         Say("showroom [tp|enter|hover|press <i>] [m] - showroom cars; tp to car i's door (m metres out, facing it), enter gets in, hover/press fire its prompt events");
                         Say("showroom ghost on|off        - draw the hidden display props over their cars (alignment check)");
                         Say("view [pitch]                 - first person on/off while seated (key V); a pitch turns it on looking down that far");
+                        Say("view start on|off            - start every seat in first person (preference StartInFirstPerson, this session)");
                         Say("bind [<name> key <KeyCode>|<name> button <path|none>|pad <control>] - indicator and first-person keys; pad presses a virtual gamepad control");
                         Say("exit                         - leave the vehicle (as the Interact key)");
                         Say("drive <fwd> <steer> [s]       - driver input for s seconds (default 3)");
@@ -341,6 +342,13 @@ namespace Chassis.Debugging
                         }
                         break;
                     case "view":
+                        if (parts.Length > 3 && parts[2] == "start")
+                        {
+                            // view start on|off: the StartInFirstPerson preference for this game session.
+                            Seating.FirstPersonView.StartInFirstPerson = parts[3] == "on";
+                            Say("view start: first person on entering " + (Seating.FirstPersonView.StartInFirstPerson ? "on" : "off"));
+                            break;
+                        }
                         if (parts.Length > 2 && float.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out float vp))
                         {
                             Seating.FirstPersonView.Set(true, "console");

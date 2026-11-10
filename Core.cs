@@ -34,6 +34,7 @@ namespace Chassis
             Interior.BaseInterior.LoadSetting();
             Instruments.Sources.LoadSetting();
             Vehicles.Steering.LoadSetting();
+            Seating.FirstPersonView.LoadSetting();
             Tune.Reflections.LoadSetting();
             Interior.Mirrors.LoadSetting();
             Tune.MirrorMode.LoadSetting();

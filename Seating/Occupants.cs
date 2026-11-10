@@ -53,6 +53,7 @@ namespace Chassis.Seating
             {
                 p.SetThirdPersonMeshesVisibility(true);
                 if (rig.Profile.Pose == "Sitting") p.SendAnimationBool("Sitting", true);
+                FirstPersonView.Entered();
             }
             Core.Log.Msg("[Seat] " + SeatRig.Who(p) + " -> " + ChassisApi.CodeOf(lv) + " net " + Ids.Of(lv) + " (" + why + ").");
             return rig;
@@ -68,6 +69,7 @@ namespace Chassis.Seating
             {
                 if (rig.Profile != null && rig.Profile.Pose == "Sitting") p.SendAnimationBool("Sitting", false);
                 p.SetThirdPersonMeshesVisibility(false);
+                FirstPersonView.Leaving();
                 FirstPersonView.Set(false, "left the seat");
             }
         }
