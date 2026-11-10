@@ -182,11 +182,14 @@ namespace Chassis.Vehicles
         }
 
         /// <summary>The point beside the driver door where the officer stands, and the point he faces.</summary>
-        private static Vector3 Window(LandVehicle lv, out Vector3 face)
+        private static Vector3 Window(LandVehicle lv, out Vector3 face) => Window(lv, null, out face);
+
+        /// <summary>The point beside the window of <paramref name="seat"/> (the driver seat when null) where an officer
+        /// stands, and the point he faces.</summary>
+        internal static Vector3 Window(LandVehicle lv, Transform seat, out Vector3 face)
         {
             var t = lv.transform;
-            Transform seat = null;
-            if (lv.Seats != null)
+            if (seat == null && lv.Seats != null)
                 foreach (var s in lv.Seats)
                     if (s != null && s.isDriverSeat) { seat = s.transform; break; }
             var local = seat != null ? t.InverseTransformPoint(seat.position) : new Vector3(-0.4f, 0f, 0f);
@@ -205,7 +208,9 @@ namespace Chassis.Vehicles
         /// the officer back to his post and the next order sends him out again, so he walked back and forth until the
         /// walk timed out.
         /// </summary>
-        private static Vector3 Reachable(GamePoliceOfficer officer, Vector3 window)
+        private static Vector3 Reachable(GamePoliceOfficer officer, Vector3 window) => Reachable(officer, window, "[Checkpoint]");
+
+        internal static Vector3 Reachable(NPC officer, Vector3 window, string tag)
         {
             try
             {
@@ -215,14 +220,14 @@ namespace Chassis.Vehicles
                     var d = point - window;
                     d.y = 0f;
                     if (d.magnitude > 0.3f)
-                        Core.Log.Msg("[Checkpoint] the driver window point is off the officer's NavMesh - he walks to the closest reachable point " + d.magnitude.ToString("F1", CultureInfo.InvariantCulture) + " m away.");
+                        Core.Log.Msg(tag + " the window point is off the officer's NavMesh - he walks to the closest reachable point " + d.magnitude.ToString("F1", CultureInfo.InvariantCulture) + " m away.");
                     return point;
                 }
-                Core.Log.Msg("[Checkpoint] no reachable point near the driver window for officer " + officer.name + " on this peer - he walks to the window point itself.");
+                Core.Log.Msg(tag + " no reachable point near the window for officer " + officer.name + " on this peer - he walks to the window point itself.");
             }
             catch (Exception e)
             {
-                Core.Log.Warning("[Checkpoint] finding the reachable point near the driver window failed, he walks to the window point itself: " + e.Message);
+                Core.Log.Warning(tag + " finding the reachable point near the window failed, he walks to the window point itself: " + e.Message);
             }
             return window;
         }
