@@ -272,6 +272,15 @@ namespace Chassis.Debugging
                 yield return null;
             }
             if (lv == null) { Say("car remove: the vehicle is already gone"); yield break; }
+            // Another player's seat cannot be emptied from here; despawning under them destroys their avatar with the car.
+            var seats = lv.Seats;
+            if (seats != null)
+                foreach (var seat in seats)
+                    if (seat != null && seat.Occupant != null)
+                    {
+                        Say("car remove: " + seat.Occupant.PlayerName + " still sits in " + Registry.Name(lv) + ", not despawned");
+                        yield break;
+                    }
             Say("car remove: " + Registry.Name(lv));
             Compat.Interop.Despawn(lv.gameObject);
         }

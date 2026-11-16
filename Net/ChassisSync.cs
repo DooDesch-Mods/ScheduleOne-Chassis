@@ -54,6 +54,7 @@ namespace Chassis.Net
                 case "req.lock": Fleet.HostLock(I(m.Arg(0)), m.Arg(1), m.Arg(2) == "1"); break;
                 case "req.bought": Fleet.Announce(m.Arg(0), m.Arg(1)); break;
                 case "req.pedal": ChassisNet.ToAll("pedal", m.Arg(0), m.Arg(1), m.Arg(2) == "1" ? "1" : "0"); break;
+                case "req.reach": Seating.HandReach.HostReach(I(m.Arg(0)), I(m.Arg(1)), m.Arg(2), Fl(m.Arg(3))); break;
                 case "req.ctl": Controls.HostUse(I(m.Arg(0)), m.Arg(1), I(m.Arg(2)), Fl(m.Arg(3))); break;
                 case "req.trip": Controls.HostTrip(I(m.Arg(0))); break;
                 case "req.tune": State.HostRequest(I(m.Arg(0)), m.Arg(1), m.Arg(2), m.Arg(3)); break;
@@ -88,6 +89,7 @@ namespace Chassis.Net
                 case "own": Fleet.ApplyState(m.Arg(0)); break;
                 case "pedal": Pedals.OnPedal(I(m.Arg(0)), Fl(m.Arg(1)), m.Arg(2) == "1"); break;
                 case "odo": Odometer.OnOdo(m.Arg(0)); break;
+                case "reach": Seating.HandReach.OnReach(I(m.Arg(0)), I(m.Arg(1)), m.Arg(2), Fl(m.Arg(3))); break;
                 case "ctl": Controls.OnUse(I(m.Arg(0)), m.Arg(1), Fl(m.Arg(2)), I(m.Arg(3))); break;
                 case "ctls": Controls.OnStates(m.Arg(0)); break;
                 case "tune": State.OnTune(I(m.Arg(0)), m.Arg(1), m.Arg(2)); break;

@@ -36,6 +36,7 @@ namespace Chassis
             Vehicles.Steering.LoadSetting();
             Seating.FirstPersonView.LoadSetting();
             Seating.HeadLook.LoadSetting();
+            Seating.HandReach.LoadSetting();
             Tune.Reflections.LoadSetting();
             Interior.Mirrors.LoadSetting();
             Tune.MirrorMode.LoadSetting();
@@ -69,6 +70,7 @@ namespace Chassis
             Seating.HandItems.Reset();
             Seating.Occupants.Reset();
             Seating.HeadLook.Reset();
+            Seating.HandReach.Reset();
             Rideables.Showroom.Reset();
             Vehicles.Registry.Reset();
             Vehicles.Fleet.Reset();
@@ -130,6 +132,7 @@ namespace Chassis
             Guard("pedals", Instruments.Pedals.Tick);
             Guard("odometer", Instruments.Odometer.Tick);
             Guard("gauges", Instruments.Gauges.Tick);
+            Guard("hand reach", Seating.HandReach.Tick);
             Guard("switches", Instruments.Controls.Tick);
             Guard("cockpit", Instruments.Cockpit.Tick);
             Guard("driving events", Instruments.Watch.Tick);

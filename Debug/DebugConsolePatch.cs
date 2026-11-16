@@ -79,6 +79,7 @@ namespace Chassis.Debugging
                         Say("showroom ghost on|off        - draw the hidden display props over their cars (alignment check)");
                         Say("view [pitch] [yaw]           - first person on/off while seated (key V); a pitch (and yaw, + = right) turns it on looking that way");
                         Say("head [on|off]                - seated heads following the view (preference HeadFollowsView, this session); without an argument the look state");
+                        Say("reach [on|off|hold <s>|use <switch>] - hand reaching for switches (preference HandReachesForSwitches, this session); hold keeps hands longer on a switch, use clicks one in any view");
                         Say("view start on|off            - start every seat in first person (preference StartInFirstPerson, this session)");
                         Say("bind [<name> key <KeyCode>|<name> button <path|none>|pad <control>] - indicator and first-person keys; pad presses a virtual gamepad control");
                         Say("exit                         - leave the vehicle (as the Interact key)");
@@ -369,6 +370,34 @@ namespace Chassis.Debugging
                         }
                         Say(Seating.HeadLook.Describe());
                         break;
+                    case "reach":
+                    {
+                        // reach [on|off] | hold <s> | use <switch>: the hand reach for switches; use clicks a switch as the mouse would, in any view.
+                        string act = parts.Length > 2 ? parts[2].ToLowerInvariant() : "";
+                        if (act == "on" || act == "off")
+                        {
+                            Seating.HandReach.Enabled = act == "on";
+                            Core.Log.Msg("[Reach] hand reaches for switches " + act + " (console, this session).");
+                        }
+                        else if (act == "hold")
+                        {
+                            Seating.SeatRig.DebugHold = Mathf.Max(0f, F(parts, 3, 0f));
+                            Say("reach: hands stay " + Seating.SeatRig.DebugHold.ToString("0.##", CultureInfo.InvariantCulture) + " s longer on a switch");
+                        }
+                        else if (act == "use")
+                        {
+                            var lv = Target(null);
+                            if (lv == null || parts.Length < 4) { Say("reach use: sit in a car and name a switch"); break; }
+                            Instruments.Controls.Bound hit = null;
+                            foreach (var b in Instruments.Controls.Of(lv))
+                                if (string.Equals(b.P.Name, parts[3], StringComparison.OrdinalIgnoreCase)) hit = b;
+                            if (hit == null) { Say("reach use: no switch '" + parts[3] + "' bound on " + lv.vehicleCode); break; }
+                            Instruments.Controls.Click(hit);
+                            Say("reach use: clicked '" + hit.P.Name + "'");
+                        }
+                        Say(Seating.HandReach.Describe());
+                        break;
+                    }
                     case "hints":
                         // hints [arrow format]: the current key hints; a format ({0} = arrow glyph) relabels the arrow keys.
                         if (parts.Length > 2)
