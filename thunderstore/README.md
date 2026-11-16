@@ -8,7 +8,7 @@
 > wheel that turns. Chassis adds a first person view, a horn, indicators, locks and owners, and a
 > base interior for the vanilla cars. Other mods build their vehicles on it.
 
-![Version](https://img.shields.io/badge/version-1.12.1-blue)
+![Version](https://img.shields.io/badge/version-1.13.0-blue)
 ![Game](https://img.shields.io/badge/game-Schedule%20I-purple)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 [![Discord](https://mods.doodesch.de/img/badge.svg)](https://mods.doodesch.de) [![Polyfill](https://polyfill.doomods.com/badge/chassis.svg)](https://polyfill.doomods.com/mod/chassis)
@@ -23,6 +23,8 @@
   the steering wheel with both hands, and the wheel turns when you steer.
 - Press V in a vehicle for a first person view from your seat. Your body stays visible below you.
   The next seat starts in the view you last used.
+- Everyone seated in a vehicle turns their head where they look, in first person and in the
+  chase view.
 - Press G for the horn. H stays the headlights.
 - The key hints at the bottom left show the vehicle's keys. While you push a vehicle they show
   Push and Let Go.
@@ -45,6 +47,8 @@
 - The vanilla cars flash their own amber indicator lamps outside. A rear without one flashes part
   of the brake light in red.
 - Guns hit NPCs that sit in a car. A driver who goes down falls out, and the car stops.
+- An officer who wants to search you in a car pulls you over and walks to your window. Tinted
+  windows from Marco's Bodyshop lower the chance: Limo halves it, lighter tints lower it less.
 - Riding and pushing the wheelchairs moved to its own mod, Rollin. Without Rollin the wheelchairs
   stay vanilla props.
 - In co-op, seats, horn, indicators, locks, owners, the cabin light and the glovebox sync through
