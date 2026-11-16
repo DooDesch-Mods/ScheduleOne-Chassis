@@ -77,7 +77,8 @@ namespace Chassis.Debugging
                         Say("status                       - seated bodies and pushers, view, key hints, current vehicle");
                         Say("showroom [tp|enter|hover|press <i>] [m] - showroom cars; tp to car i's door (m metres out, facing it), enter gets in, hover/press fire its prompt events");
                         Say("showroom ghost on|off        - draw the hidden display props over their cars (alignment check)");
-                        Say("view [pitch]                 - first person on/off while seated (key V); a pitch turns it on looking down that far");
+                        Say("view [pitch] [yaw]           - first person on/off while seated (key V); a pitch (and yaw, + = right) turns it on looking that way");
+                        Say("head [on|off]                - seated heads following the view (preference HeadFollowsView, this session); without an argument the look state");
                         Say("view start on|off            - start every seat in first person (preference StartInFirstPerson, this session)");
                         Say("bind [<name> key <KeyCode>|<name> button <path|none>|pad <control>] - indicator and first-person keys; pad presses a virtual gamepad control");
                         Say("exit                         - leave the vehicle (as the Interact key)");
@@ -353,10 +354,20 @@ namespace Chassis.Debugging
                         if (parts.Length > 2 && float.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out float vp))
                         {
                             Seating.FirstPersonView.Set(true, "console");
-                            Seating.FirstPersonView.Look(vp);
+                            if (parts.Length > 3 && float.TryParse(parts[3], NumberStyles.Float, CultureInfo.InvariantCulture, out float vy))
+                                Seating.FirstPersonView.Look(vp, vy);
+                            else Seating.FirstPersonView.Look(vp);
                         }
                         else Seating.FirstPersonView.Set(!Seating.FirstPersonView.Active, "console");
                         Say(Seating.FirstPersonView.Describe());
+                        break;
+                    case "head":
+                        if (parts.Length > 2 && (parts[2] == "on" || parts[2] == "off"))
+                        {
+                            Seating.HeadLook.Enabled = parts[2] == "on";
+                            Core.Log.Msg("[Head] seated heads follow the view " + parts[2] + " (console, this session).");
+                        }
+                        Say(Seating.HeadLook.Describe());
                         break;
                     case "hints":
                         // hints [arrow format]: the current key hints; a format ({0} = arrow glyph) relabels the arrow keys.
