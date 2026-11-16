@@ -10,7 +10,7 @@
 > wheel that turns. Chassis adds a first person view, a horn, indicators, locks and owners, and a
 > base interior for the vanilla cars. Other mods build their vehicles on it.
 
-![Version](https://img.shields.io/badge/version-1.12.1-blue)
+![Version](https://img.shields.io/badge/version-1.13.0-blue)
 ![Game](https://img.shields.io/badge/game-Schedule%20I-purple)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 ![Status](https://img.shields.io/badge/status-working-brightgreen)
@@ -60,6 +60,9 @@
   one flashes part of the brake light in red.
 - **Shots into cars:** Guns hit NPCs that sit in a car. A driver who goes down falls out next to
   the car, and the car stops.
+- **Traffic stops:** An officer who wants to search you in a car calls "Pull over!" and gives you
+  10 seconds to stop, then walks to your window. Tinted windows from Marco's Bodyshop lower the
+  chance of being pulled over: Limo halves it, lighter tints lower it less.
 - **Wheelchairs:** Riding and pushing the wheelchairs moved to its own mod,
   [Rollin](https://github.com/DooDesch-Mods/ScheduleOne-Rollin). Without Rollin the wheelchairs stay vanilla props.
 - **Showroom cars:** The display cars at Hyland Auto can be entered before you buy one. The engine

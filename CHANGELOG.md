@@ -4,6 +4,15 @@ All notable changes to Chassis are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.13.0] - 2026-11-16
+
+### Added
+
+- Seated players turn their head where they look, in first person and in the chase view. `HeadFollowsView` turns
+  it off.
+- Tinted windows from Marco's Bodyshop lower the chance that police pull you over: Limo halves it, lighter tints
+  lower it less.
+
 ## [1.12.1] - 2026-11-10
 
 ### Fixed
