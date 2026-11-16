@@ -16,6 +16,9 @@ namespace Chassis.Debugging
             Say("stop start      - host: the nearest officer on foot starts a body search on you (a traffic stop when seated)");
             Say("stop state      - stop phase, body search, search screen and pursuit level");
             Say("stop vanilla on|off - on: the game's own body search in cars, for the before/after comparison");
+            Say("stop tint       - the window tint of your car and the factor it puts on the stop chance");
+            Say("stop probe      - the nearest officer's body search guards on you, and how often the tint roll ran");
+            Say("stop roll [n] [chance] - n forced rolls (default 20000) of the chance (default 0.5) times your car's tint factor");
         }
 
         internal static void Run(string[] p)
@@ -45,6 +48,42 @@ namespace Chassis.Debugging
                     if (best == null) { Say("stop start: no officer on foot"); return; }
                     best.ConductBodySearch(lp);
                     Say("stop start: officer " + best.name + " at " + bd.ToString("F1", CultureInfo.InvariantCulture) + " m searches " + lp.PlayerName + " (seated " + (lp.CurrentVehicle != null) + ")");
+                    break;
+                }
+                case "tint":
+                {
+                    var lv = TintStop.CarOf(Player.Local);
+                    if (lv == null) { Say("stop tint: not in a car - factor 1.000"); return; }
+                    float a = TintStop.TintAlpha(lv);
+                    Say("stop tint: " + Registry.Name(lv) + " tint " + (a < 0f ? "none" : "alpha " + a.ToString("F3", CultureInfo.InvariantCulture))
+                        + " factor " + TintStop.Factor(lv).ToString("F3", CultureInfo.InvariantCulture));
+                    break;
+                }
+                case "probe":
+                {
+                    var lp = Player.Local;
+                    GamePoliceOfficer best = null; float bd = float.MaxValue;
+                    foreach (var o in UnityEngine.Object.FindObjectsOfType<GamePoliceOfficer>())
+                    {
+                        if (o == null || lp == null || !o.gameObject.activeInHierarchy) continue;
+                        float d = Vector3.Distance(o.transform.position, lp.transform.position);
+                        if (d < bd) { bd = d; best = o; }
+                    }
+                    Say("stop probe: " + (best == null ? "no officer" : TintStop.Probe(best, lp)));
+                    break;
+                }
+                case "roll":
+                {
+                    int n = p.Length > 3 && int.TryParse(p[3], out int pn) && pn > 0 ? pn : 20000;
+                    float chance = p.Length > 4 && float.TryParse(p[4], NumberStyles.Float, CultureInfo.InvariantCulture, out float pc) ? pc : 0.5f;
+                    var lv = TintStop.CarOf(Player.Local);
+                    float factor = TintStop.Factor(lv);
+                    int hits = 0;
+                    float final = 0f;
+                    for (int i = 0; i < n; i++) if (TintStop.Roll(chance, factor, out final, out _)) hits++;
+                    Say("stop roll: n=" + n + " hits=" + hits + " rate=" + ((float)hits / n).ToString("F4", CultureInfo.InvariantCulture)
+                        + " expected=" + final.ToString("F4", CultureInfo.InvariantCulture) + " factor=" + factor.ToString("F3", CultureInfo.InvariantCulture)
+                        + " chance=" + chance.ToString("F3", CultureInfo.InvariantCulture) + " car=" + (lv != null ? Registry.Name(lv) : "none"));
                     break;
                 }
                 default:
