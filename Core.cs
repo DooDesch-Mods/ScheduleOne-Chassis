@@ -124,6 +124,7 @@ namespace Chassis
             Guard("glovebox", Vehicles.Glovebox.Tick);
             Guard("showroom", Rideables.Showroom.Tick);
             Guard("view", Seating.FirstPersonView.Tick);
+            Guard("head look", Seating.HeadLook.Tick);
             Guard("hand items", Seating.HandItems.Tick);
             Guard("key hints", Vehicles.KeyHints.Tick);
             Guard("pedals", Instruments.Pedals.Tick);
