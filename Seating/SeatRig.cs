@@ -554,6 +554,7 @@ namespace Chassis.Seating
                     _holdsItem = holds;
                     Core.Log.Msg("[Seat] " + Name + (holds ? " holds " + _avatar.CurrentEquippable.name + ", right hand off the grip." : " has the right hand back on the grip."));
                 }
+                ApplyReach(s, dt);
             }
             if (rimGrip != _rimGrip)
             {

@@ -30,6 +30,8 @@
   last used.
 - **Heads follow the view:** Everyone seated in a vehicle turns their head and eyes where they
   look, in first person and in the chase view. The body stays in the seat.
+- **Hands reach for switches:** Using the light switch, the cabin light, the glovebox or the
+  ignition moves your hand there first. The switch goes when the hand arrives. Other players see it.
 - **Horn:** Press `G`. `H` stays the headlights.
 - **Indicators:** The left and right arrow keys switch them on vehicles that have indicator lamps.
   Press the same key again to switch off. After the turn they switch off on their own.
@@ -139,6 +141,7 @@ Settings live in `UserData/MelonPreferences.cfg` under `Chassis`.
 | `Reflections` | `1` | How sharp chrome paint and the mirrors reflect: `0` Low to `3` Ultra. Also in the graphics settings. |
 | `StartInFirstPerson` | `false` | `true` starts every seat in first person. `false` starts in the view you had when you last got out. |
 | `HeadFollowsView` | `true` | Seated players turn their heads where they look. `false` brings back the vanilla look, where heads turn towards the nearest player. Applies to what you see on your screen. |
+| `HandReachesForSwitches` | `true` | Your hand reaches for the light switch, cabin light, glovebox and ignition before the switch goes. `false` switches at once, without the short delay, and the other players see no reach. |
 | `MirrorShowsOwnCar` | `false` | `true` shows your own car's body in the mirrors. |
 | `GloveboxOwnStorage` | `true` | `true`: the glovebox has its own slots, saved in `Chassis.glovebox`. `false`: the lid opens the vanilla trunk, and saves stay vanilla. |
 

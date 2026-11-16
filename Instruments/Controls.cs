@@ -233,8 +233,11 @@ namespace Chassis.Instruments
             bool dome = string.Equals(b.P.Name, Vehicles.CabinLight.ControlName, StringComparison.OrdinalIgnoreCase);
             float value = dome ? Vehicles.CabinLight.Next(Mathf.RoundToInt(now))
                 : b.Kind == "button" ? 1f : b.Kind == "toggle" ? (now > 0.5f ? 0f : 1f) : b.P.Default;
-            if (b.Kind == "button" || b.P.Press > 0f) b.PressUntil = Time.time + PressSeconds;
-            Send(b.V, b.P, value, Player.Local);
+            Seating.HandReach.Use(b.V, b.P, () =>
+            {
+                if (b.Kind == "button" || b.P.Press > 0f) b.PressUntil = Time.time + PressSeconds;
+                Send(b.V, b.P, value, Player.Local);
+            });
         }
 
         /// <summary>The local player turned the mouse wheel on a knob.</summary>
@@ -316,8 +319,11 @@ namespace Chassis.Instruments
         {
             var c = ChassisApi.For(lv)?.Control(name);
             if (c == null) { Core.Log.Warning("[Controls] " + Registry.Name(lv) + " has no switch '" + name + "' - key not used."); return; }
-            foreach (var b in Of(lv)) if (b.P == c && (b.Kind == "button" || c.Press > 0f)) b.PressUntil = Time.time + PressSeconds;
-            Send(lv, c, value, Player.Local);
+            Seating.HandReach.Use(lv, c, () =>
+            {
+                foreach (var b in Of(lv)) if (b.P == c && (b.Kind == "button" || c.Press > 0f)) b.PressUntil = Time.time + PressSeconds;
+                Send(lv, c, value, Player.Local);
+            });
         }
 
         private static bool SitsIn(LandVehicle lv, Player p)

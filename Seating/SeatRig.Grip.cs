@@ -203,8 +203,9 @@ namespace Chassis.Seating
         internal void PoseFingers()
         {
             bool on = _rimGrip && _ikOn && Alive;
-            Curl(_handR, on);
-            Curl(_handL, on);
+            // A hand reaching for a switch opens.
+            Curl(_handR, on && !Reaching(1f));
+            Curl(_handL, on && !Reaching(-1f));
         }
 
         private static void Curl(HandRig h, bool on)
@@ -258,6 +259,7 @@ namespace Chassis.Seating
         private void ReleaseGrip()
         {
             _rimGrip = false;
+            EndReach("left the seat");
             Curl(_handR, false);
             Curl(_handL, false);
 #if DEBUG
