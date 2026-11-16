@@ -28,6 +28,8 @@
 - **First person view:** Press `V` in a vehicle to look from your seat. Your body stays visible
   below you, and only your own copy of your head is hidden. The next seat starts in the view you
   last used.
+- **Heads follow the view:** Everyone seated in a vehicle turns their head and eyes where they
+  look, in first person and in the chase view. The body stays in the seat.
 - **Horn:** Press `G`. `H` stays the headlights.
 - **Indicators:** The left and right arrow keys switch them on vehicles that have indicator lamps.
   Press the same key again to switch off. After the turn they switch off on their own.
@@ -133,6 +135,7 @@ Settings live in `UserData/MelonPreferences.cfg` under `Chassis`.
 | `Mirrors` | `2` | Which mirrors render: `0` Off, `1` Rear Only, `2` Rear + Side, `3` + Nearby Cars. Also in the graphics settings. |
 | `Reflections` | `1` | How sharp chrome paint and the mirrors reflect: `0` Low to `3` Ultra. Also in the graphics settings. |
 | `StartInFirstPerson` | `false` | `true` starts every seat in first person. `false` starts in the view you had when you last got out. |
+| `HeadFollowsView` | `true` | Seated players turn their heads where they look. `false` brings back the vanilla look, where heads turn towards the nearest player. Applies to what you see on your screen. |
 | `MirrorShowsOwnCar` | `false` | `true` shows your own car's body in the mirrors. |
 | `GloveboxOwnStorage` | `true` | `true`: the glovebox has its own slots, saved in `Chassis.glovebox`. `false`: the lid opens the vanilla trunk, and saves stay vanilla. |
 

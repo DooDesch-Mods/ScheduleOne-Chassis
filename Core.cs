@@ -35,6 +35,7 @@ namespace Chassis
             Instruments.Sources.LoadSetting();
             Vehicles.Steering.LoadSetting();
             Seating.FirstPersonView.LoadSetting();
+            Seating.HeadLook.LoadSetting();
             Tune.Reflections.LoadSetting();
             Interior.Mirrors.LoadSetting();
             Tune.MirrorMode.LoadSetting();
@@ -67,6 +68,7 @@ namespace Chassis
             Seating.FirstPersonView.Reset();
             Seating.HandItems.Reset();
             Seating.Occupants.Reset();
+            Seating.HeadLook.Reset();
             Rideables.Showroom.Reset();
             Vehicles.Registry.Reset();
             Vehicles.Fleet.Reset();

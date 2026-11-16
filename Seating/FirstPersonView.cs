@@ -195,6 +195,14 @@ namespace Chassis.Seating
             _pitch = Mathf.Clamp(pitch, MinPitch, MaxPitch);
         }
 
+        /// <summary>Sets pitch and yaw (+ = right of the seat's facing) of the active first-person view.</summary>
+        internal static void Look(float pitch, float yaw)
+        {
+            if (!Active) { Core.Log.Warning("[View] pitch " + pitch + " yaw " + yaw + " ignored, first person is off."); return; }
+            _pitch = Mathf.Clamp(pitch, MinPitch, MaxPitch);
+            _yaw = Mathf.Clamp(yaw, -MaxYaw, MaxYaw);
+        }
+
         /// <summary>Turns the active first-person view towards a world point, within the yaw and pitch limits.</summary>
         internal static string LookAt(Vector3 world)
         {
