@@ -14,7 +14,6 @@ Screenshots of each pose go to the slot's screenshot folder; their paths are pri
 Usage: python -I tests/head_look_coop.py --host mptest5 --client mptest6
 """
 import argparse
-import json
 import math
 import os
 import re
@@ -22,6 +21,7 @@ import subprocess
 import sys
 import time
 
+X, Y, Z = 60.0, 4.4, -70.0
 S1 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "Workspace", "tools", "bridge", "s1.py")
 SETTLE = 4.0  # vanilla lerps the look target at 1/s; after 4 s it is within 2 % of the new direction
 TURN_MIN = 20.0  # degrees the head must turn between a right and a left look
@@ -90,12 +90,20 @@ def main():
         results.append((name, ok, what))
 
     for slot in (h, c):
+        # A freshly joined client sits in the character creator, which covers its screenshots.
+        run(slot, "chassis creator")
         run(slot, "chassis head on")
-    pos = json.loads(s1(h, "where")[s1(h, "where").index("{"):])
-    x, y, z = pos["position"]
-    run(h, "chassis car put shitbox %.2f %.2f %.2f 0" % (x + 4, y, z), max_wait=5000)
     time.sleep(2)
-    s1(c, "tp", "%.2f" % (x + 2), "%.2f" % y, "%.2f" % (z + 2))
+    # Flat ground (the spot of seat_pose.py): the car stands still for the screenshots.
+    for slot in (c, h):
+        run(slot, "chassis exit")
+    time.sleep(1.5)
+    run(h, "chassis car remove")
+    s1(h, "tp", "%.2f" % (X + 4), "%.2f" % Y, "%.2f" % Z)
+    time.sleep(1)
+    run(h, "chassis car put shitbox %.2f %.2f %.2f 180" % (X, Y, Z), max_wait=5000)
+    time.sleep(2)
+    s1(c, "tp", "%.2f" % (X - 3), "%.2f" % Y, "%.2f" % (Z + 1))
     time.sleep(2)
     if "(driver)" not in run(h, "chassis car enter shitbox"):
         print("FAIL setup: host not in the driver seat")
