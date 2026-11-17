@@ -6,6 +6,11 @@ project adheres to Semantic Versioning.
 
 ## [1.13.1] - 2026-11-17
 
+### Added
+
+- Your hand reaches for the light switch, cabin light, glovebox and ignition when you use them, and other
+  players see it. `HandReachesForSwitches` turns it off.
+
 ### Fixed
 
 - Getting into a vehicle no longer logs a "No input data found" error for the Chassis key hints.
