@@ -110,6 +110,14 @@ namespace Chassis.Vehicles
         {
             string want = Collect() ? Signature() : null;
             var prompts = Singleton<InputPromptsManager>.InstanceExists ? Singleton<InputPromptsManager>.Instance : null;
+            // A game state that was active when the panel loaded keeps it in its list and loads it again by id when it
+            // becomes active once more (the vehicle state on the next entry, the player state after a menu). Outside a
+            // vehicle that would show stale keys, so the panel goes.
+            if (want == null && _shownSig == null && prompts != null && Time.frameCount % 30 == 0 && prompts.HasActivePrompt(ModuleId))
+            {
+                Core.Log.Msg("[KeyHints] a game state showed the vehicle key hints again outside a vehicle - removed.");
+                prompts.UnloadModule(ModuleId);
+            }
             // Vanilla screens (character creator, menus) can clear the hint modules behind our back; put it back.
             if (want != null && want == _shownSig && prompts != null && _loaded && Time.frameCount % 30 == 0 && !prompts.HasActivePrompt(ModuleId))
             {
@@ -129,6 +137,7 @@ namespace Chassis.Vehicles
 
             var data = Data(want, prompts);
             if (data == null) return;
+            Register(prompts, data);
             prompts.LoadModule(data, EInputPromptPosition.BottomLeftInGame, null);
             _loaded = prompts.HasActivePrompt(ModuleId);
             if (_loaded) { Core.Log.Msg("[KeyHints] shown in the key hints: " + want + "."); CheckDrawn(prompts, data.Descriptors.Count); ShortLabels(prompts, want, true); }
@@ -234,6 +243,25 @@ namespace Chassis.Vehicles
             _cache[sig] = data;
             _labels[sig] = labels;
             return data;
+        }
+
+        /// <summary>
+        /// Puts the panel under its id into the game's prompt lookup. Every game state that is active while the panel
+        /// loads records it by id and loads it again by id when it becomes active again; without an entry the game logs
+        /// "No input data found" on each vehicle entry. The entry always points at the panel last loaded.
+        /// </summary>
+        private static void Register(InputPromptsManager prompts, InputPromptsData data)
+        {
+            try
+            {
+                var lookup = prompts._inputDataLookup;
+                if (lookup == null) { Core.Log.Warning("[KeyHints] the game's prompt lookup is not set - a game state reloading the vehicle keys logs an error."); return; }
+                lookup[ModuleId] = data;
+            }
+            catch (Exception ex)
+            {
+                Core.Log.Warning("[KeyHints] could not put the vehicle keys into the game's prompt lookup, a game state reloading them logs an error: " + ex.Message);
+            }
         }
 
         /// <summary>Adds an action per key; returns the labels for keys drawn on the stand-in picture, null when there are none.</summary>
