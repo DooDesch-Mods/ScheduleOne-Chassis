@@ -4,6 +4,12 @@ All notable changes to Chassis are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.13.1] - 2026-11-17
+
+### Fixed
+
+- Getting into a vehicle no longer logs a "No input data found" error for the Chassis key hints.
+
 ## [1.13.0] - 2026-11-16
 
 ### Added
