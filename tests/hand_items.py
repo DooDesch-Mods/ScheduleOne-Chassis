@@ -52,6 +52,11 @@ def main():
         gun = field(status() if st is None else st, "gun")
         return int(gun) if gun.isdigit() else -1
 
+    def press(what, settle_ms):
+        # A customer who walks up to the car opens a dialogue that shuts the input; end it first.
+        r.say("chassis items notice", "items notice", settle_ms=200)
+        r.say("chassis items press " + what, "items press", settle_ms=settle_ms)
+
     start = r.mark()
     g.world("teleport", {"x": SPOT[0], "y": SPOT[1], "z": SPOT[2], "yaw": YAW}, timeout_ms=8000)
     g.world("set_time", {"time": 1200}, timeout_ms=8000)
@@ -78,9 +83,9 @@ def main():
     r.shot("chase-pistol")
 
     before = ammo(st)
-    r.say("chassis items press secondary 40", "items press", settle_ms=300)
+    press("secondary 40", 300)
     time.sleep(0.4)
-    r.say("chassis items press primary 2", "items press", settle_ms=800)
+    press("primary 2", 800)
     time.sleep(0.6)
     after = ammo(None)
     r.check("chase view: pistol does not fire", before >= 0 and after == before, "ammo %d -> %d" % (before, after))
@@ -91,7 +96,7 @@ def main():
     r.say("chassis items pick " + DRINK, "items slot", settle_ms=1500)
     time.sleep(1.0)
     mark = r.mark()
-    r.say("chassis items press primary 2", "items press", settle_ms=500)
+    press("primary 2", 500)
     hit = r.wait_line(mark, r"\[Items\] trash .* thrown out of the (left|right) window", 8)
     # The driver sits on the left; the chase camera behind the car must not decide the side.
     r.check("chase view: drink trash out of the driver's window", bool(hit) and "left window" in hit, hit or "no line within 8 s")
@@ -142,11 +147,11 @@ def main():
     before = ammo(st)
     # Vanilla scatters every shot by 5 to 15 degrees, less the longer the weapon is aimed, so a single shot at 8 m can
     # miss; the aim is held until the accuracy is up and up to three shots are fired.
-    r.say("chassis items press secondary 600", "items press", settle_ms=300)
+    press("secondary 600", 300)
     time.sleep(2.0)
     r.note("before the shot: " + status())
     r.shot("fp-aimed")
-    r.say("chassis items press primary 2", "items press", settle_ms=800)
+    press("primary 2", 800)
     time.sleep(0.6)
     after = ammo(None)
     r.check("first person: pistol fires", before > 0 and after == before - 1, "ammo %d -> %d" % (before, after))
@@ -159,7 +164,7 @@ def main():
         time.sleep(1.0)
         ray = r.say("chassis items ray", "items ray", settle_ms=600)
         r.note("retry aim: " + (fix[-1] if fix else "no answer") + " | " + (ray[-1] if ray else "no ray"))
-        r.say("chassis items press primary 2", "items press", settle_ms=800)
+        press("primary 2", 800)
         time.sleep(0.6)
         hp_after = hp()
     after = ammo(None)
@@ -171,17 +176,17 @@ def main():
 
     # Vanilla drops the reload trash only when the spare magazine runs empty, so the gun is emptied first.
     left = after
-    r.say("chassis items press secondary 900", "items press", settle_ms=300)
+    press("secondary 900", 300)
     time.sleep(0.6)
     for _ in range(12):
         if left <= 0:
             break
-        r.say("chassis items press primary 2", "items press", settle_ms=500)
+        press("primary 2", 500)
         time.sleep(0.5)
         left = ammo(None)
     r.check("magazine emptied for the reload", left == 0, "ammo %d" % left)
     mark = r.mark()
-    r.say("chassis items press reload 2", "items press", settle_ms=500)
+    press("reload 2", 500)
     hit = r.wait_line(mark, r"\[Items\] trash .* thrown out of the (left|right) window", 6)
     r.check("reload trash thrown out of the window", bool(hit), hit or "no line within 6 s")
     time.sleep(1.5)
@@ -191,7 +196,7 @@ def main():
     r.say("chassis items pick " + DRINK, "items slot", settle_ms=1500)
     time.sleep(1.0)
     mark = r.mark()
-    r.say("chassis items press primary 2", "items press", settle_ms=500)
+    press("primary 2", 500)
     hit = r.wait_line(mark, r"\[Items\] trash .* thrown out of the (left|right) window", 8)
     r.check("drink trash thrown out of the window", bool(hit), hit or "no line within 8 s")
 
@@ -204,6 +209,7 @@ def main():
     r.check("placeable refusal in the log", bool(refused), refused[0] if refused else "no line")
 
     mark = r.mark()
+    r.say("chassis items notice", "items notice", settle_ms=200)
     r.say("chassis items exit", "items exit", settle_ms=2500)
     back = r.wait_line(mark, r"\[Items\] .* back in the hand after getting out", 5)
     # A shot NPC may fight back; a player killed in the seat is thrown out by vanilla and the item check has no

@@ -8,9 +8,13 @@ using HarmonyLib;
 #if IL2CPP
 using GameRegistry = Il2CppScheduleOne.Registry;
 using GameCharacterCreator = Il2CppScheduleOne.CharacterCreator.CharacterCreator;
+using GameArrestNotice = Il2CppScheduleOne.UI.ArrestNoticeScreen;
+using GameDialogueHandler = Il2CppScheduleOne.Dialogue.DialogueHandler;
 #else
 using GameRegistry = ScheduleOne.Registry;
 using GameCharacterCreator = ScheduleOne.CharacterCreator.CharacterCreator;
+using GameArrestNotice = ScheduleOne.UI.ArrestNoticeScreen;
+using GameDialogueHandler = ScheduleOne.Dialogue.DialogueHandler;
 #endif
 
 namespace Chassis.Debugging
@@ -62,6 +66,40 @@ namespace Chassis.Debugging
                     if (p.Length < 4) { Say("items give <id> [qty]"); break; }
                     Say("items give: " + Give(p[3].ToLowerInvariant(), p.Length > 4 ? int.Parse(p[4], CultureInfo.InvariantCulture) : 1));
                     break;
+                case "solids": Say("items solids: " + Solids()); break;
+                case "clear":
+                    // Vanilla's clearinventory runs only on the host; this one works on a client too.
+                    {
+                        var inv = PlayerSingleton<GamePlayerInventory>.Instance;
+                        if (inv == null) { Say("items clear: no PlayerInventory"); break; }
+                        inv.ClearInventory();
+                        Say("items clear: hotbar " + Hotbar(inv));
+                    }
+                    break;
+                case "overlap":
+                    // overlap [steps]: logs, per physics step, every solid collider outside the car that overlaps one of
+                    // the car's own solid colliders - the thing that would push a standing car.
+                    _overlapSteps = p.Length > 3 ? int.Parse(p[3], CultureInfo.InvariantCulture) : 50;
+                    _overlapSeen.Clear();
+                    HandItems.DebugFixed = OverlapStep;
+                    Say("items overlap: watching " + _overlapSteps + " physics step(s)");
+                    break;
+                case "notice":
+                    // An arrest notice is a UI element; while it is open the hotbar and consumables stay shut.
+                    {
+                        var ns = Singleton<GameArrestNotice>.InstanceExists ? Singleton<GameArrestNotice>.Instance : null;
+                        if (ns == null) Say("items notice: no ArrestNoticeScreen");
+                        else if (!ns.isOpen) Say("items notice: not open");
+                        else { ns.Exit(); Say("items notice: closed"); }
+                        // A customer or dealer who walks up to the car opens a dialogue, which also shuts the input.
+                        foreach (var dh in UnityEngine.Object.FindObjectsOfType<GameDialogueHandler>())
+                        {
+                            if (dh == null || !dh.IsDialogueInProgress) continue;
+                            dh.EndDialogue();
+                            Say("items notice: ended the dialogue of " + dh.gameObject.name);
+                        }
+                    }
+                    break;
                 case "aim": Say("items aim: " + AimAtNpc()); break;
                 case "ray": Say("items ray: " + Ray()); break;
                 case "cop": Say("items cop: " + Cop()); break;
@@ -84,7 +122,7 @@ namespace Chassis.Debugging
                     break;
                 }
                 default:
-                    Say("items status | press primary|secondary|reload [frames] | slot <1-9> | pick <name> | give <id> [qty] | creator | aim | target [m] [cop] | aimfix | track [off] | ray | hp | cop | seats | exit");
+                    Say("items status | press primary|secondary|reload [frames] | slot <1-9> | pick <name> | give <id> [qty] | clear | notice | solids | overlap [steps] | creator | aim | target [m] [cop] | aimfix | track [off] | ray | hp | cop | seats | exit");
                     break;
             }
         }
@@ -136,6 +174,9 @@ namespace Chassis.Debugging
                 + " viewmodel=" + vm + " rightHandIK=" + hand + " gun=" + ammo
                 + " stateEquipping=" + (state != null ? state.Properties.Equipping.ToString() : "-")
                 + " hotbarGate=" + HotbarGate(inv)
+                + " heldSolids=" + (HandItems.SolidColliders(eq != null ? eq.gameObject : null) + HandItems.SolidColliders(avItem != null ? avItem.gameObject : null)
+                    + (GameViewmodelAvatar.InstanceExists && GameViewmodelAvatar.Instance.gameObject.activeInHierarchy ? HandItems.SolidColliders(GameViewmodelAvatar.Instance.gameObject) : 0))
+                + " hotbar=" + (inv != null ? Hotbar(inv).Replace(' ', ',') : "-")
                 + " pursuit=" + (lp != null && lp.CrimeData != null ? lp.CrimeData.CurrentPursuitLevel.ToString() + "/" + lp.CrimeData.Crimes.Count : "-")
                 + " playerHp=" + (lp != null && lp.Health != null ? lp.Health.CurrentHealth.ToString("F0", CultureInfo.InvariantCulture) : "-")
                 + " input=" + Input()
@@ -227,6 +268,69 @@ namespace Chassis.Debugging
                 parts.Add((i + 1) + "=" + (it != null && it.Definition != null ? it.Definition.ID + "x" + it.Quantity : "-"));
             }
             return string.Join(" ", parts);
+        }
+
+        /// <summary>
+        /// Every registered item whose first-person equippable prefab has a solid (enabled, non-trigger) collider: the
+        /// items that would push the car while held in a seat without HandItems' collider switch.
+        /// </summary>
+        private static string Solids()
+        {
+            if (!GameRegistry.InstanceExists) return "no Registry";
+            var all = GameRegistry.Instance.GetAllItems();
+            int equippable = 0;
+            var hits = new List<string>();
+            for (int i = 0; i < all.Count; i++)
+            {
+                var def = all[i];
+                if (def == null || def.Equippable == null) continue;
+                equippable++;
+                int n = HandItems.SolidColliders(def.Equippable.gameObject, true);
+                if (n > 0) hits.Add(def.ID + "(" + n + ")");
+            }
+            return hits.Count + " of " + equippable + " equippable item(s) with solid colliders: " + (hits.Count > 0 ? string.Join(" ", hits) : "-");
+        }
+
+        private static int _overlapSteps;
+        private static int _overlapStep;
+        private static readonly HashSet<string> _overlapSeen = new HashSet<string>();
+
+        private static void OverlapStep()
+        {
+            if (_overlapSteps <= 0) { HandItems.DebugFixed = null; return; }
+            _overlapSteps--;
+            _overlapStep++;
+            try
+            {
+                var lp = Player.Local;
+                var car = lp != null && lp.CurrentVehicle != null ? lp.CurrentVehicle.transform : null;
+                if (car == null) { _overlapSteps = 0; Say("items overlap: not in a vehicle"); return; }
+                var mine = car.GetComponentsInChildren<Collider>(false);
+                foreach (var c in mine)
+                {
+                    if (c == null || !c.enabled || c.isTrigger) continue;
+                    var b = c.bounds;
+                    foreach (var o in Physics.OverlapBox(b.center, b.extents + Vector3.one * 0.02f, Quaternion.identity, ~0, QueryTriggerInteraction.Ignore))
+                    {
+                        if (o == null || o.transform.IsChildOf(car)) continue;
+                        if (!Physics.ComputePenetration(c, c.transform.position, c.transform.rotation, o, o.transform.position, o.transform.rotation, out var dir, out var dist)) continue;
+                        string key = c.name + "|" + o.GetInstanceID();
+                        if (!_overlapSeen.Add(key)) continue;
+                        Core.Log.Msg("[Items] overlap step " + _overlapStep + ": car part '" + c.name + "' and '" + Path(o.transform) + "' (" + Interop.TypeName(o)
+                            + ", layer " + LayerMask.LayerToName(o.gameObject.layer) + ", rigidbody " + (o.attachedRigidbody != null ? o.attachedRigidbody.name : "-")
+                            + ") overlap " + dist.ToString("F3", CultureInfo.InvariantCulture) + " m.");
+                    }
+                }
+                if (_overlapSteps == 0) Say("items overlap: done, " + _overlapSeen.Count + " overlap(s)");
+            }
+            catch (Exception e) { _overlapSteps = 0; Core.Log.Error("[Items] overlap watch failed: " + e.Message); }
+        }
+
+        private static string Path(Transform t)
+        {
+            string s = t.name;
+            for (int i = 0; i < 4 && t.parent != null; i++) { t = t.parent; s = t.name + "/" + s; }
+            return s;
         }
 
         /// <summary>Adds items through the local PlayerInventory and reports the hotbar after it, or the error.</summary>

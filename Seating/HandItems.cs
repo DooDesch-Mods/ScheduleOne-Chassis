@@ -285,6 +285,142 @@ namespace Chassis.Seating
             AvatarItem(seated && FirstPersonView.Active);
         }
 
+        /// <summary>A held item whose solid colliders are off while its holder sits in a car.</summary>
+        private sealed class HeldSolids
+        {
+            internal GameObject Go;
+            internal int Id;
+            internal int Steps;
+            internal int Logged;
+            internal readonly List<Collider> Off = new List<Collider>();
+        }
+
+        private static readonly List<HeldSolids> _heldSolids = new List<HeldSolids>();
+        private static readonly List<GameObject> _owners = new List<GameObject>();
+        // Some items build their model after the equip (a product fills its baggie or jar later), so a new item is
+        // scanned every physics step for about 2 s and every 10th step after that.
+        private const int FreshSteps = 100;
+        private const int LogCap = 3;
+
+        /// <summary>
+        /// Every physics step, before the physics runs: a held item moves with the car, so a solid collider on it sits
+        /// inside the car's own colliders and a single physics step pushes the car away (the energy drink can, product
+        /// bags, seeds and tools have one). Vanilla turns the body copy's colliders into triggers on equip but leaves the
+        /// first-person viewmodel's solid. While seated, every solid collider of the local player's viewmodel item, of the
+        /// first-person arms rig and of each seated body's item is off; it comes back on getting out or when the item changes. Done here and not in
+        /// Update, because an item spawned in one frame meets the next physics step before the next Update.
+        /// </summary>
+        internal static void FixedTick()
+        {
+            _owners.Clear();
+            var inv = PlayerSingleton<GamePlayerInventory>.InstanceExists ? PlayerSingleton<GamePlayerInventory>.Instance : null;
+            if (LocalSeated)
+            {
+                // Arm-held items (bat, knife) and the empty-hand punch show the first-person arms rig, a full avatar
+                // with solid body colliders on the Viewmodel layer. While it is shown, the whole rig is an owner, and
+                // an item inside it is covered by it.
+                var arms = GameViewmodelAvatar.InstanceExists ? GameViewmodelAvatar.Instance : null;
+                bool armsOn = arms != null && arms.gameObject.activeInHierarchy;
+                if (armsOn) _owners.Add(arms.gameObject);
+                if (inv != null && inv.Equippable != null && !(armsOn && inv.Equippable.transform.IsChildOf(arms.transform)))
+                    _owners.Add(inv.Equippable.gameObject);
+            }
+            foreach (var rig in Occupants.All)
+            {
+                if (rig == null || rig.Avatar == null) continue;
+                var it = rig.Avatar.CurrentEquippable;
+                if (it != null) _owners.Add(it.gameObject);
+            }
+            for (int i = _heldSolids.Count - 1; i >= 0; i--)
+            {
+                var h = _heldSolids[i];
+                if (h.Go != null && IndexOf(_owners, h.Id) >= 0) continue;
+                SolidsBack(h);
+                _heldSolids.RemoveAt(i);
+            }
+            foreach (var go in _owners)
+            {
+                int id = go.GetInstanceID();
+                HeldSolids h = null;
+                foreach (var x in _heldSolids) if (x.Id == id) { h = x; break; }
+                if (h == null) { h = new HeldSolids { Go = go, Id = id }; _heldSolids.Add(h); }
+                if (h.Steps < FreshSteps || h.Steps % 10 == 0) SolidsOff(h);
+                h.Steps++;
+            }
+#if DEBUG
+            DebugFixed?.Invoke();
+#endif
+        }
+
+#if DEBUG
+        /// <summary>Debug watch run after the collider switch in each physics step.</summary>
+        internal static System.Action DebugFixed;
+#endif
+
+        private static int IndexOf(List<GameObject> list, int id)
+        {
+            for (int i = 0; i < list.Count; i++) if (list[i] != null && list[i].GetInstanceID() == id) return i;
+            return -1;
+        }
+
+        private static void SolidsOff(HeldSolids h)
+        {
+            int n = 0;
+            foreach (var c in h.Go.GetComponentsInChildren<Collider>(true))
+            {
+                if (c == null || c.isTrigger || !c.enabled) continue;
+                c.enabled = false;
+                h.Off.Add(c);
+                n++;
+            }
+            if (n == 0) return;
+            h.Logged++;
+            if (h.Logged <= LogCap)
+                Core.Log.Msg("[Items] " + h.Go.name + ": " + n + " solid collider(s) off while seated, the held item cannot push the car.");
+            else if (h.Logged == LogCap + 1)
+                Core.Log.Warning("[Items] " + h.Go.name + ": its colliders keep switching back on, each is switched off again; no further lines for this item.");
+        }
+
+        private static void SolidsBack(HeldSolids h)
+        {
+            int back = 0;
+            foreach (var c in h.Off)
+            {
+                // A collider of an unequipped item is destroyed with it.
+                if (c == null) continue;
+                c.enabled = true;
+                back++;
+            }
+            if (back > 0) Core.Log.Msg("[Items] " + back + " solid collider(s) of the held item back on.");
+            h.Off.Clear();
+        }
+
+        /// <summary>Solid (enabled, non-trigger) colliders under an object, for the debug status. With
+        /// <paramref name="activeOnly"/> only colliders whose object and parents up to <paramref name="go"/> are active
+        /// count; a prefab is never active in the hierarchy, so its own flags decide.</summary>
+        internal static int SolidColliders(GameObject go, bool activeOnly = false)
+        {
+            if (go == null) return 0;
+            int n = 0;
+            foreach (var c in go.GetComponentsInChildren<Collider>(true))
+            {
+                if (c == null || !c.enabled || c.isTrigger) continue;
+                if (activeOnly && !ActiveUpTo(c.transform, go.transform)) continue;
+                n++;
+            }
+            return n;
+        }
+
+        private static bool ActiveUpTo(Transform t, Transform root)
+        {
+            for (; t != null; t = t.parent)
+            {
+                if (!t.gameObject.activeSelf) return false;
+                if (t == root) return true;
+            }
+            return true;
+        }
+
         private static void PutPlaceableAway(GamePlayerInventory inv)
         {
             var slot = inv.equippedSlot;
@@ -327,6 +463,7 @@ namespace Chassis.Seating
             _wasSeated = false; _vmHidden = false; _avatarItemHidden = false;
             _refusedLogged = null; _blockLogged = null;
             _ignoredForShot.Clear(); _shotLogged = false;
+            _heldSolids.Clear(); _owners.Clear();
         }
 
         // ---- shots out of the own car --------------------------------------------------------------------------------

@@ -32,6 +32,7 @@ global using GameVehicleDetector = Il2CppScheduleOne.DevUtilities.VehicleDetecto
 global using GameCheckpointManager = Il2CppScheduleOne.Law.CheckpointManager;
 global using GamePatrolRoute = Il2CppScheduleOne.NPCs.Behaviour.VehiclePatrolRoute;
 global using GamePlayerInventory = Il2CppScheduleOne.PlayerScripts.PlayerInventory;
+global using GameViewmodelAvatar = Il2CppScheduleOne.DevUtilities.Singleton<Il2CppScheduleOne.PlayerScripts.ViewmodelAvatar>;
 global using AvatarEffects = Il2CppScheduleOne.AvatarFramework.AvatarEffects;
 global using FishNetObject = Il2CppFishNet.Object.NetworkObject;
 global using GameConsole = Il2CppScheduleOne.Console;

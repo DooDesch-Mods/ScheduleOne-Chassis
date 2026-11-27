@@ -93,7 +93,7 @@ namespace Chassis.Debugging
                         Say("feet                         - ankle axes of every seated body (side x near -1 = sole down)");
                         Say("profile list|show|save|reload|set <field> <values> [code] [seat] - seat profiles (see 'chassis profile')");
                         Say("target seat|patrol|near|gun|shoot|keep|list - shots into cars (see 'chassis target')");
-                        Say("items status|press|scroll|slot|aim - hotbar items while seated (see 'chassis items')");
+                        Say("items status|press|scroll|slot|solids|aim - hotbar items while seated (see 'chassis items')");
                         Say("car [enter|honk|blink|arrow|lock|part|side|rain|assign|owners] - horn, indicators, lock, lids (see 'chassis car help')");
                         Say("checkpoint on|warp|park|state - a police checkpoint for the horn test (see 'chassis checkpoint help')");
                         Say("stop start|state - a police traffic stop on you (see 'chassis stop help')");
