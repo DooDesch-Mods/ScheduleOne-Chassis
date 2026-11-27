@@ -20,6 +20,8 @@ namespace Chassis.Debugging
             Say("car bones                    - head, hips, knees and feet of your avatar in the vehicle space");
             Say("car remove                   - despawn the vehicle you sit in, or the nearest one (host)");
             Say("car go [throttle] [steer] [s] - drive through the vanilla control override, -1..1 each (driver)");
+            Say("car steerwatch [s]            - logs the steer angle and the steered wheels' yaw over s seconds");
+            Say("car steerpoke [deg]           - moves the steer angle from outside Chassis once, as a second steering mod would");
             Say("car slide [km/h] [deg] [s]   - hold the body at a speed turned off its facing, for tyre slip and drift smoke");
             Say("car wheels                   - drift state, smoke and smoke colour per wheel");
             Say("car honk [flash]             - horn (key G)");
@@ -173,6 +175,20 @@ namespace Chassis.Debugging
                             + (ps == null ? "none" : (ps.isPlaying ? "playing" : "stopped") + " with " + ps.particleCount + " particle(s), colour #" + ColorUtility.ToHtmlStringRGB(ps.main.startColor.color)));
                     }
                     break;
+                case "steerwatch":
+                    MelonLoader.MelonCoroutines.Start(SteerWatch(lv, Arg(p, 3, 4f)));
+                    Say("car steerwatch: " + Registry.Name(lv) + " for " + Arg(p, 3, 4f).ToString("0.#", CultureInfo.InvariantCulture) + " s");
+                    break;
+                case "steerpoke":
+                    // Plays a second steering writer: the angle moves between two frames outside Chassis' own patch.
+                    {
+                        float deg = Arg(p, 3, 8f);
+                        float was = lv.lastFrameSteerAngle;
+                        lv.lastFrameSteerAngle = was + deg;
+                        Say("car steerpoke: " + Registry.Name(lv) + " angle " + was.ToString("0.00", CultureInfo.InvariantCulture) + " -> "
+                            + (was + deg).ToString("0.00", CultureInfo.InvariantCulture) + " from outside the steering patch");
+                    }
+                    break;
                 case "assign":
                     if (arg == "off" || arg.Length == 0) ChassisApi.Unassign(lv);
                     else ChassisApi.Assign(lv, p[3]);
@@ -209,6 +225,61 @@ namespace Chassis.Debugging
 
         private static float Arg(string[] p, int i, float fallback) =>
             p.Length > i && float.TryParse(p[i], NumberStyles.Float, CultureInfo.InvariantCulture, out float f) ? f : fallback;
+
+        /// <summary>
+        /// Every frame for <paramref name="seconds"/>: the steering angle, the steer axis and the yaw of each steered
+        /// wheel model against the car. Reports the range of each and how often the wheel yaw changed direction, which
+        /// is the twitch a player sees.
+        /// </summary>
+        private static System.Collections.IEnumerator SteerWatch(LandVehicle lv, float seconds)
+        {
+            float until = Time.time + seconds;
+            float aMin = float.MaxValue, aMax = float.MinValue, xMin = float.MaxValue, xMax = float.MinValue, sMax = 0f;
+            var steered = new System.Collections.Generic.List<Wheel>();
+            if (lv.wheels != null) foreach (var w in lv.wheels) if (w != null && w.IsSteerWheel && w.wheelModel != null) steered.Add(w);
+            var yMin = new float[steered.Count]; var yMax = new float[steered.Count]; var last = new float[steered.Count];
+            var lastDelta = new float[steered.Count]; var flips = new int[steered.Count];
+            for (int i = 0; i < steered.Count; i++) { yMin[i] = float.MaxValue; yMax[i] = float.MinValue; last[i] = float.NaN; }
+            int frames = 0, angleChanges = 0;
+            float lastAngle = float.NaN;
+            while (lv != null && Time.time < until)
+            {
+                frames++;
+                float a = lv.CurrentSteerAngle, x = GameInput.MotionAxis.x;
+                aMin = Mathf.Min(aMin, a); aMax = Mathf.Max(aMax, a);
+                xMin = Mathf.Min(xMin, x); xMax = Mathf.Max(xMax, x);
+                sMax = Mathf.Max(sMax, Mathf.Abs(lv.Speed_Kmh));
+                if (!float.IsNaN(lastAngle) && Mathf.Abs(a - lastAngle) > 0.01f) angleChanges++;
+                lastAngle = a;
+                for (int i = 0; i < steered.Count; i++)
+                {
+                    Vector3 axle = lv.transform.InverseTransformDirection(steered[i].wheelModel.right);
+                    float yaw = Mathf.Atan2(-axle.z, axle.x) * Mathf.Rad2Deg;
+                    // A wheel model can face either way along its axle; fold the yaw into -90..90.
+                    if (yaw > 90f) yaw -= 180f; else if (yaw < -90f) yaw += 180f;
+                    yMin[i] = Mathf.Min(yMin[i], yaw); yMax[i] = Mathf.Max(yMax[i], yaw);
+                    if (!float.IsNaN(last[i]))
+                    {
+                        float d = yaw - last[i];
+                        if (Mathf.Abs(d) > 0.2f)
+                        {
+                            if (lastDelta[i] != 0f && Mathf.Sign(d) != Mathf.Sign(lastDelta[i])) flips[i]++;
+                            lastDelta[i] = d;
+                        }
+                    }
+                    last[i] = yaw;
+                }
+                yield return null;
+            }
+            if (lv == null) { Core.Log.Warning("[Console] car steerwatch ended: the vehicle is gone."); yield break; }
+            var ci = CultureInfo.InvariantCulture;
+            string wheels = "";
+            for (int i = 0; i < steered.Count; i++)
+                wheels += " " + steered[i].gameObject.name + " yaw " + yMin[i].ToString("F2", ci) + ".." + yMax[i].ToString("F2", ci) + " flips " + flips[i];
+            Core.Log.Msg("[Console] car steerwatch " + Registry.Name(lv) + ": " + frames + " frames, driver " + lv.LocalPlayerIsDriver + ", top speed " + sMax.ToString("F2", ci)
+                + " km/h, axis " + xMin.ToString("F3", ci) + ".." + xMax.ToString("F3", ci) + ", steer " + aMin.ToString("F2", ci) + ".." + aMax.ToString("F2", ci)
+                + " changed in " + angleChanges + " frame(s)," + (steered.Count == 0 ? " no steered wheel model" : wheels) + ".");
+        }
 
         // Drives through the vanilla control override, so the wheels get real torque and steer, slip included.
         private static System.Collections.IEnumerator Go(LandVehicle lv, float throttle, float steer, float seconds)
