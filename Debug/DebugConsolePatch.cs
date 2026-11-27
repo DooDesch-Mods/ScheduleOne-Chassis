@@ -78,6 +78,7 @@ namespace Chassis.Debugging
                         Say("showroom [tp|enter|hover|press <i>] [m] - showroom cars; tp to car i's door (m metres out, facing it), enter gets in, hover/press fire its prompt events");
                         Say("showroom ghost on|off        - draw the hidden display props over their cars (alignment check)");
                         Say("view [pitch] [yaw]           - first person on/off while seated (key V); a pitch (and yaw, + = right) turns it on looking that way");
+                        Say("view sweep [step]            - logs which cockpit control the view lands on over a pitch and yaw grid (default 20 deg)");
                         Say("head [on|off]                - seated heads following the view (preference HeadFollowsView, this session); without an argument the look state");
                         Say("reach [on|off|hold <s>|use <switch>] - hand reaching for switches (preference HandReachesForSwitches, this session); hold keeps hands longer on a switch, use clicks one in any view");
                         Say("view start on|off            - start every seat in first person (preference StartInFirstPerson, this session)");
@@ -92,13 +93,13 @@ namespace Chassis.Debugging
                         Say("feet                         - ankle axes of every seated body (side x near -1 = sole down)");
                         Say("profile list|show|save|reload|set <field> <values> [code] [seat] - seat profiles (see 'chassis profile')");
                         Say("target seat|patrol|near|gun|shoot|keep|list - shots into cars (see 'chassis target')");
-                        Say("items status|press|slot|aim - hotbar items while seated (see 'chassis items')");
+                        Say("items status|press|scroll|slot|solids|aim - hotbar items while seated (see 'chassis items')");
                         Say("car [enter|honk|blink|arrow|lock|part|side|rain|assign|owners] - horn, indicators, lock, lids (see 'chassis car help')");
                         Say("checkpoint on|warp|park|state - a police checkpoint for the horn test (see 'chassis checkpoint help')");
                         Say("stop start|state - a police traffic stop on you (see 'chassis stop help')");
                         Say("tune [part|remove|set|clear|stats|demo] - paint, parts, lights and driving of a car (see 'chassis tune help')");
                         Say("interior on|off|rebuild      - base interior and tinted glass in the vanilla cars");
-                        Say("mirror [on|off|look [left|right]|own on|off|level 0-3] - live mirrors of the car you sit in");
+                        Say("mirror [on|off|look [left|right]|own on|off|level -1..3] - live mirrors of the car you sit in");
                         Say("interior fit on|off          - the kit gives way where it reaches out of the body (off = formula sizes)");
                         Say("interior cabinfit on|off     - the cabin light and the rear-view mirror move back under the roof (off = formula places)");
                         Say("interior shell               - write the shell the mirror search reads of the car you sit in to UserData/Chassis/shell-<code>.obj");
@@ -352,6 +353,16 @@ namespace Chassis.Debugging
                             Say("view start: first person on entering " + (Seating.FirstPersonView.StartInFirstPerson ? "on" : "off"));
                             break;
                         }
+                        if (parts.Length > 2 && parts[2] == "sweep")
+                        {
+                            Seating.FirstPersonView.Set(true, "console");
+                            if (!Seating.FirstPersonView.Active) { Say("view sweep: first person did not turn on (sit in a car first)"); break; }
+                            int step = Mathf.Clamp((int)F(parts, 3, 20f), 2, 30);
+                            int cells = (60 / step + 1) * (120 / step + 1);
+                            MelonLoader.MelonCoroutines.Start(HoverSweep(step));
+                            Say("view sweep: started, " + cells + " cells in " + step + " deg steps");
+                            break;
+                        }
                         if (parts.Length > 2 && float.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out float vp))
                         {
                             Seating.FirstPersonView.Set(true, "console");
@@ -460,7 +471,7 @@ namespace Chassis.Debugging
                         else if (op == "own" && parts.Length > 3) Interior.Mirrors.SetShowOwnCar(parts[3] == "on" || parts[3] == "1");
                         else if (op == "level" && parts.Length > 3 && int.TryParse(parts[3], out int ml)) Tune.Reflections.Set(ml);
                         else if (op == "mode" && parts.Length > 3 && int.TryParse(parts[3], out int mm)) Tune.MirrorMode.Set(mm);
-                        else if (op != "" && op != "info") Say("mirror [on|off|look [left|right]|own on|off|level 0-3|mode 0-3]");
+                        else if (op != "" && op != "info") Say("mirror [on|off|look [left|right]|own on|off|level -1..3|mode 0-3]");
                         Say(Interior.Mirrors.Describe());
                         break;
                     }
@@ -670,6 +681,47 @@ namespace Chassis.Debugging
             }
             if (lv == null) { Core.Log.Warning("[Console] coast ended: the vehicle is gone."); yield break; }
             Core.Log.Msg("[Console] coast ended after " + Vector3.Distance(start, lv.transform.position).ToString("F1", CultureInfo.InvariantCulture) + " m.");
+        }
+
+        /// <summary>
+        /// Walks the first-person view over a pitch and yaw grid and logs, per cell, which cockpit control the view
+        /// lands on: how much of the normal view a click would give to a switch instead of the item in the hand.
+        /// </summary>
+        private static System.Collections.IEnumerator HoverSweep(int step)
+        {
+            var pitches = new List<int>();
+            for (int v = -10; v <= 50; v += step) pitches.Add(v);
+            var yaws = new List<int>();
+            for (int v = -60; v <= 60; v += step) yaws.Add(v);
+            var letters = new Dictionary<string, char>();
+            var rows = new List<string>();
+            int hits = 0;
+            foreach (int p in pitches)
+            {
+                var row = new System.Text.StringBuilder();
+                foreach (int y in yaws)
+                {
+                    if (!Seating.FirstPersonView.Active) { Core.Log.Warning("[Console] view sweep stopped: first person is off."); yield break; }
+                    Seating.FirstPersonView.Look(p, y);
+                    // The camera takes the new look next frame, the aim one frame after it.
+                    yield return null; yield return null; yield return null;
+                    var b = Instruments.Cockpit.Hovered;
+                    char c = '.';
+                    if (b != null)
+                    {
+                        string name = b.P.Name ?? "?";
+                        if (!letters.TryGetValue(name, out c)) { c = (char)('A' + letters.Count); letters[name] = c; }
+                        hits++;
+                    }
+                    row.Append(' ').Append(c);
+                }
+                rows.Add("[Console] view sweep pitch " + p.ToString().PadLeft(3) + " |" + row);
+            }
+            Seating.FirstPersonView.Look(0f, 0f);
+            Core.Log.Msg("[Console] view sweep: " + hits + " of " + (pitches.Count * yaws.Count) + " cells on a control, pitch -10.." + pitches[pitches.Count - 1]
+                + " and yaw -60.." + yaws[yaws.Count - 1] + " in " + step + "s.");
+            foreach (var r in rows) Core.Log.Msg(r);
+            foreach (var kv in letters) Core.Log.Msg("[Console] view sweep   " + kv.Value + " = " + kv.Key);
         }
 
         private static float F(string[] p, int i, float fallback)

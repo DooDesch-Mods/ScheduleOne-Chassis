@@ -45,7 +45,12 @@ namespace Chassis.Vehicles
         [HarmonyPatch(typeof(LandVehicle), "UpdateSteerAngle")]
         private static class SteerPatch
         {
-            private static void Prefix(LandVehicle __instance, out float __state) => __state = __instance.lastFrameSteerAngle;
+            private static void Prefix(LandVehicle __instance, out float __state)
+            {
+                __state = __instance.lastFrameSteerAngle;
+                try { WatchForeign(__instance, __state); }
+                catch (Exception e) { _foreignBroken = true; Core.Log.Warning("[Steering] the check for other steering writers failed and stays off: " + e.Message); }
+            }
 
             [HarmonyPriority(Priority.High)]
             private static void Postfix(LandVehicle __instance, float __state)
@@ -69,7 +74,53 @@ namespace Chassis.Vehicles
                 float angle = Mathf.MoveTowards(__state, target, rate * Time.deltaTime);
                 __instance.CurrentSteerAngle = angle;
                 __instance.lastFrameSteerAngle = angle;
+                _wroteId = __instance.GetInstanceID();
+                _wrote = angle;
+                _wroteFrame = Time.frameCount;
             }
+        }
+
+        // ---- other writers -------------------------------------------------------------------------------------------
+
+        private static int _wroteId, _wroteFrame = -10;
+        private static float _wrote;
+        private static bool _foreignBroken;
+        private static readonly System.Collections.Generic.HashSet<int> _foreignWarned = new System.Collections.Generic.HashSet<int>();
+
+        /// <summary>
+        /// The game starts each frame's step from the angle Chassis wrote last frame. When that angle has changed in
+        /// between, another mod or the game steered the same car too, and the wheels jump between both values: the
+        /// front wheels twitch while nothing is pressed. Warned once per car, with the other patches on the method.
+        /// </summary>
+        private static void WatchForeign(LandVehicle lv, float start)
+        {
+            if (_foreignBroken || !Enabled || Time.frameCount - _wroteFrame != 1 || lv.GetInstanceID() != _wroteId) return;
+            if (Mathf.Abs(start - _wrote) < 0.05f) return;
+            if (!_foreignWarned.Add(_wroteId)) return;
+            Core.Log.Warning("[Steering] " + lv.VehicleCode + ": the steering angle changed from " + _wrote.ToString("0.00") + " to "
+                + start.ToString("0.00") + " deg between two frames outside Chassis - something else steers this car too, which can make "
+                + "the front wheels twitch. Other patches on LandVehicle.UpdateSteerAngle: " + OtherPatches() + ".");
+        }
+
+        private static string OtherPatches()
+        {
+            var m = AccessTools.Method(typeof(LandVehicle), "UpdateSteerAngle");
+            var info = m != null ? HarmonyLib.Harmony.GetPatchInfo(m) : null;
+            if (info == null) return "none";
+            var owners = new System.Collections.Generic.List<string>();
+            void Add(System.Collections.Generic.IEnumerable<HarmonyLib.Patch> list, string kind)
+            {
+                foreach (var p in list)
+                {
+                    if (p.PatchMethod != null && p.PatchMethod.DeclaringType != null && p.PatchMethod.DeclaringType.Assembly == typeof(Steering).Assembly) continue;
+                    string name = kind + " " + (p.PatchMethod != null && p.PatchMethod.DeclaringType != null ? p.PatchMethod.DeclaringType.FullName : "?") + " (" + p.owner + ")";
+                    if (!owners.Contains(name)) owners.Add(name);
+                }
+            }
+            Add(info.Prefixes, "prefix");
+            Add(info.Postfixes, "postfix");
+            Add(info.Transpilers, "transpiler");
+            return owners.Count == 0 ? "none" : string.Join(", ", owners);
         }
     }
 }

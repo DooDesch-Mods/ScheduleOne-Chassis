@@ -140,7 +140,7 @@ namespace Chassis.Interior
         internal static void Restyle()
         {
             foreach (var rig in _rigs.Values) foreach (var v in rig.Views) v.Level = -1;
-            Core.Log.Msg("[Mirror] restyled for Reflections " + Tune.Reflections.Names[Tune.Reflections.Level] + ".");
+            Core.Log.Msg("[Mirror] restyled for Reflections " + Tune.Reflections.Label + ".");
         }
 
         /// <summary>The <see cref="Tune.MirrorMode"/> changed: cameras the mode no longer allows stop now, the glass follows next frame.</summary>
@@ -840,7 +840,7 @@ namespace Chassis.Interior
             var rig = Focus;
             var rear = rig?.Rear;
             string s = "mirror " + (_enabled ? "on" : "off") + ", " + (rear != null ? rear.State : _seatWhy)
-                + ", level " + Tune.Reflections.Names[Tune.Reflections.Level]
+                + ", level " + Tune.Reflections.Label
                 + ", own car " + (ShowsOwnCar ? "shown" : "hidden")
                 + ", car " + (rig != null && rig.Car != null ? rig.CarName : "-")
                 + ", housing " + (rear?.Housing != null ? rear.Housing.position.ToString("F2") : "-")

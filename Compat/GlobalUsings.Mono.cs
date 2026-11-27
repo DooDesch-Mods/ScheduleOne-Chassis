@@ -32,6 +32,7 @@ global using GameVehicleDetector = ScheduleOne.DevUtilities.VehicleDetector;
 global using GameCheckpointManager = ScheduleOne.Law.CheckpointManager;
 global using GamePatrolRoute = ScheduleOne.NPCs.Behaviour.VehiclePatrolRoute;
 global using GamePlayerInventory = ScheduleOne.PlayerScripts.PlayerInventory;
+global using GameViewmodelAvatar = ScheduleOne.DevUtilities.Singleton<ScheduleOne.PlayerScripts.ViewmodelAvatar>;
 global using AvatarEffects = ScheduleOne.AvatarFramework.AvatarEffects;
 global using FishNetObject = FishNet.Object.NetworkObject;
 global using GameConsole = ScheduleOne.Console;

@@ -97,6 +97,12 @@ namespace Chassis
             Tune.Apply.Reset();
         }
 
+        public override void OnFixedUpdate()
+        {
+            if (!_inWorld) return;
+            Guard("held item colliders", Seating.HandItems.FixedTick);
+        }
+
         public override void OnLateUpdate()
         {
             if (!_inWorld) return;

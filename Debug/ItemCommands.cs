@@ -8,9 +8,13 @@ using HarmonyLib;
 #if IL2CPP
 using GameRegistry = Il2CppScheduleOne.Registry;
 using GameCharacterCreator = Il2CppScheduleOne.CharacterCreator.CharacterCreator;
+using GameArrestNotice = Il2CppScheduleOne.UI.ArrestNoticeScreen;
+using GameDialogueHandler = Il2CppScheduleOne.Dialogue.DialogueHandler;
 #else
 using GameRegistry = ScheduleOne.Registry;
 using GameCharacterCreator = ScheduleOne.CharacterCreator.CharacterCreator;
+using GameArrestNotice = ScheduleOne.UI.ArrestNoticeScreen;
+using GameDialogueHandler = ScheduleOne.Dialogue.DialogueHandler;
 #endif
 
 namespace Chassis.Debugging
@@ -33,6 +37,14 @@ namespace Chassis.Debugging
                     Press(b, frames);
                     Say("items press: " + b + " for " + frames + " frame(s)");
                     break;
+                case "scroll":
+                    if (p.Length < 4 || !float.TryParse(p[3], NumberStyles.Float, CultureInfo.InvariantCulture, out var notch) || notch == 0f) { Say("items scroll <notches, negative = next slot>"); break; }
+                    _scroll = notch;
+                    _scrollFrames = 2;
+                    _scrollFrom = SlotIndex();
+                    Say("items scroll: wheel " + notch.ToString(CultureInfo.InvariantCulture) + " for one frame, from slot " + _scrollFrom
+                        + (Instruments.Cockpit.Hovered != null ? ", hovering '" + Instruments.Cockpit.Hovered.P.Name + "' (" + Instruments.Cockpit.Hovered.Kind + ")" : ", no control hovered"));
+                    break;
                 case "slot":
                     if (p.Length < 4) { Say("items slot <1-9>"); break; }
                     Slot(int.Parse(p[3], CultureInfo.InvariantCulture));
@@ -53,6 +65,40 @@ namespace Chassis.Debugging
                 case "give":
                     if (p.Length < 4) { Say("items give <id> [qty]"); break; }
                     Say("items give: " + Give(p[3].ToLowerInvariant(), p.Length > 4 ? int.Parse(p[4], CultureInfo.InvariantCulture) : 1));
+                    break;
+                case "solids": Say("items solids: " + Solids()); break;
+                case "clear":
+                    // Vanilla's clearinventory runs only on the host; this one works on a client too.
+                    {
+                        var inv = PlayerSingleton<GamePlayerInventory>.Instance;
+                        if (inv == null) { Say("items clear: no PlayerInventory"); break; }
+                        inv.ClearInventory();
+                        Say("items clear: hotbar " + Hotbar(inv));
+                    }
+                    break;
+                case "overlap":
+                    // overlap [steps]: logs, per physics step, every solid collider outside the car that overlaps one of
+                    // the car's own solid colliders - the thing that would push a standing car.
+                    _overlapSteps = p.Length > 3 ? int.Parse(p[3], CultureInfo.InvariantCulture) : 50;
+                    _overlapSeen.Clear();
+                    HandItems.DebugFixed = OverlapStep;
+                    Say("items overlap: watching " + _overlapSteps + " physics step(s)");
+                    break;
+                case "notice":
+                    // An arrest notice is a UI element; while it is open the hotbar and consumables stay shut.
+                    {
+                        var ns = Singleton<GameArrestNotice>.InstanceExists ? Singleton<GameArrestNotice>.Instance : null;
+                        if (ns == null) Say("items notice: no ArrestNoticeScreen");
+                        else if (!ns.isOpen) Say("items notice: not open");
+                        else { ns.Exit(); Say("items notice: closed"); }
+                        // A customer or dealer who walks up to the car opens a dialogue, which also shuts the input.
+                        foreach (var dh in UnityEngine.Object.FindObjectsOfType<GameDialogueHandler>())
+                        {
+                            if (dh == null || !dh.IsDialogueInProgress) continue;
+                            dh.EndDialogue();
+                            Say("items notice: ended the dialogue of " + dh.gameObject.name);
+                        }
+                    }
                     break;
                 case "aim": Say("items aim: " + AimAtNpc()); break;
                 case "ray": Say("items ray: " + Ray()); break;
@@ -76,7 +122,7 @@ namespace Chassis.Debugging
                     break;
                 }
                 default:
-                    Say("items status | press primary|secondary|reload [frames] | slot <1-9> | pick <name> | give <id> [qty] | creator | aim | target [m] [cop] | aimfix | track [off] | ray | hp | cop | seats | exit");
+                    Say("items status | press primary|secondary|reload [frames] | slot <1-9> | pick <name> | give <id> [qty] | clear | notice | solids | overlap [steps] | creator | aim | target [m] [cop] | aimfix | track [off] | ray | hp | cop | seats | exit");
                     break;
             }
         }
@@ -127,11 +173,43 @@ namespace Chassis.Debugging
                 + " equippable=" + (eq != null ? Interop.TypeName(eq) : "-") + " avatarItem=" + (avItem != null ? avItem.name + "@" + LayerMask.LayerToName(avItem.gameObject.layer) : "-")
                 + " viewmodel=" + vm + " rightHandIK=" + hand + " gun=" + ammo
                 + " stateEquipping=" + (state != null ? state.Properties.Equipping.ToString() : "-")
+                + " hotbarGate=" + HotbarGate(inv)
+                + " heldSolids=" + (HandItems.SolidColliders(eq != null ? eq.gameObject : null) + HandItems.SolidColliders(avItem != null ? avItem.gameObject : null)
+                    + (GameViewmodelAvatar.InstanceExists && GameViewmodelAvatar.Instance.gameObject.activeInHierarchy ? HandItems.SolidColliders(GameViewmodelAvatar.Instance.gameObject) : 0))
+                + " hotbar=" + (inv != null ? Hotbar(inv).Replace(' ', ',') : "-")
                 + " pursuit=" + (lp != null && lp.CrimeData != null ? lp.CrimeData.CurrentPursuitLevel.ToString() + "/" + lp.CrimeData.Crimes.Count : "-")
                 + " playerHp=" + (lp != null && lp.Health != null ? lp.Health.CurrentHealth.ToString("F0", CultureInfo.InvariantCulture) : "-")
                 + " input=" + Input()
                 + " eqUpdates " + HandItems.UpdateCalls + " last " + HandItems.LastUpdated
                 + (eq != null ? " eqEnabled " + eq.enabled + " eqActive " + eq.gameObject.activeInHierarchy + " eqPos " + eq.transform.position : "");
+        }
+
+        /// <summary>
+        /// The conditions under which vanilla PlayerInventory.UpdateHotbarSelection reads the number keys and the wheel:
+        /// "open" when all pass, otherwise the failing ones.
+        /// </summary>
+        internal static string HotbarGate(GamePlayerInventory inv)
+        {
+            if (inv == null) return "no-inventory";
+            var shut = new List<string>();
+            if (!inv.HotbarEnabled) shut.Add("hotbarDisabled");
+            if (!inv.EquippingEnabled) shut.Add("equippingDisabled");
+            if (GameInput.IsTyping) shut.Add("typing");
+            try
+            {
+#if IL2CPP
+                var pause = Il2CppScheduleOne.DevUtilities.Singleton<Il2CppScheduleOne.UI.PauseMenu>.Instance;
+                var active = Il2CppScheduleOne.SceneState.ActiveState;
+#else
+                var pause = ScheduleOne.DevUtilities.Singleton<ScheduleOne.UI.PauseMenu>.Instance;
+                var active = ScheduleOne.SceneState.ActiveState;
+#endif
+                if (pause != null && pause.IsPaused) shut.Add("paused");
+                if (active == null) shut.Add("noActiveState");
+                else if (active.Properties.Equipping != GameStateProperties.EEquippingState.Enabled) shut.Add("activeState:" + active.Properties.Equipping);
+            }
+            catch (Exception e) { shut.Add("error:" + e.GetType().Name); Core.Log.Error("[Items] reading the hotbar gate failed: " + e.Message); }
+            return shut.Count == 0 ? "open" : string.Join(",", shut);
         }
 
         /// <summary>What the game's input sees: time scale, GameInput instances, the singleton's held buttons and pending presses.</summary>
@@ -190,6 +268,69 @@ namespace Chassis.Debugging
                 parts.Add((i + 1) + "=" + (it != null && it.Definition != null ? it.Definition.ID + "x" + it.Quantity : "-"));
             }
             return string.Join(" ", parts);
+        }
+
+        /// <summary>
+        /// Every registered item whose first-person equippable prefab has a solid (enabled, non-trigger) collider: the
+        /// items that would push the car while held in a seat without HandItems' collider switch.
+        /// </summary>
+        private static string Solids()
+        {
+            if (!GameRegistry.InstanceExists) return "no Registry";
+            var all = GameRegistry.Instance.GetAllItems();
+            int equippable = 0;
+            var hits = new List<string>();
+            for (int i = 0; i < all.Count; i++)
+            {
+                var def = all[i];
+                if (def == null || def.Equippable == null) continue;
+                equippable++;
+                int n = HandItems.SolidColliders(def.Equippable.gameObject, true);
+                if (n > 0) hits.Add(def.ID + "(" + n + ")");
+            }
+            return hits.Count + " of " + equippable + " equippable item(s) with solid colliders: " + (hits.Count > 0 ? string.Join(" ", hits) : "-");
+        }
+
+        private static int _overlapSteps;
+        private static int _overlapStep;
+        private static readonly HashSet<string> _overlapSeen = new HashSet<string>();
+
+        private static void OverlapStep()
+        {
+            if (_overlapSteps <= 0) { HandItems.DebugFixed = null; return; }
+            _overlapSteps--;
+            _overlapStep++;
+            try
+            {
+                var lp = Player.Local;
+                var car = lp != null && lp.CurrentVehicle != null ? lp.CurrentVehicle.transform : null;
+                if (car == null) { _overlapSteps = 0; Say("items overlap: not in a vehicle"); return; }
+                var mine = car.GetComponentsInChildren<Collider>(false);
+                foreach (var c in mine)
+                {
+                    if (c == null || !c.enabled || c.isTrigger) continue;
+                    var b = c.bounds;
+                    foreach (var o in Physics.OverlapBox(b.center, b.extents + Vector3.one * 0.02f, Quaternion.identity, ~0, QueryTriggerInteraction.Ignore))
+                    {
+                        if (o == null || o.transform.IsChildOf(car)) continue;
+                        if (!Physics.ComputePenetration(c, c.transform.position, c.transform.rotation, o, o.transform.position, o.transform.rotation, out var dir, out var dist)) continue;
+                        string key = c.name + "|" + o.GetInstanceID();
+                        if (!_overlapSeen.Add(key)) continue;
+                        Core.Log.Msg("[Items] overlap step " + _overlapStep + ": car part '" + c.name + "' and '" + Path(o.transform) + "' (" + Interop.TypeName(o)
+                            + ", layer " + LayerMask.LayerToName(o.gameObject.layer) + ", rigidbody " + (o.attachedRigidbody != null ? o.attachedRigidbody.name : "-")
+                            + ") overlap " + dist.ToString("F3", CultureInfo.InvariantCulture) + " m.");
+                    }
+                }
+                if (_overlapSteps == 0) Say("items overlap: done, " + _overlapSeen.Count + " overlap(s)");
+            }
+            catch (Exception e) { _overlapSteps = 0; Core.Log.Error("[Items] overlap watch failed: " + e.Message); }
+        }
+
+        private static string Path(Transform t)
+        {
+            string s = t.name;
+            for (int i = 0; i < 4 && t.parent != null; i++) { t = t.parent; s = t.name + "/" + s; }
+            return s;
         }
 
         /// <summary>Adds items through the local PlayerInventory and reports the hotbar after it, or the error.</summary>
@@ -421,6 +562,41 @@ namespace Chassis.Debugging
         private static readonly Dictionary<GameInput.ButtonCode, int> _held = new Dictionary<GameInput.ButtonCode, int>();
         private static readonly List<GameInput.ButtonCode> _fresh = new List<GameInput.ButtonCode>();
 
+        private static float _scroll;
+        private static int _scrollFrames;
+        private static int _scrollFrom;
+
+        private static int SlotIndex()
+        {
+            var inv = PlayerSingleton<GamePlayerInventory>.Instance;
+            return inv != null ? inv.EquippedSlotIndex : -2;
+        }
+
+        /// <summary>
+        /// The game reads the wheel from a field its input callback fills. Set after the frame's Updates, the value is
+        /// what the next frame's Updates see; one frame later it goes back to zero.
+        /// </summary>
+        private static void TickScroll()
+        {
+            if (_scrollFrames <= 0) return;
+            try
+            {
+                _scrollFrames--;
+                var wheel = new Vector2(0f, _scrollFrames > 0 ? _scroll : 0f);
+#if IL2CPP
+                GameInput.MouseWheelAxis = wheel;
+#else
+                AccessTools.Field(typeof(GameInput), "MouseWheelAxis").SetValue(null, wheel);
+#endif
+                if (_scrollFrames == 0)
+                {
+                    var c = Instruments.Cockpit.Hovered;
+                    Say("items scroll done: slot " + _scrollFrom + " -> " + SlotIndex() + (c != null ? ", hovering '" + c.P.Name + "' (" + c.Kind + ")" : ", no control hovered"));
+                }
+            }
+            catch (Exception e) { _scrollFrames = 0; Core.Log.Error("[Items] debug scroll failed: " + e.Message); }
+        }
+
         private static void Press(GameInput.ButtonCode b, int frames)
         {
             _held[b] = Math.Max(1, frames);
@@ -438,6 +614,7 @@ namespace Chassis.Debugging
             {
                 _lateUpdates++;
                 Track();
+                TickScroll();
                 if (_held.Count == 0) return;
                 try
                 {

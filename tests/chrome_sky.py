@@ -133,9 +133,11 @@ def main():
     if a.no_sky:
         r.check("no sky copy in this build", not r.lines(start, r"chrome sky: copy of the Skybox"))
     else:
-        ready = r.wait_line(start, r"chrome sky: copy of the Skybox", 10)
+        # Both lines come once per game session, so an earlier chrome paint in the same session already wrote them.
+        session = (start[0], 0)
+        ready = r.wait_line(session, r"chrome sky: copy of the Skybox", 10)
         r.check("sky copy made", ready is not None, ready or "no line within 10 s")
-        first = r.wait_line(start, r"chrome sky: first chrome probe render with the sky", 15)
+        first = r.wait_line(session, r"chrome sky: first chrome probe render with the sky", 15)
         r.check("chrome probe renders with the sky", first is not None, first or "no line within 15 s")
         missing = r.lines(start, r"chrome sky: .*(no Skybox|failed|missing)")
         r.check("no sky warning or error", not missing, missing[0] if missing else "")
