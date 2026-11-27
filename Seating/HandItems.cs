@@ -16,7 +16,8 @@ namespace Chassis.Seating
     /// - Placeables (furniture, pots, skateboards) are not taken into the hand.
     /// - Weapons only aim and fire in the first-person view; in the chase view the right mouse button keeps turning the
     ///   camera and the weapon is only held.
-    /// - A hovered cockpit switch or knob takes the click and the scroll, the item and the hotbar do not.
+    /// - A hovered cockpit switch or knob takes the click, the item does not. A hovered knob also takes the mouse wheel;
+    ///   over any other control the wheel still changes the hotbar slot.
     /// - The chase view shows the item in the seated body's hand, not as a first-person viewmodel.
     /// - Trash from reloading and consuming lands outside the window next to the seat.
     /// </summary>
@@ -145,6 +146,7 @@ namespace Chassis.Seating
         }
 
         private static string _blockLogged;
+        private static string _scrollLogged;
 
 #if DEBUG
         internal static int UpdateCalls;
@@ -235,13 +237,19 @@ namespace Chassis.Seating
             if (list != null && list.Remove(b)) taken.Add(b);
         }
 
-        /// <summary>Scrolling over a hovered cockpit knob turns the knob, not the hotbar.</summary>
+        /// <summary>
+        /// Scrolling over a hovered cockpit knob turns the knob, not the hotbar. Switches, buttons and the horn do not
+        /// scroll, so over them the wheel keeps changing the hotbar slot.
+        /// </summary>
         private static bool HotbarPrefix()
         {
             try
             {
-                if (!LocalSeated || Instruments.Cockpit.Hovered == null) return true;
-                return Mathf.Abs(GameInput.MouseScrollDelta) < 0.001f;
+                var hovered = Instruments.Cockpit.Hovered;
+                if (!LocalSeated || hovered == null || hovered.Kind != "knob") return true;
+                if (Mathf.Abs(GameInput.MouseScrollDelta) < 0.001f) return true;
+                if (_scrollLogged != hovered.P.Name) { _scrollLogged = hovered.P.Name; Core.Log.Msg("[Items] mouse wheel turns the knob '" + hovered.P.Name + "', the hotbar keeps its slot."); }
+                return false;
             }
             catch (Exception e) { Core.Log.Error("[Items] hotbar scroll check failed, the hotbar scrolls as vanilla: " + e.Message); return true; }
         }

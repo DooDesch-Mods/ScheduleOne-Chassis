@@ -33,6 +33,14 @@ namespace Chassis.Debugging
                     Press(b, frames);
                     Say("items press: " + b + " for " + frames + " frame(s)");
                     break;
+                case "scroll":
+                    if (p.Length < 4 || !float.TryParse(p[3], NumberStyles.Float, CultureInfo.InvariantCulture, out var notch) || notch == 0f) { Say("items scroll <notches, negative = next slot>"); break; }
+                    _scroll = notch;
+                    _scrollFrames = 2;
+                    _scrollFrom = SlotIndex();
+                    Say("items scroll: wheel " + notch.ToString(CultureInfo.InvariantCulture) + " for one frame, from slot " + _scrollFrom
+                        + (Instruments.Cockpit.Hovered != null ? ", hovering '" + Instruments.Cockpit.Hovered.P.Name + "' (" + Instruments.Cockpit.Hovered.Kind + ")" : ", no control hovered"));
+                    break;
                 case "slot":
                     if (p.Length < 4) { Say("items slot <1-9>"); break; }
                     Slot(int.Parse(p[3], CultureInfo.InvariantCulture));
@@ -127,11 +135,40 @@ namespace Chassis.Debugging
                 + " equippable=" + (eq != null ? Interop.TypeName(eq) : "-") + " avatarItem=" + (avItem != null ? avItem.name + "@" + LayerMask.LayerToName(avItem.gameObject.layer) : "-")
                 + " viewmodel=" + vm + " rightHandIK=" + hand + " gun=" + ammo
                 + " stateEquipping=" + (state != null ? state.Properties.Equipping.ToString() : "-")
+                + " hotbarGate=" + HotbarGate(inv)
                 + " pursuit=" + (lp != null && lp.CrimeData != null ? lp.CrimeData.CurrentPursuitLevel.ToString() + "/" + lp.CrimeData.Crimes.Count : "-")
                 + " playerHp=" + (lp != null && lp.Health != null ? lp.Health.CurrentHealth.ToString("F0", CultureInfo.InvariantCulture) : "-")
                 + " input=" + Input()
                 + " eqUpdates " + HandItems.UpdateCalls + " last " + HandItems.LastUpdated
                 + (eq != null ? " eqEnabled " + eq.enabled + " eqActive " + eq.gameObject.activeInHierarchy + " eqPos " + eq.transform.position : "");
+        }
+
+        /// <summary>
+        /// The conditions under which vanilla PlayerInventory.UpdateHotbarSelection reads the number keys and the wheel:
+        /// "open" when all pass, otherwise the failing ones.
+        /// </summary>
+        internal static string HotbarGate(GamePlayerInventory inv)
+        {
+            if (inv == null) return "no-inventory";
+            var shut = new List<string>();
+            if (!inv.HotbarEnabled) shut.Add("hotbarDisabled");
+            if (!inv.EquippingEnabled) shut.Add("equippingDisabled");
+            if (GameInput.IsTyping) shut.Add("typing");
+            try
+            {
+#if IL2CPP
+                var pause = Il2CppScheduleOne.DevUtilities.Singleton<Il2CppScheduleOne.UI.PauseMenu>.Instance;
+                var active = Il2CppScheduleOne.SceneState.ActiveState;
+#else
+                var pause = ScheduleOne.DevUtilities.Singleton<ScheduleOne.UI.PauseMenu>.Instance;
+                var active = ScheduleOne.SceneState.ActiveState;
+#endif
+                if (pause != null && pause.IsPaused) shut.Add("paused");
+                if (active == null) shut.Add("noActiveState");
+                else if (active.Properties.Equipping != GameStateProperties.EEquippingState.Enabled) shut.Add("activeState:" + active.Properties.Equipping);
+            }
+            catch (Exception e) { shut.Add("error:" + e.GetType().Name); Core.Log.Error("[Items] reading the hotbar gate failed: " + e.Message); }
+            return shut.Count == 0 ? "open" : string.Join(",", shut);
         }
 
         /// <summary>What the game's input sees: time scale, GameInput instances, the singleton's held buttons and pending presses.</summary>
@@ -421,6 +458,41 @@ namespace Chassis.Debugging
         private static readonly Dictionary<GameInput.ButtonCode, int> _held = new Dictionary<GameInput.ButtonCode, int>();
         private static readonly List<GameInput.ButtonCode> _fresh = new List<GameInput.ButtonCode>();
 
+        private static float _scroll;
+        private static int _scrollFrames;
+        private static int _scrollFrom;
+
+        private static int SlotIndex()
+        {
+            var inv = PlayerSingleton<GamePlayerInventory>.Instance;
+            return inv != null ? inv.EquippedSlotIndex : -2;
+        }
+
+        /// <summary>
+        /// The game reads the wheel from a field its input callback fills. Set after the frame's Updates, the value is
+        /// what the next frame's Updates see; one frame later it goes back to zero.
+        /// </summary>
+        private static void TickScroll()
+        {
+            if (_scrollFrames <= 0) return;
+            try
+            {
+                _scrollFrames--;
+                var wheel = new Vector2(0f, _scrollFrames > 0 ? _scroll : 0f);
+#if IL2CPP
+                GameInput.MouseWheelAxis = wheel;
+#else
+                AccessTools.Field(typeof(GameInput), "MouseWheelAxis").SetValue(null, wheel);
+#endif
+                if (_scrollFrames == 0)
+                {
+                    var c = Instruments.Cockpit.Hovered;
+                    Say("items scroll done: slot " + _scrollFrom + " -> " + SlotIndex() + (c != null ? ", hovering '" + c.P.Name + "' (" + c.Kind + ")" : ", no control hovered"));
+                }
+            }
+            catch (Exception e) { _scrollFrames = 0; Core.Log.Error("[Items] debug scroll failed: " + e.Message); }
+        }
+
         private static void Press(GameInput.ButtonCode b, int frames)
         {
             _held[b] = Math.Max(1, frames);
@@ -438,6 +510,7 @@ namespace Chassis.Debugging
             {
                 _lateUpdates++;
                 Track();
+                TickScroll();
                 if (_held.Count == 0) return;
                 try
                 {
