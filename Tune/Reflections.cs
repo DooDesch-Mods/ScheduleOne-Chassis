@@ -8,13 +8,18 @@ namespace Chassis.Tune
 {
     /// <summary>
     /// How sharp and how fresh the chrome mirror is (<see cref="Shine"/>): a "Reflections" row in the game's graphics
-    /// settings, right under "Quality" and built from a copy of it, with the steps Low, Medium, High and Ultra. The value
-    /// lives in MelonPreferences (<c>[Chassis] Reflections</c>), Medium is the look Chassis 1.7 had.
+    /// settings, right under "Quality" and built from a copy of it, with the steps Off, Low, Medium, High and Ultra. The
+    /// value lives in MelonPreferences (<c>[Chassis] Reflections</c>), Medium is the look Chassis 1.7 had.
+    /// Off is stored as -1, so the values 0 to 3 of older versions keep their step. Off renders no chrome probe at all;
+    /// chrome paint then shows the game's own sky light. The car mirrors keep their own row and render at Low.
     /// </summary>
     internal static class Reflections
     {
+        /// <summary>Quality steps, indexed by <see cref="Level"/>.</summary>
         internal static readonly string[] Names = { "Low", "Medium", "High", "Ultra" };
-        private const int DefaultLevel = 1;
+        /// <summary>The settings row: Off first, then <see cref="Names"/>; row index = stored value + 1.</summary>
+        private static readonly string[] RowNames = { "Off", "Low", "Medium", "High", "Ultra" };
+        private const int DefaultLevel = 1, OffValue = -1;
         private const string RowName = "Chassis_Reflections";
 
         /// <summary>Probe size in pixels, per level.</summary>
@@ -35,7 +40,12 @@ namespace Chassis.Tune
 
         private static MelonPreferences_Entry<int> _entry;
 
+        /// <summary>The quality step 0 Low to 3 Ultra; Off counts as Low for the mirrors.</summary>
         internal static int Level => Mathf.Clamp(_entry?.Value ?? DefaultLevel, 0, Names.Length - 1);
+        /// <summary>No chrome probe renders.</summary>
+        internal static bool Off => (_entry?.Value ?? DefaultLevel) <= OffValue;
+        /// <summary>The step as the settings row names it.</summary>
+        internal static string Label => Off ? RowNames[0] : Names[Level];
         internal static int Size => Sizes[Level];
         internal static float StandingEvery => Standing[Level];
         internal static float MovingEvery => Moving[Level];
@@ -47,23 +57,28 @@ namespace Chassis.Tune
             {
                 var cat = MelonPreferences.CreateCategory("Chassis");
                 _entry = cat.CreateEntry("Reflections", DefaultLevel, "Chrome reflections",
-                    "How sharp and how fresh chrome paint and the car mirrors reflect the street: 0 Low, 1 Medium, 2 High, 3 Ultra. Also in the game's graphics settings.");
-                Core.Log.Msg("[Reflections] " + Names[Level] + " (preference Reflections = " + _entry.Value + ").");
+                    "How sharp and how fresh chrome paint and the car mirrors reflect the street: -1 Off, 0 Low, 1 Medium, 2 High, 3 Ultra. Off renders no chrome reflections, the mirrors render at Low. Also in the game's graphics settings.");
+                if (_entry.Value < OffValue || _entry.Value >= Names.Length)
+                    Core.Log.Warning("[Reflections] preference Reflections = " + _entry.Value + " is outside -1 to 3 - " + Label + " is used.");
+                Core.Log.Msg("[Reflections] " + Label + " (preference Reflections = " + _entry.Value + ").");
             }
             catch (Exception e) { Core.Log.Warning("[Reflections] reading the Reflections preference failed - Medium is used: " + e.Message); }
         }
 
+        /// <summary>Sets the step: -1 Off, 0 Low to 3 Ultra.</summary>
         internal static void Set(int level)
         {
-            level = Mathf.Clamp(level, 0, Names.Length - 1);
-            if (_entry == null) { Core.Log.Warning("[Reflections] no preference entry - " + Names[level] + " is not kept."); return; }
-            if (_entry.Value == level) return;
+            level = Mathf.Clamp(level, OffValue, Names.Length - 1);
+            string name = RowNames[level + 1];
+            if (_entry == null) { Core.Log.Warning("[Reflections] no preference entry - " + name + " is not kept."); return; }
+            if (_entry.Value == level) { Core.Log.Msg("[Reflections] already " + name + "."); return; }
             // Set, do not save: MelonPreferences.Save() fires the preference listeners of every installed mod from this
             // callback; MelonLoader writes the value when the game closes.
             _entry.Value = level;
             Shine.Restyle();
             Interior.Mirrors.Restyle();
-            Core.Log.Msg("[Reflections] set to " + Names[level] + ": probes " + Size + " px, " + TimeSlicing + ", standing every " + StandingEvery + " s.");
+            if (Off) Core.Log.Msg("[Reflections] set to Off: no chrome probe renders, mirrors at Low.");
+            else Core.Log.Msg("[Reflections] set to " + name + ": probes " + Size + " px, " + TimeSlicing + ", standing every " + StandingEvery + " s.");
         }
 
         // ---- the settings row --------------------------------------------------------------------------------------
@@ -98,7 +113,7 @@ namespace Chassis.Tune
         {
             Transform quality = SettingsRow.RowOf(dropdownOwner);
             if (quality == null) { Core.Log.Warning("[Reflections] no layout group above the Quality dropdown - no Reflections or Mirrors row."); return; }
-            var reflections = SettingsRow.Add(quality, quality, RowName, "Reflections", Names, Level, Set, "[Reflections]");
+            var reflections = SettingsRow.Add(quality, quality, RowName, "Reflections", RowNames, Off ? 0 : Level + 1, i => Set(i - 1), "[Reflections]");
             if (reflections == null) return;
             SettingsRow.Add(quality, reflections, MirrorMode.RowName, "Mirrors", MirrorMode.Names, MirrorMode.Mode, MirrorMode.Set, "[Mirror]");
         }

@@ -45,7 +45,8 @@
 - **Mirrors:** Every vanilla car gets a live rear-view mirror and two side mirrors. The graphics
   settings have a Mirrors row below Reflections: Off, Rear Only, Rear + Side (default) or + Nearby
   Cars, which also renders the mirrors of up to three cars within 15 m, on foot too. Reflections
-  sets how sharp the mirrors are.
+  sets how sharp the mirrors are; Off turns the chrome paint reflections off for weaker GPUs and
+  the Steam Deck.
 - **Working dashboard:** The speedometer and the rev counter move, and lamps show the indicators
   and the headlights. In first person, look at a switch and left-click it: light switch, hazard
   lights, indicator stalk (also with the mouse wheel) and the horn in the wheel centre.
@@ -138,7 +139,7 @@ Settings live in `UserData/MelonPreferences.cfg` under `Chassis`.
 | `BaseInterior` | `true` | Seats, dashboard, steering wheel and tinted glass for the vanilla cars, and visible NPC drivers. |
 | `SpeedUnit` | `kmh` | `kmh` or `mph`: the speedometer and the odometer. |
 | `Mirrors` | `2` | Which mirrors render: `0` Off, `1` Rear Only, `2` Rear + Side, `3` + Nearby Cars. Also in the graphics settings. |
-| `Reflections` | `1` | How sharp chrome paint and the mirrors reflect: `0` Low to `3` Ultra. Also in the graphics settings. |
+| `Reflections` | `1` | How sharp chrome paint and the mirrors reflect: `-1` Off, `0` Low to `3` Ultra. Off renders no chrome reflections and the mirrors at Low. Also in the graphics settings. |
 | `StartInFirstPerson` | `false` | `true` starts every seat in first person. `false` starts in the view you had when you last got out. |
 | `HeadFollowsView` | `true` | Seated players turn their heads where they look. `false` brings back the vanilla look, where heads turn towards the nearest player. Applies to what you see on your screen. |
 | `HandReachesForSwitches` | `true` | Your hand reaches for the light switch, cabin light, glovebox and ignition before the switch goes. `false` switches at once, without the short delay, and the other players see no reach. |

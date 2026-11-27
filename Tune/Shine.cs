@@ -69,7 +69,7 @@ namespace Chassis.Tune
             var p = Make(c.V, out string layers);
             if (p == null) return;
             _probes[key] = new Entry { V = c.V, P = p, Last = c.V.transform.position };
-            Core.Log.Msg("[Tuning] " + Registry.Name(c.V) + ": chrome reflections on (probe " + Reflections.Size + " px, " + p.size.x.ToString("F1") + " m, the car's layers " + layers + " left out).");
+            Core.Log.Msg("[Tuning] " + Registry.Name(c.V) + ": chrome reflections " + (Reflections.Off ? "made but off (Reflections Off)" : "on") + " (probe " + Reflections.Size + " px, " + p.size.x.ToString("F1") + " m, the car's layers " + layers + " left out).");
         }
 
         private static ReflectionProbe Make(LandVehicle v, out string layers)
@@ -117,6 +117,8 @@ namespace Chassis.Tune
             // The box stays around the car; its centre is measured from the probe, which sits above it.
             p.center = new Vector3(0f, world.center.y - go.transform.position.y, 0f);
             p.importance = 100;
+            // Reflections Off: the probe waits disabled, so switching the level back on needs no repaint.
+            p.enabled = !Reflections.Off;
             p.cullingMask = mask;
             p.nearClipPlane = 0.3f;
             p.farClipPlane = FarClip;
@@ -226,7 +228,7 @@ namespace Chassis.Tune
         /// </summary>
         internal static void Tick()
         {
-            if (_probes.Count == 0) return;
+            if (_probes.Count == 0 || Reflections.Off) return;
             var cam = Camera.main;
             float now = Time.unscaledTime;
             Entry due = null;
@@ -306,7 +308,7 @@ namespace Chassis.Tune
             var renders = new List<string>();
             var cam = Camera.main;
             foreach (var e in _probes.Values)
-                if (e.P != null && e.V != null) renders.Add(Registry.Name(e.V) + " x" + e.Renders + (cam != null ? " at " + Vector3.Distance(cam.transform.position, e.V.transform.position).ToString("F0") + " m" : ""));
+                if (e.P != null && e.V != null) renders.Add(Registry.Name(e.V) + " x" + e.Renders + (e.P.enabled ? "" : " disabled") + (cam != null ? " at " + Vector3.Distance(cam.transform.position, e.V.transform.position).ToString("F0") + " m" : ""));
             return "probe mask 0x" + first.P.cullingMask.ToString("X8") + "; layers within " + FarAway + " m: " + string.Join(", ", parts) + "; renders: " + string.Join(", ", renders);
         }
 #endif
@@ -322,13 +324,14 @@ namespace Chassis.Tune
                 {
                     e.P.resolution = Reflections.Size;
                     e.P.timeSlicingMode = Reflections.TimeSlicing;
+                    e.P.enabled = !Reflections.Off;
                     e.Render = 0;
                     e.Rendered = false;
                     n++;
                 }
                 catch (Exception ex) { Core.Log.Error("[Tuning] restyling the chrome probe of " + Registry.Name(e.V) + " failed: " + ex.Message); }
             }
-            Core.Log.Msg("[Tuning] " + n + " chrome probe(s) now " + Reflections.Size + " px, " + Reflections.TimeSlicing + ".");
+            Core.Log.Msg("[Tuning] " + n + " chrome probe(s) now " + (Reflections.Off ? "off, the chrome shows the game's sky light" : Reflections.Size + " px, " + Reflections.TimeSlicing) + ".");
         }
 
         internal static void Reset()

@@ -1,8 +1,8 @@
 """
 The Mirrors row in the game's graphics settings: goes to the main menu, opens Settings > Graphics through the event
 system's raycast, checks that the Reflections and Mirrors rows are there and that Mirrors shows the current mode, picks
-Rear Only from the dropdown, checks the `[Mirror] mode set to Rear Only.` line, sets Rear + Side back the same way and
-loads the save again. Prints PASS or FAIL per check.
+Rear Only from the dropdown, checks the `[Mirror] mode set to Rear Only.` line, sets Rear + Side back the same way,
+then picks Reflections Off and Medium the same way and loads the save again. Prints PASS or FAIL per check.
 
     python settings_row.py --slot mptest5 --label dev --save 5
 
@@ -60,12 +60,12 @@ def mirrors_row(g):
     return [e for e in find(g, "Chassis_Mirrors") if (e.get("path") or "").endswith("Chassis_Mirrors/Dropdown")]
 
 
-def pick(r, option):
-    """Opens the Mirrors dropdown and clicks one of its options."""
+def pick(r, option, row="Chassis_Mirrors"):
+    """Opens a Chassis dropdown (Mirrors unless `row` says otherwise) and clicks one of its options."""
     if not list_closed(r.g):
         r.note("dropdown list still open after 3 s")
         return False
-    if not click(r, "Chassis_Mirrors"):
+    if not click(r, row):
         return False
     time.sleep(0.5)
     items = [e for e in find(r.g, option) if "Item" in (e.get("path") or "")]
@@ -126,6 +126,22 @@ def main():
     row = mirrors_row(g)
     r.check("Mirrors row shows Rear + Side again", bool(row) and "Rear + Side" in (row[0].get("label") or ""),
             row[0].get("label") if row else "not found")
+
+    # Reflections Off sits above Low in the same row (#79); picking it and Medium again goes through the dropdown.
+    mark = r.mark()
+    r.check("Reflections Off picked in the dropdown", pick(r, "Off", row="Chassis_Reflections"))
+    line = r.wait_line(mark, r"\[Reflections\] set to Off", 3)
+    r.check("Reflections set to Off logged", line is not None, line or "no line")
+    r.check("Reflections list closes", list_closed(g))
+    refl = find(g, "Chassis_Reflections")
+    label = next((e.get("label") or "" for e in refl if (e.get("path") or "").endswith("Chassis_Reflections/Dropdown")), "")
+    r.check("Reflections row shows Off", label.strip() == "Off", label or str(refl[:1]))
+    r.shot("settings-reflections-off")
+    mark = r.mark()
+    r.check("Reflections Medium picked in the dropdown", pick(r, "Medium", row="Chassis_Reflections"))
+    line = r.wait_line(mark, r"\[Reflections\] set to Medium", 3)
+    r.check("Reflections set to Medium logged", line is not None, line or "no line")
+    r.check("Reflections list closes again", list_closed(g))
 
     errors = r.lines(start, r"\[Chassis\].*(Exception|\[Error\]|ERROR)|Exception.*Chassis|\[Mirror\].*failed")
     r.check("no Chassis exception or mirror error", not errors, errors[0] if errors else "")
