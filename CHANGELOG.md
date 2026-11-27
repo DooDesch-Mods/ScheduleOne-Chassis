@@ -4,6 +4,17 @@ All notable changes to Chassis are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.14.0] - 2026-11-28
+
+### Added
+- Reflections "Off" in the graphics settings for weaker GPUs and the Steam Deck: no chrome reflections, mirrors at Low.
+- A log warning names the other mod when two mods steer the same car, to find the cause of twitching front wheels.
+
+### Fixed
+- The mouse wheel changes the hotbar slot again while you look at the horn, the glovebox or a switch. Only a knob
+  under the cursor takes the wheel.
+- Holding an item in a car seat, like the energy drink or the bat, no longer pushes the car away.
+
 ## [1.13.1] - 2026-11-17
 
 ### Added
